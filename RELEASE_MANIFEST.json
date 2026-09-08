@@ -1,0 +1,13 @@
+{
+  "application": "GODSEYE",
+  "block": "persistent-intelligence-and-topology",
+  "docker_required": false,
+  "features": [
+    "SQLite intelligence store",
+    "multi-source correlation",
+    "persistent observations",
+    "persistent findings",
+    "topology links",
+    "explainable inference"
+  ]
+}
