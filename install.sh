@@ -98,7 +98,25 @@ RestartSec=3
 WantedBy=multi-user.target
 EOF
 
-systemctl daemon-reload
+echo
+if [[ "$FIRST_INSTALL" == "1" ]]; then
+  echo '=================================================================='
+  if [[ "$PASSWORD_WAS_GENERATED" == "1" ]]; then
+    echo 'First-time setup - a random admin password was generated'
+    echo '(also saved to /etc/godseye.env):'
+    echo "  Username: ${ADMIN_USER}"
+    echo "  Password: ${ADMIN_PASSWORD}"
+    echo 'Save this password now - it is not printed again.'
+  else
+    echo "First-time setup - using the GODSEYE_ADMIN_USER/GODSEYE_ADMIN_PASSWORD"
+    echo "you provided (saved to /etc/godseye.env)."
+  fi
+  echo 'You have a few days to change this password before GODSEYE starts'
+  echo 'requiring it - see the dashboard after logging in.'
+  echo '=================================================================='
+fi
+
+
 systemctl enable godseye-web.service
 systemctl restart godseye-web.service
 sleep 2
