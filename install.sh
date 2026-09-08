@@ -21,6 +21,33 @@ if [[ "${1:-}" == "--doctor" ]]; then
   exit 0
 fi
 
+# --- Admin credentials -------------------------------------------------
+# No fixed default password is shipped. If GODSEYE_ADMIN_USER and/or
+# GODSEYE_ADMIN_PASSWORD are already set in the environment this script is
+# run with (e.g. exported by your own client-provisioning template),
+# those values are used as-is. Otherwise a random password is generated
+# fresh for this install - there is no window where a well-known default
+# is live, even briefly.
+if [[ ! -f "$ENV_FILE" ]]; then
+  FIRST_INSTALL=1
+  ADMIN_USER="${GODSEYE_ADMIN_USER:-GodsEye}"
+  if [[ -n "${GODSEYE_ADMIN_PASSWORD:-}" ]]; then
+    ADMIN_PASSWORD="$GODSEYE_ADMIN_PASSWORD"
+    PASSWORD_WAS_GENERATED=0
+  else
+    ADMIN_PASSWORD=$(openssl rand -base64 18 | tr -d '=+/' | cut -c1-20)
+    PASSWORD_WAS_GENERATED=1
+  fi
+  cat > "$ENV_FILE" <<EOF
+GODSEYE_ADMIN_USER=${ADMIN_USER}
+GODSEYE_ADMIN_PASSWORD=${ADMIN_PASSWORD}
+EOF
+  chown root:root "$ENV_FILE"
+  chmod 600 "$ENV_FILE"
+else
+  FIRST_INSTALL=0
+fi
+
 [[ $EUID -eq 0 ]] || { echo "Run with sudo."; exit 1; }
 
 apt-get update
