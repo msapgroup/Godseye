@@ -31,7 +31,7 @@ fi
 if [[ ! -f "$ENV_FILE" ]]; then
   FIRST_INSTALL=1
   ADMIN_USER="${GODSEYE_ADMIN_USER:-GodsEye}"
-  if [[ -n "${GODSEYE_ADMIN_PASSWORD:-}" ]]; then
+  if [[ -n "${GODSEYE_ADMIN_PASSWORD:-GodsEye}" ]]; then
     ADMIN_PASSWORD="$GODSEYE_ADMIN_PASSWORD"
     PASSWORD_WAS_GENERATED=0
   else
