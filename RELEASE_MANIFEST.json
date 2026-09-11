@@ -1,0 +1,20 @@
+{
+  "name": "GODSEYE",
+  "version": "2.1.0-device-naming-pihole-v6",
+  "release": "Device Naming and Pi-hole v6 Authentication",
+  "features": [
+    "device_name_unknown_devices",
+    "device_rename_known_devices",
+    "inventory_rename_modal",
+    "device_detail_rename",
+    "pihole_v6_application_password_auth",
+    "pihole_sid_exchange",
+    "pihole_legacy_token_fallback",
+    "pihole_tls_verification_toggle",
+    "pihole_test_and_sync",
+    "github_actions_ci_dependency_fix"
+  ],
+  "tests_expected": 42,
+  "audit_helper": "godseye-release-audit",
+  "block": "device-naming-pihole-v6-auth"
+}
