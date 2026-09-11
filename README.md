@@ -5,11 +5,11 @@ GODSEYE now samples live RX/TX traffic from the Raspberry Pi default network int
 
 # GODSEYE
 
-GODSEYE is a local-first Raspberry Pi 4 network monitoring, discovery, diagnostics, and troubleshooting appliance.
+GODSEYE is a local-first Raspberry Pi 4 network monitoring, discovery, diagnostics, and troubleshooting appliance inspired by Pi.Alert and the feature set of NetAlertX.
 
 ## This working copy
 
-This distribution keeps the existing GODSEYE authentication, MFA, device inventory, event history, alert rules, notifications, scanner health, and privilege separation, and  functionality without Docker.
+This distribution keeps the existing GODSEYE authentication, MFA, device inventory, event history, alert rules, notifications, scanner health, and privilege separation, and adds the foundation for broader NetAlertX-style functionality without Docker.
 
 ### Device Intelligence block
 
