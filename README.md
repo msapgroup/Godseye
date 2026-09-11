@@ -9,7 +9,7 @@ GODSEYE is a local-first Raspberry Pi 4 network monitoring, discovery, diagnosti
 
 ## This working copy
 
-This distribution keeps the existing GODSEYE authentication, MFA, device inventory, event history, alert rules, notifications, scanner health, and privilege separation, and adds the foundation for broader NetAlertX-style functionality without Docker.
+This distribution keeps the existing GODSEYE authentication, MFA, device inventory, event history, alert rules, notifications, scanner health, and privilege separation, and  functionality without Docker.
 
 ### Device Intelligence block
 
