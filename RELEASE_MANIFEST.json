@@ -1,0 +1,23 @@
+{
+  "name": "GODSEYE",
+  "version": "3.4.0-device-cleanup-expanded-alert-rules",
+  "release": "Device Cleanup and Expanded Alert Rules",
+  "features": [
+    "device_inventory_individual_delete",
+    "offline_device_bulk_cleanup",
+    "old_device_bulk_cleanup",
+    "protected_device_cleanup_exclusion",
+    "audit_preserving_device_cleanup",
+    "expanded_alert_rule_types",
+    "ip_change_burst_rule",
+    "reconnect_burst_rule",
+    "offline_count_rule",
+    "scanner_stale_rule",
+    "classification_count_rule",
+    "dynamic_login_version",
+    "unified_fresh_upgrade_installer"
+  ],
+  "tests_expected": 92,
+  "audit_helper": "godseye-release-audit",
+  "block": "device-cleanup-expanded-alert-rules"
+}
