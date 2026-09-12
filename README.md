@@ -5,11 +5,11 @@ GODSEYE now samples live RX/TX traffic from the Raspberry Pi default network int
 
 # GODSEYE
 
-GODSEYE is a local-first Raspberry Pi 4 network monitoring, discovery, diagnostics, and troubleshooting appliance.
+GODSEYE is a local-first Raspberry Pi 4 network monitoring, discovery, diagnostics, and troubleshooting appliance inspired by Pi.Alert and the feature set of NetAlertX.
 
 ## This working copy
 
-This distribution keeps the existing GODSEYE authentication, MFA, device inventory, event history, alert rules, notifications, scanner health, and privilege separation.
+This distribution keeps the existing GODSEYE authentication, MFA, device inventory, event history, alert rules, notifications, scanner health, and privilege separation, and adds the foundation for broader NetAlertX-style functionality without Docker.
 
 ### Device Intelligence block
 
@@ -180,3 +180,8 @@ The Network Map now uses the realistic device icon library, status-aware topolog
 ## v2.7.0 — Device Icon Picker Fix
 
 The device icon selector now opens on **All Icons**, displays the full realistic icon library, and uses cache-busted asset URLs so upgraded installations do not show stale older artwork.
+
+
+## v2.8.0 — Device Detail Fix + Unified Installer/Updater
+
+Fixes the dedicated Device Details page crash caused by a missing `deviceIconAsset()` helper. `install.sh` is now a unified installer/upgrader: run the same command for a fresh installation or an in-place upgrade. Upgrades preserve GODSEYE data, the existing environment file, TLS material, backups, and configuration while creating a pre-upgrade SQLite backup and refreshing the application/virtual environment.
