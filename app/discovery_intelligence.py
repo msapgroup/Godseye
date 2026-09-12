@@ -282,7 +282,7 @@ def build_live_topology(c):
         node_id = d.get("mac") or d.get("ip") or f"device:{d['id']}"
         known_ids.add(node_id)
         nodes.append({"id":node_id,"device_id":d["id"],"label":d.get("name") or d.get("hostname") or d.get("vendor") or "Device",
-                      "type":d.get("device_type") or "device","ip":d.get("ip"),"mac":d.get("mac"),"vendor":d.get("vendor"),"status":d.get("status")})
+                      "classification":d.get("classification"),"icon_key":d.get("icon_key") or "auto","icon_data":d.get("icon_data")})
     persisted = [dict(r) for r in c.execute("SELECT * FROM topology_links ORDER BY last_seen DESC")]
     children = set()
     for row in persisted:

@@ -171,3 +171,8 @@ Device Inventory now uses recognizable device icons instead of the generic dot. 
 ## v2.5.0 — Realistic Device Icon Picker
 
 Device icons now use shaded hardware-style illustrations and the icon editor opens as a centered modal overlay with device preview and category tabs. Additional Firewall, Modem, VoIP Phone, Network Storage, and Patch Panel presets are included. See `DEVICE_ICONS_REALISTIC_MODAL_RELEASE_NOTES.md`.
+
+
+## v2.6.0 — Realistic Network Map
+
+The Network Map now uses the realistic device icon library, status-aware topology links, filters, search, selectable device details, connected-device lists, and multiple layout modes.
