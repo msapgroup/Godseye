@@ -105,20 +105,21 @@ jobs:
           foreach ($f in @('GODSEYE.WindowsAgent.exe','GODSEYE-Windows-Agent-x64.msi','GODSEYE-Windows-Agent-x64.msi.sha256','update-manifest.json','GODSEYE-Windows-Agent-x64-Setup.exe','GODSEYE-Windows-Agent-x64-Setup.exe.sha256')) {
             Copy-Item (Join-Path 'windows/agent-x64' $f) (Join-Path $stage 'windows/agent-x64' $f) -Force
           }
-          @'
-GODSEYE v4.24.0
-
-Fresh install:
-  sudo bash ./install.sh --fresh
-
-Upgrade an existing GODSEYE installation:
-  sudo bash ./install.sh --upgrade
-
-Auto-detect install vs upgrade:
-  sudo bash ./install.sh
-
-Upgrade mode preserves /var/lib/godseye and /etc/godseye.env and creates a pre-upgrade database backup.
-'@ | Set-Content (Join-Path $stage 'INSTALL-UPGRADE.txt') -Encoding ascii
+          $instructions = @(
+            'GODSEYE v4.24.0',
+            '',
+            'Fresh install:',
+            '  sudo bash ./install.sh --fresh',
+            '',
+            'Upgrade an existing GODSEYE installation:',
+            '  sudo bash ./install.sh --upgrade',
+            '',
+            'Auto-detect install vs upgrade:',
+            '  sudo bash ./install.sh',
+            '',
+            'Upgrade mode preserves /var/lib/godseye and /etc/godseye.env and creates a pre-upgrade database backup.'
+          )
+          Set-Content (Join-Path $stage 'INSTALL-UPGRADE.txt') -Value $instructions -Encoding ascii
           Compress-Archive -Path (Join-Path $stage '*') -DestinationPath 'GODSEYE-v4.24.0-full-upgrade.zip' -CompressionLevel Optimal
           $hash=(Get-FileHash 'GODSEYE-v4.24.0-full-upgrade.zip' -Algorithm SHA256).Hash.ToUpperInvariant()
           Set-Content 'GODSEYE-v4.24.0-full-upgrade.zip.sha256' $hash -Encoding ascii
