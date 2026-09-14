@@ -519,6 +519,7 @@ namespace Godseye.WindowsAgent
         struct PROCESS_INFORMATION { public IntPtr hProcess; public IntPtr hThread; public uint dwProcessId; public uint dwThreadId; }
         [DllImport("kernel32.dll")] static extern uint WTSGetActiveConsoleSessionId();
         [DllImport("Wtsapi32.dll", SetLastError=true)] static extern bool WTSQueryUserToken(uint SessionId, out IntPtr phToken);
+        [DllImport("Wtsapi32.dll", CharSet=CharSet.Unicode, SetLastError=true)] static extern bool WTSSendMessage(IntPtr hServer, int SessionId, string pTitle, int TitleLength, string pMessage, int MessageLength, int Style, int Timeout, out int pResponse, bool bWait);
         [DllImport("advapi32.dll", CharSet=CharSet.Unicode, SetLastError=true)] static extern bool CreateProcessAsUser(IntPtr hToken, string lpApplicationName, System.Text.StringBuilder lpCommandLine, IntPtr lpProcessAttributes, IntPtr lpThreadAttributes, bool bInheritHandles, uint dwCreationFlags, IntPtr lpEnvironment, string lpCurrentDirectory, ref STARTUPINFO lpStartupInfo, out PROCESS_INFORMATION lpProcessInformation);
         [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr hObject);
         [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern int MessageBox(IntPtr hWnd, string text, string caption, uint type);
@@ -531,7 +532,8 @@ namespace Godseye.WindowsAgent
         {
             if (args.Length < 3) return 64;
             string pipeName = args[1]; string requestedBy = args[2];
-            if (!TrayApp.ShowConsentDialog(requestedBy)) return 2;
+            bool consentAlreadyGranted = args.Length > 3 && args[3].Equals("--consent-granted", StringComparison.OrdinalIgnoreCase);
+            if (!consentAlreadyGranted && !TrayApp.ShowConsentDialog(requestedBy)) return 2;
             try
             {
                 while (true)
@@ -584,14 +586,25 @@ namespace Godseye.WindowsAgent
             return new Dictionary<string,object>{{"ok",false},{"error","Unsupported remote helper request"}};
         }
 
-        void LaunchRemoteHelper(string pipeName, string requestedBy)
+        bool RequestRemoteConsent(uint sessionId, string requestedBy)
         {
-            uint sessionId=WTSGetActiveConsoleSessionId(); if(sessionId==INVALID_SESSION_ID)throw new Exception("No interactive Windows session is signed in.");
+            string title = "GODSEYE Remote Access";
+            string who = String.IsNullOrWhiteSpace(requestedBy) ? "administrator" : requestedBy;
+            string message = "A GODSEYE administrator (" + who + ") is requesting to view and control this computer.\r\n\r\nSelect Yes to allow this remote session or No to deny it.";
+            int response;
+            bool sent = WTSSendMessage(IntPtr.Zero, unchecked((int)sessionId), title, title.Length * 2, message, message.Length * 2, unchecked((int)(MB_YESNO | MB_ICONINFORMATION | MB_TOPMOST)), 60, out response, true);
+            if (!sent) throw new Exception("Could not display the GODSEYE approval prompt in the signed-in Windows session (" + Marshal.GetLastWin32Error() + ").");
+            Log("Remote support approval response from Windows session " + sessionId + ": " + response);
+            return response == IDYES;
+        }
+
+        void LaunchRemoteHelper(string pipeName, string requestedBy, uint sessionId)
+        {
             IntPtr token=IntPtr.Zero; if(!WTSQueryUserToken(sessionId,out token))throw new Exception("Could not obtain the signed-in Windows user token ("+Marshal.GetLastWin32Error()+").");
             try
             {
                 string exe=Environment.ProcessPath; if(String.IsNullOrWhiteSpace(exe))throw new Exception("Agent executable path is unavailable."); requestedBy=(requestedBy??"administrator").Replace("\"","'");
-                var cmd=new System.Text.StringBuilder("\""+exe+"\" --remote-helper \""+pipeName+"\" \""+requestedBy+"\""); STARTUPINFO si=new STARTUPINFO();si.cb=Marshal.SizeOf(typeof(STARTUPINFO));si.lpDesktop=@"winsta0\default"; PROCESS_INFORMATION pi;
+                var cmd=new System.Text.StringBuilder("\""+exe+"\" --remote-helper \""+pipeName+"\" \""+requestedBy+"\" --consent-granted"); STARTUPINFO si=new STARTUPINFO();si.cb=Marshal.SizeOf(typeof(STARTUPINFO));si.lpDesktop=@"winsta0\default"; PROCESS_INFORMATION pi;
                 if(!CreateProcessAsUser(token,exe,cmd,IntPtr.Zero,IntPtr.Zero,false,CREATE_UNICODE_ENVIRONMENT,IntPtr.Zero,Path.GetDirectoryName(exe),ref si,out pi))throw new Exception("Could not launch the interactive GODSEYE helper ("+Marshal.GetLastWin32Error()+").");
                 remoteHelperProcessId=(int)pi.dwProcessId; CloseHandle(pi.hThread);CloseHandle(pi.hProcess);
             }
@@ -606,7 +619,17 @@ namespace Godseye.WindowsAgent
 
         void StartRemoteSession(AgentConfig cfg, long sessionId, string requestedBy)
         {
-            StopRemoteSession(); remoteStop=false; remoteSessionId=sessionId; remotePipeName="GODSEYE-Remote-"+sessionId+"-"+Guid.NewGuid().ToString("N"); LaunchRemoteHelper(remotePipeName,requestedBy);
+            StopRemoteSession();
+            uint windowsSessionId = WTSGetActiveConsoleSessionId();
+            if (windowsSessionId == INVALID_SESSION_ID) throw new Exception("No interactive Windows session is signed in.");
+            Log("Remote support request " + sessionId + " targeting Windows session " + windowsSessionId + ".");
+            if (!RequestRemoteConsent(windowsSessionId, requestedBy))
+            {
+                try { Post(cfg,"/api/v1/windows-agents/remote/sessions/"+sessionId+"/state",new Dictionary<string,object>{{"status","denied"},{"error","The signed-in Windows user denied remote access."}},ReadApiKey()); } catch {}
+                throw new Exception("The signed-in Windows user denied remote access.");
+            }
+            remoteStop=false; remoteSessionId=sessionId; remotePipeName="GODSEYE-Remote-"+sessionId+"-"+Guid.NewGuid().ToString("N");
+            LaunchRemoteHelper(remotePipeName,requestedBy,windowsSessionId);
             remoteWorker=new Thread(()=>RemoteSessionLoop(cfg,sessionId,remotePipeName)){IsBackground=true,Name="GODSEYE Remote Support"}; remoteWorker.Start();
         }
 
