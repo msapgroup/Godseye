@@ -2,14 +2,14 @@
 #define MyAppVersion "2.0.1"
 #define MyAppPublisher "MSAPGROUP LLC"
 #define MyAppExeName "GODSEYE.WindowsAgent.exe"
+#define MyMsiName "GODSEYE-Windows-Agent-x64.msi"
 
 [Setup]
 AppId={{E3BB8C4D-52AF-44D2-A6A9-4E6418F04D2F}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
-DefaultDirName={autopf64}\GODSEYE\Windows Agent
-DefaultGroupName=GODSEYE
+CreateAppDir=no
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=admin
@@ -18,17 +18,13 @@ SolidCompression=yes
 WizardStyle=modern
 OutputDir=output
 OutputBaseFilename=GODSEYE-Windows-Agent-x64-Setup
-UninstallDisplayName={#MyAppName}
 SetupLogging=yes
 CloseApplications=no
 RestartApplications=no
-UsePreviousAppDir=yes
+Uninstallable=no
 
 [Files]
-Source: "..\publish\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
-
-[Icons]
-Name: "{group}\GODSEYE Agent Log"; Filename: "notepad.exe"; Parameters: """{commonappdata}\GODSEYE\Agent\agent.log"""
+Source: "..\{#MyMsiName}"; Flags: dontcopy
 
 [Code]
 var
@@ -46,20 +42,19 @@ begin
   Result := DataDir() + '\agent.json';
 end;
 
-function ServiceExists(): Boolean;
-var
-  ResultCode: Integer;
+function AgentExePath(): String;
 begin
-  Result := Exec(ExpandConstant('{sys}\sc.exe'), 'query GODSEYEWindowsAgent', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0);
+  Result := ExpandConstant('{autopf64}\GODSEYE Agent\{#MyAppExeName}');
 end;
 
 procedure InitializeWizard;
 begin
   ExistingConfig := FileExists(ConfigPath());
-  ConfigPage := CreateInputQueryPage(wpSelectDir,
+
+  ConfigPage := CreateInputQueryPage(wpWelcome,
     'Connect to GODSEYE',
     'Enroll this Windows computer with GODSEYE',
-    'Enter the GODSEYE server URL and a one-time Windows Agent enrollment token.');
+    'Enter the GODSEYE server URL and a one-time Windows Agent enrollment token. Existing installations keep their current enrollment automatically.');
   ConfigPage.Add('GODSEYE URL:', False);
   ConfigPage.Add('Enrollment token:', True);
   ConfigPage.Values[0] := 'https://';
@@ -89,6 +84,7 @@ begin
       Result := False;
       exit;
     end;
+
     if (Pos('https://', Lowercase(Trim(ConfigPage.Values[0]))) <> 1) and
        (Pos('http://', Lowercase(Trim(ConfigPage.Values[0]))) <> 1) then
     begin
@@ -96,6 +92,7 @@ begin
       Result := False;
       exit;
     end;
+
     if Pos('http://', Lowercase(Trim(ConfigPage.Values[0]))) = 1 then
     begin
       if MsgBox('This GODSEYE URL uses unencrypted HTTP. Use this only on a trusted LAN. Continue?', mbConfirmation, MB_YESNO) <> IDYES then
@@ -104,6 +101,7 @@ begin
         exit;
       end;
     end;
+
     if Trim(ConfigPage.Values[1]) = '' then
     begin
       MsgBox('Enter a one-time Windows Agent enrollment token from GODSEYE.', mbError, MB_OK);
@@ -113,65 +111,42 @@ begin
   end;
 end;
 
-function PrepareToInstall(var NeedsRestart: Boolean): String;
-var
-  ResultCode: Integer;
-begin
-  Result := '';
-  if ServiceExists() then
-  begin
-    Exec(ExpandConstant('{sys}\sc.exe'), 'stop GODSEYEWindowsAgent', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-    Sleep(2500);
-    Exec(ExpandConstant('{sys}\sc.exe'), 'delete GODSEYEWindowsAgent', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-    Sleep(1000);
-  end;
-end;
-
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   ResultCode: Integer;
+  MsiPath: String;
   Params: String;
   ExePath: String;
 begin
-  if CurStep <> ssPostInstall then exit;
+  if CurStep <> ssPostInstall then
+    exit;
 
-  ForceDirectories(DataDir());
-  ExePath := ExpandConstant('{app}\{#MyAppExeName}');
+  ExtractTemporaryFile('{#MyMsiName}');
+  MsiPath := ExpandConstant('{tmp}\{#MyMsiName}');
+
+  { The MSI is the sole owner of files, service registration, repair, upgrades,
+    and uninstall. This bootstrapper only supplies first-install enrollment UI. }
+  Params := '/i "' + MsiPath + '" /qn /norestart';
+  if not Exec(ExpandConstant('{sys}\msiexec.exe'), Params, '', SW_SHOW, ewWaitUntilTerminated, ResultCode) or
+     ((ResultCode <> 0) and (ResultCode <> 3010)) then
+    RaiseException('Windows Installer could not install GODSEYE Windows Agent. msiexec exit code: ' + IntToStr(ResultCode));
 
   if not ExistingConfig then
   begin
+    ExePath := AgentExePath();
+    if not FileExists(ExePath) then
+      RaiseException('GODSEYE Windows Agent was installed, but the service executable was not found at ' + ExePath);
+
     Params := '--configure --server-url "' + Trim(ConfigPage.Values[0]) + '" --enrollment-token "' + Trim(ConfigPage.Values[1]) + '" --skip-tls-verify ';
     if TlsPage.SelectedValueIndex = 0 then
       Params := Params + 'false'
     else
       Params := Params + 'true';
+
     if not Exec(ExePath, Params, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
-      RaiseException('Could not configure the GODSEYE Windows Agent. Installer exit code: ' + IntToStr(ResultCode));
+      RaiseException('The Windows Agent MSI installed successfully, but first-time GODSEYE configuration failed. Agent exit code: ' + IntToStr(ResultCode));
   end;
 
-  Exec(ExpandConstant('{sys}\icacls.exe'), '"' + DataDir() + '" /inheritance:r /grant:r "SYSTEM:(OI)(CI)F" "Administrators:(OI)(CI)F"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-
-  { Exec passes Params directly to CreateProcess. sc.exe needs the service binary path
-    quoted exactly once because the default install directory contains spaces. }
-  Params := 'create GODSEYEWindowsAgent binPath= "' + ExePath + '" start= auto DisplayName= "GODSEYE Windows Agent"';
-  if not Exec(ExpandConstant('{sys}\sc.exe'), Params, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
-    RaiseException('Could not create GODSEYE Windows Agent service. sc.exe exit code: ' + IntToStr(ResultCode));
-
-  Exec(ExpandConstant('{sys}\sc.exe'), 'description GODSEYEWindowsAgent "Read-only GODSEYE Windows Event Log agent"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-  Exec(ExpandConstant('{sys}\sc.exe'), 'failure GODSEYEWindowsAgent reset= 86400 actions= restart/5000/restart/15000/restart/60000', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-
-  if not Exec(ExpandConstant('{sys}\sc.exe'), 'start GODSEYEWindowsAgent', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
-    MsgBox('The agent was installed, but Windows did not start the service. Review ' + DataDir() + '\agent.log and Windows Event Viewer.', mbError, MB_OK);
-end;
-
-procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
-var
-  ResultCode: Integer;
-begin
-  if CurUninstallStep = usUninstall then
-  begin
-    Exec(ExpandConstant('{sys}\sc.exe'), 'stop GODSEYEWindowsAgent', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-    Sleep(1500);
-    Exec(ExpandConstant('{sys}\sc.exe'), 'delete GODSEYEWindowsAgent', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-  end;
+  if ResultCode = 3010 then
+    MsgBox('GODSEYE Windows Agent was installed successfully. Windows requested a restart to complete installation.', mbInformation, MB_OK);
 end;
