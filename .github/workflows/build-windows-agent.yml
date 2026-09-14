@@ -143,10 +143,10 @@ jobs:
           Set-Content -Path 'windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe.sha256' -Value $hash -Encoding ascii
           Write-Host "Setup EXE SHA256: $hash"
 
-      - name: Build GODSEYE v4.23.1 upload ZIP
+      - name: Build GODSEYE v4.23 Remote Access upload ZIP
         shell: pwsh
         run: |
-          $zip = 'GODSEYE-v4.23.1-remote-access.zip'
+          $zip = 'GODSEYE-v4.23-remote-access.zip'
           $archive = Join-Path $env:RUNNER_TEMP 'godseye-source.zip'
           $stage = Join-Path $env:RUNNER_TEMP 'godseye-update'
           if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
@@ -176,13 +176,13 @@ jobs:
             windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe
             windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe.sha256
 
-      - name: Upload GODSEYE v4.23.1 update package
+      - name: Upload GODSEYE v4.23 Remote Access update package
         uses: actions/upload-artifact@v4
         with:
-          name: GODSEYE-v4.23.1-remote-access-update
+          name: GODSEYE-v4.23-remote-access-update
           path: |
-            GODSEYE-v4.23.1-remote-access.zip
-            GODSEYE-v4.23.1-remote-access.zip.sha256
+            GODSEYE-v4.23-remote-access.zip
+            GODSEYE-v4.23-remote-access.zip.sha256
 
       - name: Replace repository packages
         if: github.ref == 'refs/heads/main'
