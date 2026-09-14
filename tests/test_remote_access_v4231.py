@@ -17,8 +17,8 @@ def test_remote_access_routes_and_ui_present():
 def test_remote_agent_has_full_desktop_control_after_approval_and_no_shell():
     src=Path("windows/agent-x64/src/Godseye.WindowsAgent/GodseyeAgentService.cs").read_text()
     cs=Path("windows/agent-x64/src/Godseye.WindowsAgent/Godseye.WindowsAgent.csproj").read_text()
-    assert '<Version>2.2.0</Version>' in cs
-    assert 'MessageBox' in src and 'Allow screen viewing and mouse/keyboard control' in src
+    assert '<Version>2.2.1</Version>' in cs
+    assert 'TrayApp.ShowConsentDialog' in src
     assert 'WTSQueryUserToken' in src and 'CreateProcessAsUser' in src
     assert 'NamedPipeServerStream' in src and 'CopyFromScreen' in src
     assert 'SetCursorPos' in src and 'mouse_event' in src and 'keybd_event' in src
@@ -26,3 +26,20 @@ def test_remote_agent_has_full_desktop_control_after_approval_and_no_shell():
     assert 'cmd.exe' not in src.lower()
     assert 'powershell.exe' not in src.lower()
     assert 'remote_session_start' in src
+
+
+def test_windows_agent_tray_app_present():
+    tray=Path("windows/agent-x64/src/Godseye.WindowsAgent/TrayApp.cs").read_text()
+    wix=Path("windows/agent-x64/installer/msi/Package.wxs").read_text()
+    assert "NotifyIcon" in tray and "Agent Status..." in tray
+    assert "GODSEYE Remote Access" in tray and "Allow" in tray and "Deny" in tray
+    assert "--tray" in wix and "CurrentVersion\\Run" in wix
+    src=Path("windows/agent-x64/src/Godseye.WindowsAgent/GodseyeAgentService.cs").read_text()
+    assert "EnsureTrayProcess" in src and "WriteTrayStatus" in src
+
+
+def test_remote_access_has_self_contained_api_helper():
+    html=main.DASHBOARD
+    assert "async function remoteApi" in html
+    assert "await remoteApi('/api/v1/windows-agents')" in html
+    assert "Remote Access Features" in html

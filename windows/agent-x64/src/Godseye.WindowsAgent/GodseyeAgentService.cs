@@ -89,7 +89,7 @@ namespace Godseye.WindowsAgent
 
     public class GodseyeAgentService : ServiceBase
     {
-        static readonly string AgentVersion = typeof(GodseyeAgentService).Assembly.GetName().Version?.ToString(3) ?? "2.2.0";
+        static readonly string AgentVersion = typeof(GodseyeAgentService).Assembly.GetName().Version?.ToString(3) ?? "2.2.1";
         static readonly JsonCompat Json = new JsonCompat();
         readonly string BaseDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "GODSEYE", "Agent");
         Thread worker;
@@ -100,6 +100,7 @@ namespace Godseye.WindowsAgent
         long remoteSessionId;
         string remotePipeName;
         int remoteHelperProcessId;
+        int trayHelperProcessId;
 
         string ConfigPath { get { return Path.Combine(BaseDir, "agent.json"); } }
         string StatePath { get { return Path.Combine(BaseDir, "state.json"); } }
@@ -127,8 +128,14 @@ namespace Godseye.WindowsAgent
         protected override void OnStop() { stopping = true; StopRemoteSession(); if (worker != null) worker.Join(10000); }
         protected override void OnShutdown() { OnStop(); base.OnShutdown(); }
 
+        [STAThread]
         static void Main(string[] args)
         {
+            if (args.Length > 0 && args[0].Equals("--tray", StringComparison.OrdinalIgnoreCase))
+            {
+                Environment.ExitCode = TrayApp.Run();
+                return;
+            }
             if (args.Length > 0 && args[0].Equals("--remote-helper", StringComparison.OrdinalIgnoreCase))
             {
                 Environment.ExitCode = RemoteHelperMain(args);
@@ -212,6 +219,7 @@ namespace Godseye.WindowsAgent
                 try
                 {
                     AgentConfig cfg = LoadConfig();
+                    EnsureTrayProcess();
                     if (cfg.SkipTlsVerify)
                         ServicePointManager.ServerCertificateValidationCallback = delegate { return true; };
                     else
@@ -219,6 +227,7 @@ namespace Godseye.WindowsAgent
 
                     EnsureEnrolled(cfg);
                     Dictionary<string, object> hb = Heartbeat(cfg);
+                    WriteTrayStatus(cfg);
                     ApplyServerConfig(cfg, hb);
                     ProcessCommands(cfg, hb);
                     ProcessRechecks(cfg, hb);
@@ -444,6 +453,57 @@ namespace Godseye.WindowsAgent
         }
 
 
+        void WriteTrayStatus(AgentConfig cfg)
+        {
+            try
+            {
+                using (RegistryKey key = Registry.LocalMachine.CreateSubKey(@"SOFTWARE\MSAPGROUP\GODSEYE Agent\Status", true))
+                {
+                    if (key == null) return;
+                    key.SetValue("ServerUrl", cfg.ServerUrl ?? "", RegistryValueKind.String);
+                    key.SetValue("Version", AgentVersion, RegistryValueKind.String);
+                    key.SetValue("LastCheckIn", DateTime.Now.ToString("g"), RegistryValueKind.String);
+                    key.SetValue("RemoteAccess", "Enabled (User Approval)", RegistryValueKind.String);
+                }
+            }
+            catch (Exception ex) { Log("Could not publish tray status: " + ex.Message); }
+        }
+
+        void EnsureTrayProcess()
+        {
+            try
+            {
+                if (trayHelperProcessId > 0)
+                {
+                    try { using (Process p = Process.GetProcessById(trayHelperProcessId)) { if (!p.HasExited) return; } }
+                    catch { }
+                    trayHelperProcessId = 0;
+                }
+                uint sessionId = WTSGetActiveConsoleSessionId();
+                if (sessionId == INVALID_SESSION_ID) return;
+                IntPtr token = IntPtr.Zero;
+                if (!WTSQueryUserToken(sessionId, out token) || token == IntPtr.Zero) return;
+                try
+                {
+                    string exe = Process.GetCurrentProcess().MainModule?.FileName ?? Environment.ProcessPath ?? "";
+                    if (String.IsNullOrWhiteSpace(exe)) return;
+                    STARTUPINFO si = new STARTUPINFO();
+                    si.cb = Marshal.SizeOf(typeof(STARTUPINFO));
+                    si.lpDesktop = @"winsta0\default";
+                    PROCESS_INFORMATION pi;
+                    var cmd = new StringBuilder("\"" + exe + "\" --tray");
+                    if (CreateProcessAsUser(token, exe, cmd, IntPtr.Zero, IntPtr.Zero, false, CREATE_UNICODE_ENVIRONMENT, IntPtr.Zero, Path.GetDirectoryName(exe), ref si, out pi))
+                    {
+                        trayHelperProcessId = unchecked((int)pi.dwProcessId);
+                        if (pi.hThread != IntPtr.Zero) CloseHandle(pi.hThread);
+                        if (pi.hProcess != IntPtr.Zero) CloseHandle(pi.hProcess);
+                    }
+                }
+                finally { CloseHandle(token); }
+            }
+            catch (Exception ex) { Log("Could not start tray helper: " + ex.Message); }
+        }
+
         const uint INVALID_SESSION_ID = 0xFFFFFFFF;
         const uint CREATE_UNICODE_ENVIRONMENT = 0x00000400;
         const uint MB_YESNO = 0x00000004;
@@ -471,8 +531,7 @@ namespace Godseye.WindowsAgent
         {
             if (args.Length < 3) return 64;
             string pipeName = args[1]; string requestedBy = args[2];
-            int consent = MessageBox(IntPtr.Zero, "GODSEYE administrator '" + requestedBy + "' is requesting a remote support session.\n\nAllow screen viewing and mouse/keyboard control until the session is disconnected?", "GODSEYE Remote Support", MB_YESNO | MB_ICONINFORMATION | MB_TOPMOST);
-            if (consent != IDYES) return 2;
+            if (!TrayApp.ShowConsentDialog(requestedBy)) return 2;
             try
             {
                 while (true)
