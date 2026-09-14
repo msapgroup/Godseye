@@ -28,12 +28,14 @@ def test_agent_x64_source_is_self_contained():
     csproj=Path("windows/agent-x64/src/Godseye.WindowsAgent/Godseye.WindowsAgent.csproj").read_text()
     src=Path("windows/agent-x64/src/Godseye.WindowsAgent/GodseyeAgentService.cs").read_text()
     iss=Path("windows/agent-x64/installer/GODSEYE-Agent-x64.iss").read_text()
+    wix=Path("windows/agent-x64/installer/msi/Package.wxs").read_text()
     assert '<RuntimeIdentifier>win-x64</RuntimeIdentifier>' in csproj
     assert '<SelfContained>true</SelfContained>' in csproj
     assert '<PublishSingleFile>true</PublishSingleFile>' in csproj
     assert 'Assembly.GetName().Version' in src
     assert '<Version>2.1.0</Version>' in csproj
-    assert 'GODSEYEWindowsAgent' in iss
+    assert 'GODSEYEWindowsAgent' in wix
+    assert '<ServiceInstall' in wix and '<ServiceControl' in wix
     assert 'ArchitecturesInstallIn64BitMode=x64compatible' in iss
     assert 'ExistingConfig' in iss
 
