@@ -3,7 +3,7 @@ import app.main as main
 import app.windows_agent as windows_agent
 
 
-def manifest(version="2.2.0"):
+def manifest(version="2.2.1"):
     return {"version":version,"filename":"GODSEYE-Windows-Agent-x64.msi","sha256":"A"*64}
 
 
@@ -25,14 +25,14 @@ def admin():
 
 
 def test_manifest_loader_rejects_bad_filename_and_hash(tmp_path):
-    p=tmp_path/"manifest.json";p.write_text('{"version":"2.2.0","filename":"evil.exe","sha256":"A"}')
+    p=tmp_path/"manifest.json";p.write_text('{"version":"2.2.1","filename":"evil.exe","sha256":"A"}')
     try: windows_agent.load_update_manifest(p);assert False
     except ValueError: pass
 
 
 def test_upgrade_queues_only_version_and_hash(tmp_path, monkeypatch):
     db=tmp_path/"upgrade.db";monkeypatch.setattr(main,"DB_PATH",db);main.init_db();monkeypatch.setattr(main,"audit",lambda *a,**k:None)
-    monkeypatch.setattr(windows_agent,"load_update_manifest",lambda path:manifest("2.2.0"))
+    monkeypatch.setattr(windows_agent,"load_update_manifest",lambda path:manifest("2.2.1"))
     with main.db() as c: aid=make_agent(c,"2.1.0")
     out=main.windows_agent_upgrade(aid,req(),admin())
     assert out["queued"] is True
@@ -40,7 +40,7 @@ def test_upgrade_queues_only_version_and_hash(tmp_path, monkeypatch):
         row=c.execute("SELECT * FROM windows_agent_commands WHERE id=?",(out["command_id"],)).fetchone()
         import json
         payload=json.loads(row["payload_json"])
-        assert payload=={"version":"2.2.0","sha256":"A"*64}
+        assert payload=={"version":"2.2.1","sha256":"A"*64}
         assert "url" not in payload and "command" not in payload
 
 
@@ -56,7 +56,7 @@ def test_pre_21_agent_requires_one_manual_baseline_update(tmp_path, monkeypatch)
 def test_x64_agent_updater_is_fixed_hash_verified_msi_path():
     src=Path("windows/agent-x64/src/Godseye.WindowsAgent/GodseyeAgentService.cs").read_text()
     csproj=Path("windows/agent-x64/src/Godseye.WindowsAgent/Godseye.WindowsAgent.csproj").read_text()
-    assert '<Version>2.2.0</Version>' in csproj
+    assert '<Version>2.2.1</Version>' in csproj
     assert 'Assembly.GetName().Version' in src
     assert '"upgrade_agent"' in src
     assert '"/api/v1/windows-agents/package/msi"' in src
