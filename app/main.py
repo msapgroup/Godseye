@@ -3380,7 +3380,7 @@ def windows_agent_update_info(user=Depends(get_current_user)):
     return {"ok":True,**manifest,"self_update_baseline":"2.1.0"}
 
 
-@app.post(f"{router_prefix}/windows-agents/{agent_id}/upgrade")
+@app.post(f"{router_prefix}/windows-agents/{{agent_id}}/upgrade")
 def windows_agent_upgrade(agent_id: int, request: Request, user=Depends(require_admin)):
     manifest=_windows_agent_update_manifest(); ts=now()
     target=manifest["version"]
