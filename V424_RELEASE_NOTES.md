@@ -19,12 +19,15 @@ Upgrades preserve `/var/lib/godseye`, `/etc/godseye.env`, the existing SQLite da
 - Remote Access workspace with the `api is not defined` client-side failure corrected
 - Windows Agent 2.2.5 remote desktop support for authorized sessions
 - Local remote-access approval delivered directly to the signed-in Windows session before desktop control starts
-- Persistent interactive remote host inside the already-running GODSEYE tray process, eliminating the fragile second-process handoff after approval
+- Persistent interactive remote host inside the GODSEYE tray process, eliminating the fragile second-process handoff after approval
+- Versioned tray-host mutex so the current Agent 2.2.5 tray/remote host can start immediately after upgrading from an older agent in the same Windows login session
 - Readiness handshake with clear failure reporting before the server marks a remote session active
 - GODSEYE Windows Agent system-tray icon, status window, portal shortcut, and visible approval flow
 - Windows Agent MSI and guided Setup EXE packages
 - Windows Agent self-update support
 - Existing production management, backups, retention, diagnostics, integrations, reporting, ticketing, calendar, event findings, and network visibility features
+
+An older tray icon can remain visible until that older tray process exits or the user next signs out, but Agent 2.2.5 no longer depends on a sign-out or reboot before its current remote host can start.
 
 ## Server update package
 
