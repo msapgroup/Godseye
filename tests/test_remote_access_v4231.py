@@ -17,8 +17,8 @@ def test_remote_access_routes_and_ui_present():
 def test_remote_agent_has_full_desktop_control_after_approval_and_no_shell():
     src=Path("windows/agent-x64/src/Godseye.WindowsAgent/GodseyeAgentService.cs").read_text()
     cs=Path("windows/agent-x64/src/Godseye.WindowsAgent/Godseye.WindowsAgent.csproj").read_text()
-    assert '<Version>2.2.1</Version>' in cs
-    assert 'TrayApp.ShowConsentDialog' in src
+    assert '<Version>2.2.2</Version>' in cs
+    assert 'WTSSendMessage' in src and 'RequestRemoteConsent' in src
     assert 'WTSQueryUserToken' in src and 'CreateProcessAsUser' in src
     assert 'NamedPipeServerStream' in src and 'CopyFromScreen' in src
     assert 'SetCursorPos' in src and 'mouse_event' in src and 'keybd_event' in src
