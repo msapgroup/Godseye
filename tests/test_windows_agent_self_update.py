@@ -76,8 +76,9 @@ def test_x64_agent_updater_is_fixed_hash_verified_msi_path():
 def test_update_ui_and_server_routes_present():
     source=Path("app/main.py").read_text()
     html=main.DASHBOARD
+    route_paths={getattr(route,"path",None) for route in main.app.routes}
     assert '/windows-agents/package/msi' in source
-    assert '/windows-agents/{agent_id}/upgrade' in source
+    assert '/api/v1/windows-agents/{agent_id}/upgrade' in route_paths
     assert 'Check for Updates' in html
     assert 'checkWindowsAgentUpdates' in html
     assert 'upgradeWindowsAgent' in html
