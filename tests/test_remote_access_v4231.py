@@ -17,7 +17,7 @@ def test_remote_access_routes_and_ui_present():
 def test_remote_agent_has_full_desktop_control_after_approval_and_no_shell():
     src=Path("windows/agent-x64/src/Godseye.WindowsAgent/GodseyeAgentService.cs").read_text()
     cs=Path("windows/agent-x64/src/Godseye.WindowsAgent/Godseye.WindowsAgent.csproj").read_text()
-    assert '<Version>2.2.3</Version>' in cs
+    assert '<Version>2.2.4</Version>' in cs
     assert 'WTSSendMessage' in src and 'RequestRemoteConsent' in src
     assert 'WTSQueryUserToken' in src and 'CreateProcessAsUser' in src
     assert 'NamedPipeServerStream' in src and 'CopyFromScreen' in src
@@ -45,3 +45,12 @@ def test_remote_access_has_self_contained_api_helper():
     assert "async function remoteApi" in html
     assert "await remoteApi('/api/v1/windows-agents')" in html
     assert "Remote Access Features" in html
+
+
+def test_remote_access_reuses_persistent_interactive_tray_host():
+    svc=Path("windows/agent-x64/src/Godseye.WindowsAgent/GodseyeAgentService.cs").read_text()
+    tray=Path("windows/agent-x64/src/Godseye.WindowsAgent/TrayApp.cs").read_text()
+    assert 'GODSEYE-Tray-' in svc and 'GODSEYE-Tray-' in tray
+    assert 'HandleTrayPipeLine' in svc and 'RemotePipeLoop' in tray
+    assert 'persistent tray remote host' in svc
+    assert 'LaunchRemoteHelper(remotePipeName' not in svc

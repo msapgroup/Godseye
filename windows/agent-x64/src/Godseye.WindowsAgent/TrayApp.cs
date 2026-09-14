@@ -1,6 +1,9 @@
 using System;
 using System.Diagnostics;
 using System.Drawing;
+using System.IO;
+using System.IO.Pipes;
+using System.Text;
 using System.ServiceProcess;
 using System.Threading;
 using System.Windows.Forms;
@@ -91,6 +94,8 @@ namespace Godseye.WindowsAgent
         sealed class GodseyeTrayContext : ApplicationContext
         {
             readonly NotifyIcon notifyIcon;
+            readonly Thread remotePipeThread;
+            volatile bool remotePipeStop;
 
             public GodseyeTrayContext()
             {
@@ -116,10 +121,40 @@ namespace Godseye.WindowsAgent
                 notifyIcon.DoubleClick += (_, __) => ShowStatus();
                 notifyIcon.BalloonTipTitle = "GODSEYE Agent";
                 notifyIcon.BalloonTipText = "GODSEYE Windows Agent is running and connected for monitoring and approved remote support.";
+
+                remotePipeThread = new Thread(RemotePipeLoop)
+                {
+                    IsBackground = true,
+                    Name = "GODSEYE Tray Remote Host"
+                };
+                remotePipeThread.Start();
+            }
+
+            void RemotePipeLoop()
+            {
+                string pipeName = "GODSEYE-Tray-" + Process.GetCurrentProcess().SessionId;
+                while (!remotePipeStop)
+                {
+                    try
+                    {
+                        using var pipe = new NamedPipeServerStream(pipeName, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.None);
+                        pipe.WaitForConnection();
+                        using var reader = new StreamReader(pipe, Encoding.UTF8, false, 8192, true);
+                        using var writer = new StreamWriter(pipe, new UTF8Encoding(false), 8192, true) { AutoFlush = true };
+                        string? line = reader.ReadLine();
+                        if (!String.IsNullOrWhiteSpace(line))
+                            writer.WriteLine(GodseyeAgentService.HandleTrayPipeLine(line));
+                    }
+                    catch
+                    {
+                        if (!remotePipeStop) Thread.Sleep(250);
+                    }
+                }
             }
 
             protected override void ExitThreadCore()
             {
+                remotePipeStop = true;
                 notifyIcon.Visible = false;
                 notifyIcon.Dispose();
                 base.ExitThreadCore();

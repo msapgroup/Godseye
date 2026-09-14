@@ -561,7 +561,21 @@ namespace Godseye.WindowsAgent
             catch { return 1; }
         }
 
-        static Dictionary<string, object> HandleRemoteHelperRequest(Dictionary<string, object> request)
+        internal static string HandleTrayPipeLine(string line)
+        {
+            try
+            {
+                Dictionary<string, object> request = Json.Deserialize<Dictionary<string, object>>(line);
+                Dictionary<string, object> response = HandleRemoteHelperRequest(request);
+                return Json.Serialize(response);
+            }
+            catch (Exception ex)
+            {
+                return Json.Serialize(new Dictionary<string, object>{{"ok", false}, {"error", ex.Message}});
+            }
+        }
+
+        internal static Dictionary<string, object> HandleRemoteHelperRequest(Dictionary<string, object> request)
         {
             string kind = request != null && request.ContainsKey("kind") ? Convert.ToString(request["kind"]) : "";
             if (String.Equals(kind,"ping",StringComparison.OrdinalIgnoreCase)) return new Dictionary<string,object>{{"ok",true},{"ready",true}};
@@ -692,16 +706,16 @@ namespace Godseye.WindowsAgent
                 try { Post(cfg,"/api/v1/windows-agents/remote/sessions/"+sessionId+"/state",new Dictionary<string,object>{{"status","denied"},{"error","The signed-in Windows user denied remote access."}},ReadApiKey()); } catch {}
                 throw new Exception("The signed-in Windows user denied remote access.");
             }
-            remoteStop=false; remoteSessionId=sessionId; remotePipeName="GODSEYE-Remote-"+sessionId+"-"+Guid.NewGuid().ToString("N");
+            remoteStop=false; remoteSessionId=sessionId; remoteHelperProcessId=0;
+            remotePipeName="GODSEYE-Tray-"+windowsSessionId;
             try
             {
-                LaunchRemoteHelper(remotePipeName,requestedBy,windowsSessionId);
-                WaitForRemoteHelperReady(remotePipeName);
-                Log("Remote support request "+sessionId+" approved; interactive helper is ready.");
+                WaitForRemoteHelperReady(remotePipeName,15000);
+                Log("Remote support request "+sessionId+" approved; connected to persistent tray remote host in Windows session "+windowsSessionId+".");
             }
             catch(Exception ex)
             {
-                try { Post(cfg,"/api/v1/windows-agents/remote/sessions/"+sessionId+"/state",new Dictionary<string,object>{{"status","failed"},{"error",ex.Message}},ReadApiKey()); } catch {}
+                try { Post(cfg,"/api/v1/windows-agents/remote/sessions/"+sessionId+"/state",new Dictionary<string,object>{{"status","failed"},{"error","Approved, but the interactive tray remote host was unavailable: "+ex.Message}},ReadApiKey()); } catch {}
                 StopRemoteSession();
                 throw;
             }
@@ -711,7 +725,7 @@ namespace Godseye.WindowsAgent
         void StopRemoteSession()
         {
             remoteStop=true;
-            if(!String.IsNullOrWhiteSpace(remotePipeName)){try{RemoteHelperRequest(remotePipeName,new Dictionary<string,object>{{"kind","terminate"}},500);}catch{}}
+            if(!String.IsNullOrWhiteSpace(remotePipeName) && remotePipeName.StartsWith("GODSEYE-Remote-", StringComparison.OrdinalIgnoreCase)){try{RemoteHelperRequest(remotePipeName,new Dictionary<string,object>{{"kind","terminate"}},500);}catch{}}
             if(remoteHelperProcessId>0){try{Process p=Process.GetProcessById(remoteHelperProcessId);if(!p.HasExited)p.Kill();}catch{} remoteHelperProcessId=0;}
             if(remoteWorker!=null&&remoteWorker!=Thread.CurrentThread)try{remoteWorker.Join(3000);}catch{} remoteWorker=null; remoteSessionId=0;remotePipeName=null;
         }
