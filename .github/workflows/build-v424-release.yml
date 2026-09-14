@@ -33,6 +33,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
       - name: Validate release version
         run: test "$(cat VERSION)" = "4.24.0"
       - name: Validate installer scripts
@@ -41,9 +44,9 @@ jobs:
           bash -n godseye-apply-update
       - name: Test application
         run: |
-          python3 -m venv .venv
+          python -m venv .venv
           .venv/bin/pip install --upgrade pip
-          .venv/bin/pip install -r requirements.txt
+          .venv/bin/pip install -r requirements.txt pytest httpx
           PYTHONPATH=. .venv/bin/pytest -q
           .venv/bin/python -m compileall -q app
 
