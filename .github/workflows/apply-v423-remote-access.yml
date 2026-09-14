@@ -21,7 +21,13 @@ jobs:
           ref: feature/v423-remote-access
       - name: Apply patch
         run: |
-          sed -i 's/Version=\\"2.0.1\\"/Version=\\"2.1.0\\"/' .github/scripts/apply_v423_remote_access.py
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('.github/scripts/apply_v423_remote_access.py')
+          s=p.read_text()
+          s=s.replace("'Version=\"2.0.1\"'","'Version=\"2.1.0\"'")
+          p.write_text(s)
+          PY
           python .github/scripts/apply_v423_remote_access.py
       - name: Commit feature
         run: |
