@@ -1,0 +1,41 @@
+name: Apply v4.24 Remote Access Tray UI
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/scripts/apply_v424_remote_tray.py'
+      - '.github/workflows/apply-v424-remote-tray.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply patch
+        run: python .github/scripts/apply_v424_remote_tray.py
+      - name: Validate patched Python and agent source markers
+        run: |
+          python -m py_compile app/main.py
+          grep -q 'async function remoteApi' app/main.py
+          grep -q 'EnsureTrayProcess' windows/agent-x64/src/Godseye.WindowsAgent/GodseyeAgentService.cs
+          grep -q 'NotifyIcon' windows/agent-x64/src/Godseye.WindowsAgent/TrayApp.cs
+      - name: Commit generated changes
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo 'No generated changes.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/main.py tests/test_remote_access_v4231.py windows/agent-x64/src/Godseye.WindowsAgent/GodseyeAgentService.cs
+          git commit -m 'Fix Remote Access UI and add Windows tray agent'
+          git push origin HEAD:main
