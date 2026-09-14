@@ -3,7 +3,7 @@
   <Package
       Name="GODSEYE Windows Agent"
       Manufacturer="MSAPGROUP LLC"
-      Version="2.2.0"
+      Version="2.2.1"
       UpgradeCode="{8FD91243-B37D-4C6C-BFC7-74F833F8C551}"
       Scope="perMachine">
 
@@ -25,6 +25,7 @@
 
     <Feature Id="MainFeature" Title="GODSEYE Windows Agent" Level="1">
       <ComponentRef Id="AgentServiceComponent" />
+      <ComponentRef Id="AgentTrayStartupComponent" />
       <ComponentRef Id="AgentDataFolderComponent" />
     </Feature>
 
@@ -39,7 +40,7 @@
           Id="GODSEYEWindowsAgentServiceInstall"
           Name="GODSEYEWindowsAgent"
           DisplayName="GODSEYE Windows Agent"
-          Description="Read-only GODSEYE Windows Event Log agent"
+          Description="GODSEYE Windows monitoring and approved remote support agent"
           Type="ownProcess"
           Start="auto"
           ErrorControl="normal"
@@ -59,6 +60,17 @@
           Stop="both"
           Remove="uninstall"
           Wait="yes" />
+    </Component>
+
+    <Component Id="AgentTrayStartupComponent"
+               Guid="{942D036F-42D1-4B75-A89F-B947EB24C997}"
+               Directory="INSTALLFOLDER">
+      <RegistryValue Root="HKLM"
+                     Key="Software\Microsoft\Windows\CurrentVersion\Run"
+                     Name="GODSEYE Agent"
+                     Type="string"
+                     Value="&quot;[INSTALLFOLDER]GODSEYE.WindowsAgent.exe&quot; --tray"
+                     KeyPath="yes" />
     </Component>
 
     <Component Id="AgentDataFolderComponent"
