@@ -42,6 +42,8 @@ jobs:
         run: |
           bash -n install.sh
           bash -n godseye-apply-update
+          sh ./install.sh --help >/tmp/godseye-install-help.txt
+          grep -q 'GODSEYE installer / upgrader' /tmp/godseye-install-help.txt
       - name: Test application
         run: |
           python -m venv .venv
@@ -120,14 +122,15 @@ jobs:
             'GODSEYE v4.24.0',
             '',
             'Fresh install:',
-            '  sudo bash ./install.sh --fresh',
+            '  sudo ./install.sh --fresh',
             '',
             'Upgrade an existing GODSEYE installation:',
-            '  sudo bash ./install.sh --upgrade',
+            '  sudo ./install.sh --upgrade',
             '',
             'Auto-detect install vs upgrade:',
-            '  sudo bash ./install.sh',
+            '  sudo ./install.sh',
             '',
+            'The installer self-reexecutes under Bash even if invoked as sh install.sh.',
             'Upgrade mode preserves /var/lib/godseye and /etc/godseye.env and creates a pre-upgrade database backup.'
           )
           Set-Content (Join-Path $stage 'INSTALL-UPGRADE.txt') -Value $instructions -Encoding ascii
