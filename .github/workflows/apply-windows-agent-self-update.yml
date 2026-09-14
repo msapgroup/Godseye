@@ -24,10 +24,10 @@ jobs:
       - name: Apply patch
         run: |
           python -c "import json,runpy; runpy.run_path('.github/scripts/apply_windows_agent_self_update.py', init_globals={'json': json})"
-      - name: Commit patch
+      - name: Commit updater code
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add app/main.py app/windows_agent.py windows/agent-x64 .github/workflows/build-windows-agent.yml tests
+          git add app/main.py app/windows_agent.py windows/agent-x64 tests
           git commit -m 'Add Windows Agent check and self-update support'
           git push origin HEAD:feature/windows-agent-self-update
