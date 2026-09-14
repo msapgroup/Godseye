@@ -4,7 +4,11 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.Eventing.Reader;
 using System.IO;
+using System.IO.Pipes;
 using System.Net;
+using System.Drawing;
+using System.Drawing.Imaging;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.ServiceProcess;
 using System.Text;
@@ -85,12 +89,17 @@ namespace Godseye.WindowsAgent
 
     public class GodseyeAgentService : ServiceBase
     {
-        static readonly string AgentVersion = typeof(GodseyeAgentService).Assembly.GetName().Version?.ToString(3) ?? "2.1.0";
+        static readonly string AgentVersion = typeof(GodseyeAgentService).Assembly.GetName().Version?.ToString(3) ?? "2.2.0";
         static readonly JsonCompat Json = new JsonCompat();
         readonly string BaseDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "GODSEYE", "Agent");
         Thread worker;
         volatile bool stopping;
         DateTime nextScheduledCollectUtc = DateTime.MinValue;
+        Thread remoteWorker;
+        volatile bool remoteStop;
+        long remoteSessionId;
+        string remotePipeName;
+        int remoteHelperProcessId;
 
         string ConfigPath { get { return Path.Combine(BaseDir, "agent.json"); } }
         string StatePath { get { return Path.Combine(BaseDir, "state.json"); } }
@@ -115,11 +124,16 @@ namespace Godseye.WindowsAgent
             worker.Start();
         }
 
-        protected override void OnStop() { stopping = true; if (worker != null) worker.Join(10000); }
+        protected override void OnStop() { stopping = true; StopRemoteSession(); if (worker != null) worker.Join(10000); }
         protected override void OnShutdown() { OnStop(); base.OnShutdown(); }
 
         static void Main(string[] args)
         {
+            if (args.Length > 0 && args[0].Equals("--remote-helper", StringComparison.OrdinalIgnoreCase))
+            {
+                Environment.ExitCode = RemoteHelperMain(args);
+                return;
+            }
             if (args.Length > 0 && args[0].Equals("--configure", StringComparison.OrdinalIgnoreCase))
             {
                 GodseyeAgentService svc = new GodseyeAgentService();
@@ -429,6 +443,145 @@ namespace Godseye.WindowsAgent
             return item;
         }
 
+
+        const uint INVALID_SESSION_ID = 0xFFFFFFFF;
+        const uint CREATE_UNICODE_ENVIRONMENT = 0x00000400;
+        const uint MB_YESNO = 0x00000004;
+        const uint MB_ICONINFORMATION = 0x00000040;
+        const uint MB_TOPMOST = 0x00040000;
+        const int IDYES = 6;
+        const uint MOUSEEVENTF_LEFTDOWN = 0x0002, MOUSEEVENTF_LEFTUP = 0x0004, MOUSEEVENTF_RIGHTDOWN = 0x0008, MOUSEEVENTF_RIGHTUP = 0x0010, MOUSEEVENTF_MIDDLEDOWN = 0x0020, MOUSEEVENTF_MIDDLEUP = 0x0040, MOUSEEVENTF_WHEEL = 0x0800;
+        const uint KEYEVENTF_KEYUP = 0x0002;
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        struct STARTUPINFO { public int cb; public string lpReserved; public string lpDesktop; public string lpTitle; public int dwX; public int dwY; public int dwXSize; public int dwYSize; public int dwXCountChars; public int dwYCountChars; public int dwFillAttribute; public int dwFlags; public short wShowWindow; public short cbReserved2; public IntPtr lpReserved2; public IntPtr hStdInput; public IntPtr hStdOutput; public IntPtr hStdError; }
+        [StructLayout(LayoutKind.Sequential)]
+        struct PROCESS_INFORMATION { public IntPtr hProcess; public IntPtr hThread; public uint dwProcessId; public uint dwThreadId; }
+        [DllImport("kernel32.dll")] static extern uint WTSGetActiveConsoleSessionId();
+        [DllImport("Wtsapi32.dll", SetLastError=true)] static extern bool WTSQueryUserToken(uint SessionId, out IntPtr phToken);
+        [DllImport("advapi32.dll", CharSet=CharSet.Unicode, SetLastError=true)] static extern bool CreateProcessAsUser(IntPtr hToken, string lpApplicationName, System.Text.StringBuilder lpCommandLine, IntPtr lpProcessAttributes, IntPtr lpThreadAttributes, bool bInheritHandles, uint dwCreationFlags, IntPtr lpEnvironment, string lpCurrentDirectory, ref STARTUPINFO lpStartupInfo, out PROCESS_INFORMATION lpProcessInformation);
+        [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr hObject);
+        [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern int MessageBox(IntPtr hWnd, string text, string caption, uint type);
+        [DllImport("user32.dll")] static extern int GetSystemMetrics(int nIndex);
+        [DllImport("user32.dll")] static extern bool SetCursorPos(int X, int Y);
+        [DllImport("user32.dll")] static extern void mouse_event(uint dwFlags, uint dx, uint dy, int dwData, UIntPtr dwExtraInfo);
+        [DllImport("user32.dll")] static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
+
+        static int RemoteHelperMain(string[] args)
+        {
+            if (args.Length < 3) return 64;
+            string pipeName = args[1]; string requestedBy = args[2];
+            int consent = MessageBox(IntPtr.Zero, "GODSEYE administrator '" + requestedBy + "' is requesting a remote support session.\n\nAllow screen viewing and mouse/keyboard control until the session is disconnected?", "GODSEYE Remote Support", MB_YESNO | MB_ICONINFORMATION | MB_TOPMOST);
+            if (consent != IDYES) return 2;
+            try
+            {
+                while (true)
+                {
+                    using (NamedPipeServerStream pipe = new NamedPipeServerStream(pipeName, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.None))
+                    {
+                        pipe.WaitForConnection();
+                        using (StreamReader reader = new StreamReader(pipe, Encoding.UTF8, false, 8192, true))
+                        using (StreamWriter writer = new StreamWriter(pipe, new UTF8Encoding(false), 8192, true) { AutoFlush = true })
+                        {
+                            string line = reader.ReadLine(); if (String.IsNullOrWhiteSpace(line)) continue;
+                            Dictionary<string, object> request = Json.Deserialize<Dictionary<string, object>>(line);
+                            string kind = request != null && request.ContainsKey("kind") ? Convert.ToString(request["kind"]) : "";
+                            if (String.Equals(kind,"terminate",StringComparison.OrdinalIgnoreCase)) { writer.WriteLine(Json.Serialize(new Dictionary<string,object>{{"ok",true}})); return 0; }
+                            Dictionary<string, object> response = HandleRemoteHelperRequest(request);
+                            writer.WriteLine(Json.Serialize(response));
+                        }
+                    }
+                }
+            }
+            catch { return 1; }
+        }
+
+        static Dictionary<string, object> HandleRemoteHelperRequest(Dictionary<string, object> request)
+        {
+            string kind = request != null && request.ContainsKey("kind") ? Convert.ToString(request["kind"]) : "";
+            if (String.Equals(kind,"capture",StringComparison.OrdinalIgnoreCase))
+            {
+                int width=Math.Max(1,GetSystemMetrics(0)), height=Math.Max(1,GetSystemMetrics(1));
+                using (Bitmap bmp=new Bitmap(width,height))
+                using (Graphics g=Graphics.FromImage(bmp))
+                using (MemoryStream ms=new MemoryStream())
+                {
+                    g.CopyFromScreen(0,0,0,0,new Size(width,height)); bmp.Save(ms,ImageFormat.Jpeg);
+                    return new Dictionary<string,object>{{"ok",true},{"image_base64",Convert.ToBase64String(ms.ToArray())},{"width",width},{"height",height}};
+                }
+            }
+            if (String.Equals(kind,"pointer",StringComparison.OrdinalIgnoreCase))
+            {
+                double nx=Convert.ToDouble(request["x"]), ny=Convert.ToDouble(request["y"]); int x=(int)(Math.Max(0,Math.Min(1,nx))*Math.Max(1,GetSystemMetrics(0)-1)), y=(int)(Math.Max(0,Math.Min(1,ny))*Math.Max(1,GetSystemMetrics(1)-1)); SetCursorPos(x,y);
+                string action=Convert.ToString(request.ContainsKey("action")?request["action"]:"move"), button=Convert.ToString(request.ContainsKey("button")?request["button"]:"left");
+                uint down=button=="right"?MOUSEEVENTF_RIGHTDOWN:button=="middle"?MOUSEEVENTF_MIDDLEDOWN:MOUSEEVENTF_LEFTDOWN; uint up=button=="right"?MOUSEEVENTF_RIGHTUP:button=="middle"?MOUSEEVENTF_MIDDLEUP:MOUSEEVENTF_LEFTUP;
+                if(action=="down")mouse_event(down,0,0,0,UIntPtr.Zero); else if(action=="up")mouse_event(up,0,0,0,UIntPtr.Zero); else if(action=="click"){mouse_event(down,0,0,0,UIntPtr.Zero);mouse_event(up,0,0,0,UIntPtr.Zero);} return new Dictionary<string,object>{{"ok",true}};
+            }
+            if (String.Equals(kind,"keyboard",StringComparison.OrdinalIgnoreCase))
+            {
+                int vk=Convert.ToInt32(request["vk"]); if(vk<8||vk>255)throw new Exception("Invalid virtual key"); string action=Convert.ToString(request["action"]); keybd_event((byte)vk,0,action=="up"?KEYEVENTF_KEYUP:0,UIntPtr.Zero); return new Dictionary<string,object>{{"ok",true}};
+            }
+            if (String.Equals(kind,"wheel",StringComparison.OrdinalIgnoreCase)) { mouse_event(MOUSEEVENTF_WHEEL,0,0,Convert.ToInt32(request["delta"]),UIntPtr.Zero); return new Dictionary<string,object>{{"ok",true}}; }
+            return new Dictionary<string,object>{{"ok",false},{"error","Unsupported remote helper request"}};
+        }
+
+        void LaunchRemoteHelper(string pipeName, string requestedBy)
+        {
+            uint sessionId=WTSGetActiveConsoleSessionId(); if(sessionId==INVALID_SESSION_ID)throw new Exception("No interactive Windows session is signed in.");
+            IntPtr token=IntPtr.Zero; if(!WTSQueryUserToken(sessionId,out token))throw new Exception("Could not obtain the signed-in Windows user token ("+Marshal.GetLastWin32Error()+").");
+            try
+            {
+                string exe=Environment.ProcessPath; if(String.IsNullOrWhiteSpace(exe))throw new Exception("Agent executable path is unavailable."); requestedBy=(requestedBy??"administrator").Replace("\"","'");
+                var cmd=new System.Text.StringBuilder("\""+exe+"\" --remote-helper \""+pipeName+"\" \""+requestedBy+"\""); STARTUPINFO si=new STARTUPINFO();si.cb=Marshal.SizeOf(typeof(STARTUPINFO));si.lpDesktop=@"winsta0\default"; PROCESS_INFORMATION pi;
+                if(!CreateProcessAsUser(token,exe,cmd,IntPtr.Zero,IntPtr.Zero,false,CREATE_UNICODE_ENVIRONMENT,IntPtr.Zero,Path.GetDirectoryName(exe),ref si,out pi))throw new Exception("Could not launch the interactive GODSEYE helper ("+Marshal.GetLastWin32Error()+").");
+                remoteHelperProcessId=(int)pi.dwProcessId; CloseHandle(pi.hThread);CloseHandle(pi.hProcess);
+            }
+            finally{if(token!=IntPtr.Zero)CloseHandle(token);}
+        }
+
+        Dictionary<string,object> RemoteHelperRequest(string pipeName, Dictionary<string,object> request, int timeout=3000)
+        {
+            using(NamedPipeClientStream pipe=new NamedPipeClientStream(".",pipeName,PipeDirection.InOut,PipeOptions.None))
+            { pipe.Connect(timeout); using(StreamReader reader=new StreamReader(pipe,Encoding.UTF8,false,8192,true)) using(StreamWriter writer=new StreamWriter(pipe,new UTF8Encoding(false),8192,true){AutoFlush=true}) { writer.WriteLine(Json.Serialize(request)); string line=reader.ReadLine(); if(String.IsNullOrWhiteSpace(line))throw new Exception("Remote helper returned no response."); return Json.Deserialize<Dictionary<string,object>>(line); } }
+        }
+
+        void StartRemoteSession(AgentConfig cfg, long sessionId, string requestedBy)
+        {
+            StopRemoteSession(); remoteStop=false; remoteSessionId=sessionId; remotePipeName="GODSEYE-Remote-"+sessionId+"-"+Guid.NewGuid().ToString("N"); LaunchRemoteHelper(remotePipeName,requestedBy);
+            remoteWorker=new Thread(()=>RemoteSessionLoop(cfg,sessionId,remotePipeName)){IsBackground=true,Name="GODSEYE Remote Support"}; remoteWorker.Start();
+        }
+
+        void StopRemoteSession()
+        {
+            remoteStop=true;
+            if(!String.IsNullOrWhiteSpace(remotePipeName)){try{RemoteHelperRequest(remotePipeName,new Dictionary<string,object>{{"kind","terminate"}},500);}catch{}}
+            if(remoteHelperProcessId>0){try{Process p=Process.GetProcessById(remoteHelperProcessId);if(!p.HasExited)p.Kill();}catch{} remoteHelperProcessId=0;}
+            if(remoteWorker!=null&&remoteWorker!=Thread.CurrentThread)try{remoteWorker.Join(3000);}catch{} remoteWorker=null; remoteSessionId=0;remotePipeName=null;
+        }
+
+        void RemoteSessionLoop(AgentConfig cfg,long sessionId,string pipeName)
+        {
+            long after=0; bool activeReported=false; DateTime consentDeadline=DateTime.UtcNow.AddSeconds(60);
+            try
+            {
+                while(!remoteStop&&!stopping)
+                {
+                    Dictionary<string,object> frame=null;
+                    try{frame=RemoteHelperRequest(pipeName,new Dictionary<string,object>{{"kind","capture"}},1500);}catch{if(DateTime.UtcNow>=consentDeadline)throw new Exception("The Windows user did not approve remote support or the interactive desktop is unavailable.");Thread.Sleep(700);continue;}
+                    if(frame==null||!frame.ContainsKey("image_base64"))throw new Exception("Remote desktop capture failed.");
+                    Post(cfg,"/api/v1/windows-agents/remote/sessions/"+sessionId+"/frame",new Dictionary<string,object>{{"image_base64",frame["image_base64"]},{"width",frame["width"]},{"height",frame["height"]}},ReadApiKey());
+                    if(!activeReported){Post(cfg,"/api/v1/windows-agents/remote/sessions/"+sessionId+"/state",new Dictionary<string,object>{{"status","active"}},ReadApiKey());activeReported=true;}
+                    Dictionary<string,object> poll=Get(cfg,"/api/v1/windows-agents/remote/sessions/"+sessionId+"/events?after="+after,ReadApiKey());
+                    if(poll.ContainsKey("active")&&!Convert.ToBoolean(poll["active"]))break;
+                    object rawEvents;if(poll.TryGetValue("events",out rawEvents)&&rawEvents is IEnumerable list&&! (rawEvents is string))foreach(object o in list){Dictionary<string,object> e=o as Dictionary<string,object>;if(e==null)continue;after=Math.Max(after,Convert.ToInt64(e["event_id"]));Dictionary<string,object> ev=e["event"] as Dictionary<string,object>;if(ev!=null)try{RemoteHelperRequest(pipeName,ev,1500);}catch{}}
+                    Thread.Sleep(450);
+                }
+                if(activeReported)try{Post(cfg,"/api/v1/windows-agents/remote/sessions/"+sessionId+"/state",new Dictionary<string,object>{{"status","ended"}},ReadApiKey());}catch{}
+            }
+            catch(Exception ex){Log("Remote support session "+sessionId+" failed: "+ex.Message);try{Post(cfg,"/api/v1/windows-agents/remote/sessions/"+sessionId+"/state",new Dictionary<string,object>{{"status","failed"},{"error",ex.Message}},ReadApiKey());}catch{}}
+            finally{remoteStop=true;if(remoteSessionId==sessionId){try{if(remoteHelperProcessId>0){Process p=Process.GetProcessById(remoteHelperProcessId);if(!p.HasExited)p.Kill();}}catch{}remoteHelperProcessId=0;remoteSessionId=0;remotePipeName=null;}}
+        }
+
         int IntValue(Dictionary<string, object> value, string key)
         {
             object raw;
@@ -559,6 +712,17 @@ namespace Godseye.WindowsAgent
                         result["new_findings"] = 0;
                         result["details"] = StageAndLaunchUpgrade(cfg, payload);
                     }
+                    else if (String.Equals(type, "remote_session_start", StringComparison.OrdinalIgnoreCase))
+                    {
+                        Dictionary<string, object> payload = entry.ContainsKey("payload") ? entry["payload"] as Dictionary<string, object> : null;
+                        if(payload==null||!payload.ContainsKey("session_id"))throw new Exception("Remote support session payload is invalid.");
+                        StartRemoteSession(cfg,Convert.ToInt64(payload["session_id"]),payload.ContainsKey("requested_by")?Convert.ToString(payload["requested_by"]):"administrator");
+                        result["ok"]=true;result["events"]=0;result["new_findings"]=0;result["details"]="Remote support request displayed to the signed-in Windows user.";
+                    }
+                    else if (String.Equals(type, "remote_session_stop", StringComparison.OrdinalIgnoreCase))
+                    {
+                        StopRemoteSession(); result["ok"]=true;result["events"]=0;result["new_findings"]=0;result["details"]="Remote support session stopped.";
+                    }
                     else
                     {
                         result["ok"] = false; result["events"] = 0; result["new_findings"] = 0;
@@ -614,6 +778,13 @@ namespace Godseye.WindowsAgent
                 result["seen_again"] = seenAgain; result["details"] = details; result["checked_at"] = DateTime.UtcNow.ToString("o");
                 Post(cfg, "/api/v1/windows-agents/rechecks/" + recheckId + "/result", result, ReadApiKey());
             }
+        }
+
+        Dictionary<string, object> Get(AgentConfig cfg, string path, string bearer)
+        {
+            string url=cfg.ServerUrl+path; HttpWebRequest req=(HttpWebRequest)WebRequest.Create(url);req.Method="GET";req.Accept="application/json";req.Timeout=10000;req.ReadWriteTimeout=10000;req.UserAgent="GODSEYE-Windows-Agent/"+AgentVersion;if(!String.IsNullOrWhiteSpace(bearer))req.Headers[HttpRequestHeader.Authorization]="Bearer "+bearer;
+            try{using(HttpWebResponse res=(HttpWebResponse)req.GetResponse())using(StreamReader sr=new StreamReader(res.GetResponseStream(),Encoding.UTF8)){string text=sr.ReadToEnd();return Json.Deserialize<Dictionary<string,object>>(text);}}
+            catch(WebException ex){string detail=ex.Message;if(ex.Response!=null)try{using(StreamReader sr=new StreamReader(ex.Response.GetResponseStream()))detail=sr.ReadToEnd();}catch{}throw new Exception("GODSEYE API request failed: "+detail,ex);}
         }
 
         Dictionary<string, object> Post(AgentConfig cfg, string path, object body, string bearer)
