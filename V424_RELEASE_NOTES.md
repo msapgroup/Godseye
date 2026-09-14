@@ -30,4 +30,6 @@ Upgrades preserve `/var/lib/godseye`, `/etc/godseye.env`, the existing SQLite da
 
 The v4.24 release workflow creates a full server ZIP containing the complete source release plus the generated Windows Agent 2.2.3 binaries. The ZIP can be extracted and installed with `install.sh`, and is also suitable for GODSEYE's staged ZIP updater on installations that already expose that update UI.
 
+The Agent 2.2.3 package is rebuilt from the cleaned permanent source tree after temporary patch tooling is removed.
+
 A SHA-256 checksum is generated alongside the ZIP.
