@@ -506,6 +506,7 @@ namespace Godseye.WindowsAgent
 
         const uint INVALID_SESSION_ID = 0xFFFFFFFF;
         const uint CREATE_UNICODE_ENVIRONMENT = 0x00000400;
+        const uint LOGON_WITH_PROFILE = 0x00000001;
         const uint MB_YESNO = 0x00000004;
         const uint MB_ICONINFORMATION = 0x00000040;
         const uint MB_TOPMOST = 0x00040000;
@@ -520,7 +521,10 @@ namespace Godseye.WindowsAgent
         [DllImport("kernel32.dll")] static extern uint WTSGetActiveConsoleSessionId();
         [DllImport("Wtsapi32.dll", SetLastError=true)] static extern bool WTSQueryUserToken(uint SessionId, out IntPtr phToken);
         [DllImport("Wtsapi32.dll", CharSet=CharSet.Unicode, SetLastError=true)] static extern bool WTSSendMessage(IntPtr hServer, int SessionId, string pTitle, int TitleLength, string pMessage, int MessageLength, int Style, int Timeout, out int pResponse, bool bWait);
+        [DllImport("userenv.dll", SetLastError=true)] static extern bool CreateEnvironmentBlock(out IntPtr lpEnvironment, IntPtr hToken, bool bInherit);
+        [DllImport("userenv.dll", SetLastError=true)] static extern bool DestroyEnvironmentBlock(IntPtr lpEnvironment);
         [DllImport("advapi32.dll", CharSet=CharSet.Unicode, SetLastError=true)] static extern bool CreateProcessAsUser(IntPtr hToken, string lpApplicationName, System.Text.StringBuilder lpCommandLine, IntPtr lpProcessAttributes, IntPtr lpThreadAttributes, bool bInheritHandles, uint dwCreationFlags, IntPtr lpEnvironment, string lpCurrentDirectory, ref STARTUPINFO lpStartupInfo, out PROCESS_INFORMATION lpProcessInformation);
+        [DllImport("advapi32.dll", CharSet=CharSet.Unicode, SetLastError=true)] static extern bool CreateProcessWithTokenW(IntPtr hToken, uint dwLogonFlags, string lpApplicationName, System.Text.StringBuilder lpCommandLine, uint dwCreationFlags, IntPtr lpEnvironment, string lpCurrentDirectory, ref STARTUPINFO lpStartupInfo, out PROCESS_INFORMATION lpProcessInformation);
         [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr hObject);
         [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern int MessageBox(IntPtr hWnd, string text, string caption, uint type);
         [DllImport("user32.dll")] static extern int GetSystemMetrics(int nIndex);
@@ -560,6 +564,7 @@ namespace Godseye.WindowsAgent
         static Dictionary<string, object> HandleRemoteHelperRequest(Dictionary<string, object> request)
         {
             string kind = request != null && request.ContainsKey("kind") ? Convert.ToString(request["kind"]) : "";
+            if (String.Equals(kind,"ping",StringComparison.OrdinalIgnoreCase)) return new Dictionary<string,object>{{"ok",true},{"ready",true}};
             if (String.Equals(kind,"capture",StringComparison.OrdinalIgnoreCase))
             {
                 int width=Math.Max(1,GetSystemMetrics(0)), height=Math.Max(1,GetSystemMetrics(1));
@@ -600,21 +605,80 @@ namespace Godseye.WindowsAgent
 
         void LaunchRemoteHelper(string pipeName, string requestedBy, uint sessionId)
         {
-            IntPtr token=IntPtr.Zero; if(!WTSQueryUserToken(sessionId,out token))throw new Exception("Could not obtain the signed-in Windows user token ("+Marshal.GetLastWin32Error()+").");
+            IntPtr token=IntPtr.Zero;
+            if(!WTSQueryUserToken(sessionId,out token)) throw new Exception("Could not obtain the signed-in Windows user token ("+Marshal.GetLastWin32Error()+").");
+            IntPtr environment=IntPtr.Zero;
             try
             {
-                string exe=Environment.ProcessPath; if(String.IsNullOrWhiteSpace(exe))throw new Exception("Agent executable path is unavailable."); requestedBy=(requestedBy??"administrator").Replace("\"","'");
-                var cmd=new System.Text.StringBuilder("\""+exe+"\" --remote-helper \""+pipeName+"\" \""+requestedBy+"\" --consent-granted"); STARTUPINFO si=new STARTUPINFO();si.cb=Marshal.SizeOf(typeof(STARTUPINFO));si.lpDesktop=@"winsta0\default"; PROCESS_INFORMATION pi;
-                if(!CreateProcessAsUser(token,exe,cmd,IntPtr.Zero,IntPtr.Zero,false,CREATE_UNICODE_ENVIRONMENT,IntPtr.Zero,Path.GetDirectoryName(exe),ref si,out pi))throw new Exception("Could not launch the interactive GODSEYE helper ("+Marshal.GetLastWin32Error()+").");
-                remoteHelperProcessId=(int)pi.dwProcessId; CloseHandle(pi.hThread);CloseHandle(pi.hProcess);
+                string exe=Environment.ProcessPath;
+                if(String.IsNullOrWhiteSpace(exe)) throw new Exception("Agent executable path is unavailable.");
+                requestedBy=(requestedBy??"administrator").Replace("\"","'");
+                if(!CreateEnvironmentBlock(out environment,token,false))
+                {
+                    Log("Remote helper environment block could not be created ("+Marshal.GetLastWin32Error()+"); continuing with the Windows token environment.");
+                    environment=IntPtr.Zero;
+                }
+                STARTUPINFO si=new STARTUPINFO();
+                si.cb=Marshal.SizeOf(typeof(STARTUPINFO));
+                si.lpDesktop=@"winsta0\default";
+                PROCESS_INFORMATION pi;
+                var cmd=new System.Text.StringBuilder("\""+exe+"\" --remote-helper \""+pipeName+"\" \""+requestedBy+"\" --consent-granted");
+                bool created=CreateProcessAsUser(token,exe,cmd,IntPtr.Zero,IntPtr.Zero,false,CREATE_UNICODE_ENVIRONMENT,environment,Path.GetDirectoryName(exe),ref si,out pi);
+                int createAsUserError=created?0:Marshal.GetLastWin32Error();
+                if(!created)
+                {
+                    cmd=new System.Text.StringBuilder("\""+exe+"\" --remote-helper \""+pipeName+"\" \""+requestedBy+"\" --consent-granted");
+                    created=CreateProcessWithTokenW(token,LOGON_WITH_PROFILE,exe,cmd,CREATE_UNICODE_ENVIRONMENT,environment,Path.GetDirectoryName(exe),ref si,out pi);
+                }
+                if(!created) throw new Exception("Could not launch the interactive GODSEYE helper. CreateProcessAsUser="+createAsUserError+", CreateProcessWithTokenW="+Marshal.GetLastWin32Error()+".");
+                remoteHelperProcessId=(int)pi.dwProcessId;
+                if(pi.hThread!=IntPtr.Zero)CloseHandle(pi.hThread);
+                if(pi.hProcess!=IntPtr.Zero)CloseHandle(pi.hProcess);
+                Log("Remote helper launched in Windows session "+sessionId+" as process "+remoteHelperProcessId+".");
             }
-            finally{if(token!=IntPtr.Zero)CloseHandle(token);}
+            finally
+            {
+                if(environment!=IntPtr.Zero)DestroyEnvironmentBlock(environment);
+                if(token!=IntPtr.Zero)CloseHandle(token);
+            }
         }
 
         Dictionary<string,object> RemoteHelperRequest(string pipeName, Dictionary<string,object> request, int timeout=3000)
         {
             using(NamedPipeClientStream pipe=new NamedPipeClientStream(".",pipeName,PipeDirection.InOut,PipeOptions.None))
             { pipe.Connect(timeout); using(StreamReader reader=new StreamReader(pipe,Encoding.UTF8,false,8192,true)) using(StreamWriter writer=new StreamWriter(pipe,new UTF8Encoding(false),8192,true){AutoFlush=true}) { writer.WriteLine(Json.Serialize(request)); string line=reader.ReadLine(); if(String.IsNullOrWhiteSpace(line))throw new Exception("Remote helper returned no response."); return Json.Deserialize<Dictionary<string,object>>(line); } }
+        }
+
+        void WaitForRemoteHelperReady(string pipeName, int timeoutMs=15000)
+        {
+            DateTime deadline=DateTime.UtcNow.AddMilliseconds(timeoutMs);
+            Exception last=null;
+            while(DateTime.UtcNow<deadline)
+            {
+                if(remoteHelperProcessId>0)
+                {
+                    try
+                    {
+                        using(Process p=Process.GetProcessById(remoteHelperProcessId))
+                        {
+                            if(p.HasExited) throw new Exception("Interactive GODSEYE helper exited during startup with code "+p.ExitCode+".");
+                        }
+                    }
+                    catch(ArgumentException){throw new Exception("Interactive GODSEYE helper exited before it became ready.");}
+                }
+                try
+                {
+                    Dictionary<string,object> pong=RemoteHelperRequest(pipeName,new Dictionary<string,object>{{"kind","ping"}},750);
+                    if(pong!=null&&pong.ContainsKey("ok")&&Convert.ToBoolean(pong["ok"]))
+                    {
+                        Log("Remote helper readiness handshake completed.");
+                        return;
+                    }
+                }
+                catch(Exception ex){last=ex;}
+                Thread.Sleep(250);
+            }
+            throw new Exception("Interactive GODSEYE helper did not become ready within "+timeoutMs+" ms"+(last==null?".":": "+last.Message));
         }
 
         void StartRemoteSession(AgentConfig cfg, long sessionId, string requestedBy)
@@ -629,7 +693,18 @@ namespace Godseye.WindowsAgent
                 throw new Exception("The signed-in Windows user denied remote access.");
             }
             remoteStop=false; remoteSessionId=sessionId; remotePipeName="GODSEYE-Remote-"+sessionId+"-"+Guid.NewGuid().ToString("N");
-            LaunchRemoteHelper(remotePipeName,requestedBy,windowsSessionId);
+            try
+            {
+                LaunchRemoteHelper(remotePipeName,requestedBy,windowsSessionId);
+                WaitForRemoteHelperReady(remotePipeName);
+                Log("Remote support request "+sessionId+" approved; interactive helper is ready.");
+            }
+            catch(Exception ex)
+            {
+                try { Post(cfg,"/api/v1/windows-agents/remote/sessions/"+sessionId+"/state",new Dictionary<string,object>{{"status","failed"},{"error",ex.Message}},ReadApiKey()); } catch {}
+                StopRemoteSession();
+                throw;
+            }
             remoteWorker=new Thread(()=>RemoteSessionLoop(cfg,sessionId,remotePipeName)){IsBackground=true,Name="GODSEYE Remote Support"}; remoteWorker.Start();
         }
 
