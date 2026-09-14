@@ -61,6 +61,17 @@ jobs:
           Set-Content -Path 'windows/agent-x64/GODSEYE-Windows-Agent-x64.msi.sha256' -Value $msiHash -Encoding ascii
           Write-Host "MSI SHA256: $msiHash"
 
+          [xml]$projectXml = Get-Content 'windows/agent-x64/src/Godseye.WindowsAgent/Godseye.WindowsAgent.csproj'
+          $agentVersion = [string]$projectXml.Project.PropertyGroup.Version
+          if ([string]::IsNullOrWhiteSpace($agentVersion)) { throw 'Could not read Windows Agent version from the project.' }
+          $manifest = [ordered]@{
+            version = $agentVersion
+            filename = 'GODSEYE-Windows-Agent-x64.msi'
+            sha256 = $msiHash
+          } | ConvertTo-Json
+          Set-Content -Path 'windows/agent-x64/update-manifest.json' -Value $manifest -Encoding utf8
+          Write-Host "Update manifest version: $agentVersion"
+
       - name: Smoke-test MSI install and uninstall
         shell: pwsh
         run: |
@@ -135,11 +146,12 @@ jobs:
       - name: Upload Windows agent packages
         uses: actions/upload-artifact@v4
         with:
-          name: GODSEYE-Windows-Agent-x64-2.0.1
+          name: GODSEYE-Windows-Agent-x64-2.1.0
           path: |
             windows/agent-x64/GODSEYE.WindowsAgent.exe
             windows/agent-x64/GODSEYE-Windows-Agent-x64.msi
             windows/agent-x64/GODSEYE-Windows-Agent-x64.msi.sha256
+            windows/agent-x64/update-manifest.json
             windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe
             windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe.sha256
 
@@ -152,11 +164,12 @@ jobs:
           git add -f windows/agent-x64/GODSEYE.WindowsAgent.exe
           git add -f windows/agent-x64/GODSEYE-Windows-Agent-x64.msi
           git add -f windows/agent-x64/GODSEYE-Windows-Agent-x64.msi.sha256
+          git add -f windows/agent-x64/update-manifest.json
           git add -f windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe
           git add -f windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe.sha256
           if (git diff --cached --quiet) {
             Write-Host 'Generated packages are already current.'
             exit 0
           }
-          git commit -m 'Build Windows agent 2.0.1 packages [skip ci]'
+          git commit -m 'Build Windows agent 2.1.0 packages [skip ci]'
           git push origin HEAD:main
