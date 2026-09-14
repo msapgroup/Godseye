@@ -11,7 +11,7 @@ def test_remote_access_routes_and_ui_present():
     assert "/remote-access/sessions" in src
     assert "/windows-agents/remote/sessions/" in src
     assert 'data-view="remote-access"' in html
-    assert "Remote Access" in html and "signed-in Windows user must approve" in html
+    assert "Remote Access" in html and "signed-in user approves each remote-control session" in html
     assert "remote_session_start" in src and "remote_session_stop" in src
 
 def test_remote_agent_has_full_desktop_control_after_approval_and_no_shell():
