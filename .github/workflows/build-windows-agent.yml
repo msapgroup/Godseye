@@ -61,7 +61,50 @@ jobs:
           Set-Content -Path 'windows/agent-x64/GODSEYE-Windows-Agent-x64.msi.sha256' -Value $msiHash -Encoding ascii
           Write-Host "MSI SHA256: $msiHash"
 
-      - name: Install Inno Setup for legacy setup EXE
+      - name: Smoke-test MSI install and uninstall
+        shell: pwsh
+        run: |
+          $msi = (Resolve-Path 'windows/agent-x64/GODSEYE-Windows-Agent-x64.msi').Path
+          $installLog = Join-Path $env:RUNNER_TEMP 'godseye-msi-install.log'
+          $uninstallLog = Join-Path $env:RUNNER_TEMP 'godseye-msi-uninstall.log'
+
+          $install = Start-Process msiexec.exe -ArgumentList @('/i', "`"$msi`"", '/qn', '/norestart', '/l*v', "`"$installLog`"") -Wait -PassThru
+          if (($install.ExitCode -ne 0) -and ($install.ExitCode -ne 3010)) {
+            Get-Content $installLog -Tail 200 -ErrorAction SilentlyContinue
+            throw "MSI install failed with exit code $($install.ExitCode)."
+          }
+
+          $service = Get-CimInstance Win32_Service -Filter "Name='GODSEYEWindowsAgent'"
+          if (-not $service) { throw 'MSI did not create the GODSEYEWindowsAgent service.' }
+          if ($service.StartMode -ne 'Auto') { throw "Service start mode is '$($service.StartMode)', expected Auto." }
+          if ($service.StartName -ne 'LocalSystem') { throw "Service account is '$($service.StartName)', expected LocalSystem." }
+          if ($service.PathName -notlike '*\GODSEYE Agent\GODSEYE.WindowsAgent.exe*') {
+            throw "Service executable path is unexpected: $($service.PathName)"
+          }
+
+          $sentinel = Join-Path $env:ProgramData 'GODSEYE\Agent\ci-preserve-test.txt'
+          New-Item -ItemType Directory -Path (Split-Path $sentinel) -Force | Out-Null
+          Set-Content -Path $sentinel -Value 'preserve-me' -Encoding ascii
+
+          $uninstall = Start-Process msiexec.exe -ArgumentList @('/x', "`"$msi`"", '/qn', '/norestart', '/l*v', "`"$uninstallLog`"") -Wait -PassThru
+          if (($uninstall.ExitCode -ne 0) -and ($uninstall.ExitCode -ne 3010)) {
+            Get-Content $uninstallLog -Tail 200 -ErrorAction SilentlyContinue
+            throw "MSI uninstall failed with exit code $($uninstall.ExitCode)."
+          }
+
+          for ($i = 0; $i -lt 10; $i++) {
+            if (-not (Get-Service -Name 'GODSEYEWindowsAgent' -ErrorAction SilentlyContinue)) { break }
+            Start-Sleep -Seconds 1
+          }
+          if (Get-Service -Name 'GODSEYEWindowsAgent' -ErrorAction SilentlyContinue) {
+            throw 'GODSEYEWindowsAgent service still exists after MSI uninstall.'
+          }
+          if (-not (Test-Path $sentinel)) {
+            throw 'ProgramData state was removed by MSI uninstall; agent enrollment/state must be preserved.'
+          }
+          Remove-Item $sentinel -Force
+
+      - name: Install Inno Setup for guided setup EXE
         shell: pwsh
         run: |
           $iscc = 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe'
@@ -71,7 +114,7 @@ jobs:
           }
           if (-not (Test-Path $iscc)) { throw 'ISCC.exe was not found after installing Inno Setup.' }
 
-      - name: Build legacy setup EXE
+      - name: Build guided MSI bootstrapper EXE
         shell: pwsh
         run: |
           $iscc = 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe'
@@ -80,7 +123,7 @@ jobs:
 
           $agent = 'windows/agent-x64/publish/GODSEYE.WindowsAgent.exe'
           $setup = 'windows/agent-x64/installer/output/GODSEYE-Windows-Agent-x64-Setup.exe'
-          if (-not (Test-Path $setup)) { throw 'Inno Setup did not create the setup EXE.' }
+          if (-not (Test-Path $setup)) { throw 'Inno Setup did not create the guided setup EXE.' }
 
           Copy-Item $agent 'windows/agent-x64/GODSEYE.WindowsAgent.exe' -Force
           Copy-Item $setup 'windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe' -Force

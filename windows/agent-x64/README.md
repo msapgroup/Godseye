@@ -1,17 +1,60 @@
 # GODSEYE Windows Agent x64 v2.0.1
 
-This is the permanent Windows Agent packaging model for GODSEYE.
+GODSEYE Windows Agent 2.x is a standalone x64 Windows service with its own installer lifecycle and versioning. It is designed to remain compatible with future GODSEYE server releases through the stable Windows Agent API rather than being rebuilt for every server release.
 
-- Real x64 Windows service executable.
-- .NET 8 self-contained single-file build: no local C# compiler and no separate .NET runtime installation required.
-- Real 64-bit Windows Setup EXE built with Inno Setup.
-- Stable installer AppId so newer setup packages upgrade older v2 releases in place.
-- Migrates the existing v1 service by preserving `%ProgramData%\GODSEYE\Agent` enrollment, DPAPI key, bookmarks, event queue, logs, and configuration.
-- First installation asks only for the GODSEYE HTTPS URL and a one-time enrollment token.
-- Future upgrades require no enrollment token and preserve configuration.
-- Windows service name remains `GODSEYEWindowsAgent`, keeping GODSEYE server compatibility.
-- Uses the existing stable GODSEYE Windows Agent API and Pull Events Now command channel.
+## Packaging model
 
-Version 2.0.1 rebuilds the x64 installer with corrected `sc.exe create` service-path quoting so the installer no longer passes the malformed command line that caused Windows error 1639.
+- `GODSEYE.WindowsAgent.exe` is a compiled .NET 8 self-contained x64 Windows service executable.
+- `GODSEYE-Windows-Agent-x64.msi` is the authoritative Windows Installer package.
+- `GODSEYE-Windows-Agent-x64-Setup.exe` is the guided x64 bootstrapper. It collects first-install enrollment information and delegates installation to the MSI.
+- Windows Installer owns service registration, repair, upgrade, rollback and uninstall. The supported installer path does not use PowerShell or `sc.exe` to create the service.
+- 32-bit Windows is not supported.
 
-The installer intentionally preserves `%ProgramData%\GODSEYE\Agent` on uninstall so reinstall/upgrade does not destroy the enrolled identity.
+## Installed locations
+
+Application binaries are installed under:
+
+`C:\Program Files\GODSEYE Agent\`
+
+Persistent agent data is stored separately under:
+
+`C:\ProgramData\GODSEYE\Agent\`
+
+The ProgramData directory contains enrollment identity, the DPAPI-protected API key, configuration, Event Log bookmarks, queued events and logs. MSI upgrades replace application binaries without replacing this persistent state. Uninstall removes the Windows service and installed application files but intentionally preserves the ProgramData state so reinstall or upgrade does not destroy the enrolled identity.
+
+## Windows service
+
+- Service name: `GODSEYEWindowsAgent`
+- Display name: `GODSEYE Windows Agent`
+- Startup: Automatic
+- Account: `LocalSystem`
+- Service installation/removal is authored natively in WiX with Windows Installer `ServiceInstall` and `ServiceControl`.
+- Failure recovery is configured by the installer to restart the service after failures.
+
+## Enrollment and upgrades
+
+On a new computer, the guided Setup EXE asks for the GODSEYE server URL and a one-time Windows Agent enrollment token. It installs the native MSI and then runs the agent's built-in configuration mode.
+
+If `%ProgramData%\GODSEYE\Agent\agent.json` already exists, the guided installer treats the computer as an existing installation and skips the enrollment pages. MSI upgrades therefore do not require the server address or a new enrollment token.
+
+The agent communicates through the stable GODSEYE Windows Agent API and keeps the existing Pull Events Now command channel. The intended compatibility model is:
+
+`GODSEYE Agent 2.x -> stable Windows Agent API -> future GODSEYE server releases`
+
+## Build validation
+
+GitHub Actions builds the service and installer packages on `windows-latest`. The Windows pipeline also performs an MSI lifecycle smoke test that:
+
+- installs the MSI silently;
+- verifies `GODSEYEWindowsAgent` exists;
+- verifies automatic startup under `LocalSystem`;
+- verifies the service executable is installed from `Program Files`;
+- uninstalls the MSI;
+- verifies the Windows service is removed; and
+- verifies ProgramData state survives uninstall.
+
+The workflow publishes SHA-256 files for both the MSI and guided Setup EXE and updates the generated packages on `main` after a successful build.
+
+## Code signing
+
+The MSI and Setup EXE are not yet Authenticode-signed by this build pipeline. Production signing should be added using an MSAPGROUP code-signing certificate or managed signing service stored outside the repository. Do not commit a private signing key to GitHub.
