@@ -29,7 +29,6 @@ jobs:
                   windows/agent-x64/src/Godseye.WindowsAgent/Godseye.WindowsAgent.csproj \
                   windows/agent-x64/installer/msi/Package.wxs \
                   windows/agent-x64/installer/GODSEYE-Agent-x64.iss \
-                  .github/workflows/build-v424-release.yml \
                   tests/test_permanent_x64_windows_agent_v423.py
           git commit -m 'Fix Windows remote approval prompt and bump Agent 2.2.2'
           git push
