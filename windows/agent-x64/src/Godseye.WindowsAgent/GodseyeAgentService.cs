@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Diagnostics.Eventing.Reader;
 using System.IO;
 using System.Net;
@@ -84,7 +85,7 @@ namespace Godseye.WindowsAgent
 
     public class GodseyeAgentService : ServiceBase
     {
-        const string AgentVersion = "2.0.0";
+        static readonly string AgentVersion = typeof(GodseyeAgentService).Assembly.GetName().Version?.ToString(3) ?? "2.1.0";
         static readonly JsonCompat Json = new JsonCompat();
         readonly string BaseDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "GODSEYE", "Agent");
         Thread worker;
@@ -450,6 +451,85 @@ namespace Godseye.WindowsAgent
             return new Dictionary<string, object>() { { "events", events }, { "new_findings", findings } };
         }
 
+        string Sha256File(string path)
+        {
+            using (SHA256 sha = SHA256.Create())
+            using (FileStream stream = File.OpenRead(path))
+            {
+                byte[] hash = sha.ComputeHash(stream);
+                return BitConverter.ToString(hash).Replace("-", "");
+            }
+        }
+
+        void DownloadAuthenticatedFile(AgentConfig cfg, string path, string destination)
+        {
+            string url = cfg.ServerUrl + path;
+            HttpWebRequest req = (HttpWebRequest)WebRequest.Create(url);
+            req.Method = "GET";
+            req.Accept = "application/octet-stream";
+            req.Timeout = 120000;
+            req.ReadWriteTimeout = 120000;
+            req.UserAgent = "GODSEYE-Windows-Agent/" + AgentVersion;
+            string bearer = ReadApiKey();
+            if (!String.IsNullOrWhiteSpace(bearer)) req.Headers[HttpRequestHeader.Authorization] = "Bearer " + bearer;
+            try
+            {
+                using (HttpWebResponse res = (HttpWebResponse)req.GetResponse())
+                using (Stream input = res.GetResponseStream())
+                using (FileStream output = new FileStream(destination, FileMode.Create, FileAccess.Write, FileShare.None))
+                    input.CopyTo(output);
+            }
+            catch (WebException ex)
+            {
+                string detail = ex.Message;
+                if (ex.Response != null) try { using (StreamReader sr = new StreamReader(ex.Response.GetResponseStream())) detail = sr.ReadToEnd(); } catch { }
+                throw new Exception("GODSEYE agent update download failed: " + detail, ex);
+            }
+        }
+
+        string StageAndLaunchUpgrade(AgentConfig cfg, Dictionary<string, object> payload)
+        {
+            if (payload == null) throw new Exception("Upgrade payload is missing.");
+            string targetVersion = payload.ContainsKey("version") ? Convert.ToString(payload["version"]) : "";
+            string expectedSha = payload.ContainsKey("sha256") ? Convert.ToString(payload["sha256"]).Trim().ToUpperInvariant() : "";
+            Version current;
+            Version target;
+            if (!Version.TryParse(AgentVersion, out current)) throw new Exception("Current agent version is invalid: " + AgentVersion);
+            if (!Version.TryParse(targetVersion, out target)) throw new Exception("Target agent version is invalid.");
+            if (target <= current) return "Agent " + AgentVersion + " is already current; no upgrade was required.";
+            if (expectedSha.Length != 64) throw new Exception("Upgrade SHA-256 is invalid.");
+            foreach (char c in expectedSha) if (!Uri.IsHexDigit(c)) throw new Exception("Upgrade SHA-256 is invalid.");
+
+            string updateDir = Path.Combine(BaseDir, "Updates");
+            Directory.CreateDirectory(updateDir);
+            string msiPath = Path.Combine(updateDir, "GODSEYE-Windows-Agent-x64-" + targetVersion + ".msi");
+            string tempPath = msiPath + ".download";
+            if (File.Exists(tempPath)) File.Delete(tempPath);
+            DownloadAuthenticatedFile(cfg, "/api/v1/windows-agents/package/msi", tempPath);
+            string actualSha = Sha256File(tempPath).ToUpperInvariant();
+            if (!String.Equals(actualSha, expectedSha, StringComparison.OrdinalIgnoreCase))
+            {
+                File.Delete(tempPath);
+                throw new Exception("Upgrade MSI SHA-256 verification failed.");
+            }
+            if (File.Exists(msiPath)) File.Delete(msiPath);
+            File.Move(tempPath, msiPath);
+
+            string msiexec = Path.Combine(Environment.SystemDirectory, "msiexec.exe");
+            ProcessStartInfo psi = new ProcessStartInfo
+            {
+                FileName = msiexec,
+                Arguments = "/i \"" + msiPath + "\" /qn /norestart REBOOT=ReallySuppress",
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                WorkingDirectory = updateDir
+            };
+            Process process = Process.Start(psi);
+            if (process == null) throw new Exception("Windows Installer could not be started.");
+            Log("Verified and launched Windows Agent upgrade from " + AgentVersion + " to " + targetVersion + ".");
+            return "Verified MSI and launched Windows Installer for agent " + targetVersion + ". The new version will be confirmed by its next heartbeat.";
+        }
+
         void ProcessCommands(AgentConfig cfg, Dictionary<string, object> hb)
         {
             object value; if (!hb.TryGetValue("commands", out value)) return;
@@ -471,6 +551,14 @@ namespace Godseye.WindowsAgent
                         result["details"] = "Pull Events Now completed successfully.";
                         Log("Pull Events Now command completed: " + result["events"] + " event(s), " + result["new_findings"] + " new finding(s)");
                     }
+                    else if (String.Equals(type, "upgrade_agent", StringComparison.OrdinalIgnoreCase))
+                    {
+                        Dictionary<string, object> payload = entry.ContainsKey("payload") ? entry["payload"] as Dictionary<string, object> : null;
+                        result["ok"] = true;
+                        result["events"] = 0;
+                        result["new_findings"] = 0;
+                        result["details"] = StageAndLaunchUpgrade(cfg, payload);
+                    }
                     else
                     {
                         result["ok"] = false; result["events"] = 0; result["new_findings"] = 0;
@@ -480,7 +568,7 @@ namespace Godseye.WindowsAgent
                 catch (Exception ex)
                 {
                     result["ok"] = false; result["events"] = 0; result["new_findings"] = 0;
-                    result["details"] = "Pull Events Now failed: " + ex.Message;
+                    result["details"] = "GODSEYE agent command failed: " + ex.Message;
                     Log("Command " + commandId + " failed: " + ex.Message);
                 }
                 result["completed_at"] = DateTime.UtcNow.ToString("o");

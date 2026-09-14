@@ -3365,6 +3365,44 @@ def _agent_version_tuple(value: str):
         return (0,0,0)
 
 
+def _windows_agent_update_manifest():
+    from .windows_agent import load_update_manifest
+    path=BASE_DIR / "windows" / "agent-x64" / "update-manifest.json"
+    try:
+        return load_update_manifest(path)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        raise HTTPException(503,f"Windows Agent update manifest is unavailable: {exc}")
+
+
+@app.get(f"{router_prefix}/windows-agents/update-info")
+def windows_agent_update_info(user=Depends(get_current_user)):
+    manifest=_windows_agent_update_manifest()
+    return {"ok":True,**manifest,"self_update_baseline":"2.1.0"}
+
+
+@app.post(f"{router_prefix}/windows-agents/{agent_id}/upgrade")
+def windows_agent_upgrade(agent_id: int, request: Request, user=Depends(require_admin)):
+    manifest=_windows_agent_update_manifest(); ts=now()
+    target=manifest["version"]
+    with db() as c:
+        agent=c.execute("SELECT * FROM windows_agents WHERE id=?",(agent_id,)).fetchone()
+        if not agent: raise HTTPException(404,"Windows Agent not found")
+        if not agent["enabled"] or agent["revoked_at"]: raise HTTPException(409,"Windows Agent is disabled or revoked")
+        installed=agent["agent_version"] or "0.0.0"
+        if _agent_version_tuple(installed) >= _agent_version_tuple(target):
+            return {"ok":True,"queued":False,"update_available":False,"installed_version":installed,"available_version":target,"message":"This Windows Agent is already up to date."}
+        if _agent_version_tuple(installed) < (2,1,0):
+            raise HTTPException(409,f"Windows Agent {installed} requires one manual upgrade to 2.1.0 or newer before self-update is available. Download and run the current x64 installer once; enrollment is preserved.")
+        existing=c.execute("SELECT * FROM windows_agent_commands WHERE agent_id=? AND command_type='upgrade_agent' AND status IN ('pending','delivered') ORDER BY id DESC LIMIT 1",(agent_id,)).fetchone()
+        if existing:
+            return {"ok":True,"queued":True,"command_id":existing["id"],"status":existing["status"],"installed_version":installed,"available_version":target,"message":"An Agent upgrade is already queued."}
+        payload=json.dumps({"version":target,"sha256":manifest["sha256"]},separators=(",",":"))
+        cur=c.execute("INSERT INTO windows_agent_commands(agent_id,command_type,payload_json,status,requested_by,requested_at) VALUES(?,'upgrade_agent',?,'pending',?,?)",(agent_id,payload,user["username"],ts))
+        cid=cur.lastrowid
+        audit(c,user["username"],"windows_agent_upgrade_requested",str(agent_id),json.dumps({"command_id":cid,"computer_name":agent["computer_name"],"installed_version":installed,"target_version":target}),client_ip(request))
+    return {"ok":True,"queued":True,"command_id":cid,"status":"pending","installed_version":installed,"available_version":target,"message":f"Upgrade to Windows Agent {target} queued. The agent will verify the MSI and launch Windows Installer on its next heartbeat."}
+
+
 @app.post(f"{router_prefix}/windows-agents/{{agent_id}}/pull-now")
 def windows_agent_pull_now(agent_id: int, request: Request, user=Depends(require_permission("operate"))):
     ts=now()
@@ -3387,6 +3425,8 @@ def windows_agent_pull_now(agent_id: int, request: Request, user=Depends(require
 def windows_agent_list(user=Depends(get_current_user)):
     from .windows_agent import public_agent
     nowdt=dt.datetime.now(dt.timezone.utc); out=[]
+    try: update_manifest=_windows_agent_update_manifest()
+    except HTTPException: update_manifest=None
     with db() as c:
         rows=c.execute("SELECT * FROM windows_agents ORDER BY computer_name,id").fetchall()
         for row in rows:
@@ -3400,7 +3440,11 @@ def windows_agent_list(user=Depends(get_current_user)):
             d["status"]=status
             d["open_findings"]=c.execute("SELECT COUNT(*) FROM event_findings WHERE agent_id=? AND status='open'",(row["id"],)).fetchone()[0]
             pull=c.execute("SELECT * FROM windows_agent_commands WHERE agent_id=? AND command_type='pull_events' ORDER BY id DESC LIMIT 1",(row["id"],)).fetchone()
-            d["pull_now_supported"]=_agent_version_tuple(d.get("agent_version") or "") >= (1,1,0)
+            installed_version=d.get("agent_version") or "0.0.0"
+            d["pull_now_supported"]=_agent_version_tuple(installed_version) >= (1,1,0)
+            d["upgrade_supported"]=_agent_version_tuple(installed_version) >= (2,1,0)
+            d["available_version"]=update_manifest["version"] if update_manifest else None
+            d["update_available"]=bool(update_manifest and _agent_version_tuple(installed_version) < _agent_version_tuple(update_manifest["version"]))
             if pull:
                 d["last_pull_status"]=pull["status"]; d["last_pull_requested_at"]=pull["requested_at"]; d["last_pull_completed_at"]=pull["completed_at"]
                 try: d["last_pull_result"]=json.loads(pull["result_json"] or "{}")
@@ -3435,6 +3479,14 @@ def windows_agent_revoke(agent_id: int, request: Request, user=Depends(require_a
         c.execute("UPDATE windows_agent_commands SET status='failed',completed_at=?,result_json=? WHERE agent_id=? AND status IN ('pending','delivered')",(ts,json.dumps({"error":"Agent revoked"}),agent_id))
         audit(c,user["username"],"windows_agent_revoked",str(agent_id),row["computer_name"],client_ip(request))
     return {"ok":True}
+
+
+@app.get(f"{router_prefix}/windows-agents/package/msi")
+def windows_agent_msi_package(agent=Depends(_agent_auth)):
+    manifest=_windows_agent_update_manifest()
+    path=BASE_DIR / "windows" / "agent-x64" / manifest["filename"]
+    if not path.exists(): raise HTTPException(404,"Windows Agent x64 MSI is not installed")
+    return FileResponse(path,media_type="application/octet-stream",filename=manifest["filename"],headers={"X-GODSEYE-Agent-Version":manifest["version"],"X-GODSEYE-SHA256":manifest["sha256"]})
 
 
 @app.get(f"{router_prefix}/windows-agents/package")
@@ -5891,7 +5943,7 @@ html[data-theme="dark"] .event-finding-bulkbar,html[data-theme="dark"] .event-fi
   <div class="windows-agent-body">
     <div class="agent-onboarding">
       <div><b>Agent enrollment</b><div class="muted">Generate a one-time token, download the permanent x64 Windows installer, and run Setup as Administrator. Future agent upgrades preserve enrollment automatically.</div></div>
-      <div class="actions"><button class="primary operate-only" type="button" onclick="pullAllWindowsAgentsNow()">⟳ Pull All Online</button><button class="secondary admin-only" type="button" onclick="downloadWindowsAgentPackage()">↓ Download x64 Installer</button><button class="primary admin-only" type="button" onclick="createWindowsAgentEnrollment()">＋ Create Enrollment Token</button></div>
+      <div class="actions"><button class="secondary" type="button" onclick="checkWindowsAgentUpdates()">↻ Check for Updates</button><button class="primary operate-only" type="button" onclick="pullAllWindowsAgentsNow()">⟳ Pull All Online</button><button class="secondary admin-only" type="button" onclick="downloadWindowsAgentPackage()">↓ Download x64 Installer</button><button class="primary admin-only" type="button" onclick="createWindowsAgentEnrollment()">＋ Create Enrollment Token</button></div>
     </div>
     <div id="windowsAgentEnrollment" class="agent-enrollment-result" style="display:none">
       <div class="agent-token-head"><b>One-time enrollment token</b><span id="windowsAgentEnrollmentExpiry" class="muted"></span></div>
@@ -6732,8 +6784,32 @@ async function loadWindowsAgents(){
 }
 function renderWindowsAgents(){
  const root=document.getElementById('windowsAgentList');if(!root)return;
- root.innerHTML=WINDOWS_AGENTS.length?WINDOWS_AGENTS.map(x=>{const pull=x.last_pull_status&&x.last_pull_status!=='never'?` · Pull: ${esc(x.last_pull_status)}${x.last_pull_completed_at?' '+esc(new Date(x.last_pull_completed_at).toLocaleTimeString()):''}`:'';const pullBtn=x.revoked_at?'':(x.pull_now_supported?`<button class="primary operate-only" onclick="pullWindowsAgentNow(${x.id})">⟳ Pull Events Now</button>`:`<button class="secondary" disabled title="Install the permanent x64 agent (v2.0.0 or newer)">Update Agent for Pull Now</button>`);return `<div class="windows-agent-row"><span class="windows-agent-icon">W</span><div><b>${esc(x.computer_name||x.hostname||'Windows Agent')}</b><small><span class="agent-status ${esc(x.status||'enrolled')}"><span class="agent-status-dot"></span>${esc(x.status||'enrolled')}</span> · ${esc(x.ip_address||'no IP')} · ${esc(x.os_version||'Windows')} · Agent ${esc(x.agent_version||'—')} · ${x.open_findings||0} open finding(s)</small><small>Last heartbeat: ${x.last_heartbeat_at?esc(new Date(x.last_heartbeat_at).toLocaleString()):'never'} · Channels: ${(x.channels||[]).map(esc).join(', ')} · every ${x.poll_interval_seconds||60}s${pull}${x.last_error?' · '+esc(x.last_error):''}</small></div><div class="actions">${pullBtn}${x.revoked_at?'':`<button class="secondary admin-only" onclick="configureWindowsAgent(${x.id})">Configure</button><button class="danger admin-only" onclick="revokeWindowsAgent(${x.id})">Revoke</button>`}</div></div>`}).join(''):'<div class="empty">No Windows Agents enrolled.</div>';
+ root.innerHTML=WINDOWS_AGENTS.length?WINDOWS_AGENTS.map(x=>{
+   const pull=x.last_pull_status&&x.last_pull_status!=='never'?` · Pull: ${esc(x.last_pull_status)}${x.last_pull_completed_at?' '+esc(new Date(x.last_pull_completed_at).toLocaleTimeString()):''}`:'';
+   const pullBtn=x.revoked_at?'':(x.pull_now_supported?`<button class="primary operate-only" onclick="pullWindowsAgentNow(${x.id})">⟳ Pull Events Now</button>`:`<button class="secondary" disabled title="Install the permanent x64 agent (v2.0.0 or newer)">Update Agent for Pull Now</button>`);
+   let updateBtn='';
+   if(!x.revoked_at&&x.update_available){
+     updateBtn=x.upgrade_supported?`<button class="primary admin-only" onclick="upgradeWindowsAgent(${x.id})">↑ Upgrade to ${esc(x.available_version)}</button>`:`<button class="secondary admin-only" onclick="downloadWindowsAgentPackage()" title="Agent 2.0.x needs one manual baseline upgrade; enrollment is preserved.">↓ Manual Update to ${esc(x.available_version)}</button>`;
+   }else if(!x.revoked_at&&x.available_version){updateBtn=`<button class="secondary" disabled>✓ Up to date</button>`}
+   const updateText=x.available_version?(x.update_available?` · Update available: ${esc(x.available_version)}${x.upgrade_supported?'':' (one manual baseline update required)'}`:` · Latest: ${esc(x.available_version)}`):'';
+   return `<div class="windows-agent-row"><span class="windows-agent-icon">W</span><div><b>${esc(x.computer_name||x.hostname||'Windows Agent')}</b><small><span class="agent-status ${esc(x.status||'enrolled')}"><span class="agent-status-dot"></span>${esc(x.status||'enrolled')}</span> · ${esc(x.ip_address||'no IP')} · ${esc(x.os_version||'Windows')} · Agent ${esc(x.agent_version||'—')} · ${x.open_findings||0} open finding(s)${updateText}</small><small>Last heartbeat: ${x.last_heartbeat_at?esc(new Date(x.last_heartbeat_at).toLocaleString()):'never'} · Channels: ${(x.channels||[]).map(esc).join(', ')} · every ${x.poll_interval_seconds||60}s${pull}${x.last_error?' · '+esc(x.last_error):''}</small></div><div class="actions">${updateBtn}${pullBtn}${x.revoked_at?'':`<button class="secondary admin-only" onclick="configureWindowsAgent(${x.id})">Configure</button><button class="danger admin-only" onclick="revokeWindowsAgent(${x.id})">Revoke</button>`}</div></div>`
+ }).join(''):'<div class="empty">No Windows Agents enrolled.</div>';
  applyRoleVisibility();
+}
+async function checkWindowsAgentUpdates(){
+ try{
+   const info=await json('/api/v1/windows-agents/update-info');await loadWindowsAgents();
+   const updates=WINDOWS_AGENTS.filter(x=>x.update_available),automatic=updates.filter(x=>x.upgrade_supported),manual=updates.filter(x=>!x.upgrade_supported);
+   alert(`Latest Windows Agent: ${info.version}. ${updates.length} enrolled agent${updates.length===1?'':'s'} need an update.${automatic.length?' '+automatic.length+' can upgrade directly from GODSEYE.':''}${manual.length?' '+manual.length+' need the one-time 2.1.0 baseline installer first.':''}`);
+ }catch(e){alert('Could not check Windows Agent updates: '+e.message)}
+}
+async function upgradeWindowsAgent(id){
+ const x=WINDOWS_AGENTS.find(a=>a.id===id);if(!x)return;
+ if(!confirm(`Upgrade ${x.computer_name||'this Windows Agent'} from ${x.agent_version||'unknown'} to ${x.available_version||'the latest version'}? Enrollment, API key, bookmarks, queue, and configuration will be preserved.`))return;
+ try{
+   const r=await json('/api/v1/windows-agents/'+id+'/upgrade',{method:'POST'});alert(r.message||'Windows Agent upgrade queued.');await loadWindowsAgents();
+   setTimeout(loadWindowsAgents,15000);
+ }catch(e){alert('Could not upgrade Windows Agent: '+e.message)}
 }
 async function createWindowsAgentEnrollment(){
  const label=prompt('Enrollment label (for example FILESERVER01):','Windows Agent');if(label===null)return;

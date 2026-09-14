@@ -3,7 +3,7 @@
   <Package
       Name="GODSEYE Windows Agent"
       Manufacturer="MSAPGROUP LLC"
-      Version="2.0.1"
+      Version="2.1.0"
       UpgradeCode="{8FD91243-B37D-4C6C-BFC7-74F833F8C551}"
       Scope="perMachine">
 
