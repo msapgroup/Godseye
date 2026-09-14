@@ -1,7 +1,6 @@
 #define MyAppName "GODSEYE Windows Agent"
-#define MyAppVersion "2.2.5"
+#define MyAppVersion "2.2.7"
 #define MyAppPublisher "MSAPGROUP LLC"
-#define MyAppExeName "GODSEYE.WindowsAgent.exe"
 #define MyMsiName "GODSEYE-Windows-Agent-x64.msi"
 
 [Setup]
@@ -30,7 +29,8 @@ Source: "..\{#MyMsiName}"; Flags: dontcopy
 var
   ConfigPage: TInputQueryWizardPage;
   TlsPage: TInputOptionWizardPage;
-  ExistingConfig: Boolean;
+  ExistingEnrollment: Boolean;
+  ConfigWrittenBySetup: Boolean;
 
 function DataDir(): String;
 begin
@@ -42,19 +42,73 @@ begin
   Result := DataDir() + '\agent.json';
 end;
 
-function AgentExePath(): String;
+function KeyPath(): String;
 begin
-  Result := ExpandConstant('{autopf64}\GODSEYE Agent\{#MyAppExeName}');
+  Result := DataDir() + '\agent.key';
+end;
+
+function JsonEscape(Value: String): String;
+begin
+  Result := Value;
+  StringChangeEx(Result, '\', '\\', True);
+  StringChangeEx(Result, '"', '\"', True);
+  StringChangeEx(Result, #13, '\r', True);
+  StringChangeEx(Result, #10, '\n', True);
+  StringChangeEx(Result, #9, '\t', True);
+end;
+
+function WriteFirstInstallConfig(): Boolean;
+var
+  Json: String;
+  SkipTls: String;
+  AgentUuid: String;
+begin
+  Result := False;
+  if not ForceDirectories(DataDir()) then
+  begin
+    MsgBox('Setup could not create the GODSEYE Agent data folder:' + #13#10 + DataDir(), mbError, MB_OK);
+    exit;
+  end;
+
+  if TlsPage.SelectedValueIndex = 0 then
+    SkipTls := 'false'
+  else
+    SkipTls := 'true';
+
+  AgentUuid := GetMD5OfString(ExpandConstant('{computername}') + '|' +
+    ExpandConstant('{username}') + '|' +
+    GetDateTimeString('yyyy-mm-dd hh:nn:ss.zzz', '-', ':'));
+
+  Json := '{' + #13#10 +
+    '  "ServerUrl": "' + JsonEscape(Trim(ConfigPage.Values[0])) + '",' + #13#10 +
+    '  "EnrollmentToken": "' + JsonEscape(Trim(ConfigPage.Values[1])) + '",' + #13#10 +
+    '  "AgentUuid": "' + AgentUuid + '",' + #13#10 +
+    '  "SkipTlsVerify": ' + SkipTls + ',' + #13#10 +
+    '  "PollIntervalSeconds": 60,' + #13#10 +
+    '  "Channels": ["System", "Application"]' + #13#10 +
+    '}' + #13#10;
+
+  if not SaveStringToFile(ConfigPath(), Json, False) then
+  begin
+    MsgBox('Setup could not write the GODSEYE Agent configuration:' + #13#10 + ConfigPath(), mbError, MB_OK);
+    exit;
+  end;
+
+  ConfigWrittenBySetup := True;
+  Result := True;
 end;
 
 procedure InitializeWizard;
 begin
-  ExistingConfig := FileExists(ConfigPath());
+  { A real existing enrollment requires both config and the DPAPI-protected API key.
+    A stale config left by an interrupted/failed first install must not suppress the wizard. }
+  ExistingEnrollment := FileExists(ConfigPath()) and FileExists(KeyPath());
+  ConfigWrittenBySetup := False;
 
   ConfigPage := CreateInputQueryPage(wpWelcome,
     'Connect to GODSEYE',
     'Enroll this Windows computer with GODSEYE',
-    'Enter the GODSEYE server URL and a one-time Windows Agent enrollment token. Existing installations keep their current enrollment automatically.');
+    'Enter the GODSEYE server URL and a one-time Windows Agent enrollment token. Existing enrolled installations keep their current enrollment automatically.');
   ConfigPage.Add('GODSEYE URL:', False);
   ConfigPage.Add('Enrollment token:', True);
   ConfigPage.Values[0] := 'https://';
@@ -70,13 +124,13 @@ end;
 
 function ShouldSkipPage(PageID: Integer): Boolean;
 begin
-  Result := ExistingConfig and ((PageID = ConfigPage.ID) or (PageID = TlsPage.ID));
+  Result := ExistingEnrollment and ((PageID = ConfigPage.ID) or (PageID = TlsPage.ID));
 end;
 
 function NextButtonClick(CurPageID: Integer): Boolean;
 begin
   Result := True;
-  if (not ExistingConfig) and (CurPageID = ConfigPage.ID) then
+  if (not ExistingEnrollment) and (CurPageID = ConfigPage.ID) then
   begin
     if Trim(ConfigPage.Values[0]) = '' then
     begin
@@ -113,39 +167,30 @@ end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
 var
-  ResultCode: Integer;
   MsiResultCode: Integer;
   MsiPath: String;
   Params: String;
-  ExePath: String;
 begin
   if CurStep <> ssPostInstall then
     exit;
 
+  { IMPORTANT: first-install configuration is written BEFORE the MSI starts the
+    Windows service. We intentionally do not launch the service executable as a
+    post-install configuration helper. This removes the CLR bootstrap failure
+    path and gives the service a valid configuration on its very first start. }
+  if (not ExistingEnrollment) and (not WriteFirstInstallConfig()) then
+    RaiseException('GODSEYE Windows Agent configuration could not be prepared.');
+
   ExtractTemporaryFile('{#MyMsiName}');
   MsiPath := ExpandConstant('{tmp}\{#MyMsiName}');
 
-  { The MSI is the sole owner of files, service registration, repair, upgrades,
-    and uninstall. This bootstrapper only supplies first-install enrollment UI. }
   Params := '/i "' + MsiPath + '" /qn /norestart';
   if not Exec(ExpandConstant('{sys}\msiexec.exe'), Params, '', SW_SHOW, ewWaitUntilTerminated, MsiResultCode) or
      ((MsiResultCode <> 0) and (MsiResultCode <> 3010)) then
-    RaiseException('Windows Installer could not install GODSEYE Windows Agent. msiexec exit code: ' + IntToStr(MsiResultCode));
-
-  if not ExistingConfig then
   begin
-    ExePath := AgentExePath();
-    if not FileExists(ExePath) then
-      RaiseException('GODSEYE Windows Agent was installed, but the service executable was not found at ' + ExePath);
-
-    Params := '--configure --server-url "' + Trim(ConfigPage.Values[0]) + '" --enrollment-token "' + Trim(ConfigPage.Values[1]) + '" --skip-tls-verify ';
-    if TlsPage.SelectedValueIndex = 0 then
-      Params := Params + 'false'
-    else
-      Params := Params + 'true';
-
-    if not Exec(ExePath, Params, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
-      RaiseException('The Windows Agent MSI installed successfully, but first-time GODSEYE configuration failed. Agent exit code: ' + IntToStr(ResultCode));
+    if ConfigWrittenBySetup then
+      DeleteFile(ConfigPath());
+    RaiseException('Windows Installer could not install GODSEYE Windows Agent. msiexec exit code: ' + IntToStr(MsiResultCode));
   end;
 
   if MsiResultCode = 3010 then
