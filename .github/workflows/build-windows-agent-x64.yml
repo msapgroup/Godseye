@@ -1,0 +1,60 @@
+name: Build GODSEYE Windows Agent x64
+
+on:
+  push:
+    branches:
+      - agent-installer-v2
+    paths:
+      - 'windows/agent-x64/**'
+      - '.github/workflows/build-windows-agent-x64.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Publish self-contained x64 service
+        shell: pwsh
+        run: |
+          dotnet restore windows/agent-x64/src/Godseye.WindowsAgent/Godseye.WindowsAgent.csproj
+          dotnet publish windows/agent-x64/src/Godseye.WindowsAgent/Godseye.WindowsAgent.csproj `
+            -c Release -r win-x64 --self-contained true `
+            -o windows/agent-x64/publish
+          Get-Item windows/agent-x64/publish/GODSEYE.WindowsAgent.exe | Format-List Name,Length,LastWriteTime
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --no-progress -y
+
+      - name: Build x64 Setup EXE
+        shell: pwsh
+        run: |
+          & 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe' windows\agent-x64\installer\GODSEYE-Agent-x64.iss
+          Get-FileHash windows\agent-x64\installer\output\GODSEYE-Windows-Agent-x64-Setup.exe -Algorithm SHA256 | Format-List
+
+      - name: Build artifact bundle
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path windows-agent-artifact -Force | Out-Null
+          Copy-Item windows\agent-x64\installer\output\GODSEYE-Windows-Agent-x64-Setup.exe windows-agent-artifact\
+          Copy-Item windows\agent-x64\publish\GODSEYE.WindowsAgent.exe windows-agent-artifact\
+          Copy-Item windows\agent-x64\README.md windows-agent-artifact\README.txt
+          (Get-FileHash windows-agent-artifact\GODSEYE-Windows-Agent-x64-Setup.exe -Algorithm SHA256).Hash | Set-Content windows-agent-artifact\GODSEYE-Windows-Agent-x64-Setup.exe.sha256
+
+      - name: Upload Windows Agent installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: GODSEYE-Windows-Agent-x64-v2.0.0
+          path: windows-agent-artifact/*
+          if-no-files-found: error
