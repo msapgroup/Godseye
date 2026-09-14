@@ -1,0 +1,94 @@
+name: Build GODSEYE Windows Agent x64
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/build-windows-agent.yml'
+      - 'windows/agent-x64/src/**'
+      - 'windows/agent-x64/installer/**'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Publish self-contained x64 agent
+        shell: pwsh
+        run: |
+          $project = 'windows/agent-x64/src/Godseye.WindowsAgent/Godseye.WindowsAgent.csproj'
+          $publish = 'windows/agent-x64/publish'
+          if (Test-Path $publish) { Remove-Item $publish -Recurse -Force }
+          dotnet publish $project -c Release -r win-x64 --self-contained true -o $publish
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not (Test-Path "$publish/GODSEYE.WindowsAgent.exe")) {
+            throw 'Published GODSEYE.WindowsAgent.exe was not created.'
+          }
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          $iscc = 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe'
+          if (-not (Test-Path $iscc)) {
+            choco install innosetup --no-progress -y
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          if (-not (Test-Path $iscc)) { throw 'ISCC.exe was not found after installing Inno Setup.' }
+
+      - name: Build replacement installer
+        shell: pwsh
+        run: |
+          $iscc = 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe'
+          & $iscc 'windows/agent-x64/installer/GODSEYE-Agent-x64.iss'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          $agent = 'windows/agent-x64/publish/GODSEYE.WindowsAgent.exe'
+          $setup = 'windows/agent-x64/installer/output/GODSEYE-Windows-Agent-x64-Setup.exe'
+          if (-not (Test-Path $setup)) { throw 'Inno Setup did not create the setup EXE.' }
+
+          Copy-Item $agent 'windows/agent-x64/GODSEYE.WindowsAgent.exe' -Force
+          Copy-Item $setup 'windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe' -Force
+
+          $hash = (Get-FileHash 'windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe' -Algorithm SHA256).Hash.ToUpperInvariant()
+          Set-Content -Path 'windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe.sha256' -Value $hash -Encoding ascii
+          Write-Host "Installer SHA256: $hash"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: GODSEYE-Windows-Agent-x64-2.0.1
+          path: |
+            windows/agent-x64/GODSEYE.WindowsAgent.exe
+            windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe
+            windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe.sha256
+
+      - name: Replace repository binaries
+        if: github.ref == 'refs/heads/main'
+        shell: pwsh
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f windows/agent-x64/GODSEYE.WindowsAgent.exe
+          git add -f windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe
+          git add -f windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe.sha256
+          if (git diff --cached --quiet) {
+            Write-Host 'Generated binaries are already current.'
+            exit 0
+          }
+          git commit -m 'Build Windows agent 2.0.1 [skip ci]'
+          git push origin HEAD:main
