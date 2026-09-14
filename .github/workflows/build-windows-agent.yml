@@ -21,7 +21,7 @@ permissions:
 jobs:
   build:
     runs-on: windows-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
 
     steps:
       - name: Checkout
@@ -143,10 +143,31 @@ jobs:
           Set-Content -Path 'windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe.sha256' -Value $hash -Encoding ascii
           Write-Host "Setup EXE SHA256: $hash"
 
+      - name: Build GODSEYE v4.23 Remote Access upload ZIP
+        shell: pwsh
+        run: |
+          $zip = 'GODSEYE-v4.23-remote-access.zip'
+          $archive = Join-Path $env:RUNNER_TEMP 'godseye-source.zip'
+          $stage = Join-Path $env:RUNNER_TEMP 'godseye-update'
+          if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
+          if (Test-Path $zip) { Remove-Item $zip -Force }
+          git archive --format=zip --output=$archive HEAD
+          Expand-Archive -Path $archive -DestinationPath $stage -Force
+          Copy-Item 'windows/agent-x64/GODSEYE.WindowsAgent.exe' (Join-Path $stage 'windows/agent-x64/GODSEYE.WindowsAgent.exe') -Force
+          Copy-Item 'windows/agent-x64/GODSEYE-Windows-Agent-x64.msi' (Join-Path $stage 'windows/agent-x64/GODSEYE-Windows-Agent-x64.msi') -Force
+          Copy-Item 'windows/agent-x64/GODSEYE-Windows-Agent-x64.msi.sha256' (Join-Path $stage 'windows/agent-x64/GODSEYE-Windows-Agent-x64.msi.sha256') -Force
+          Copy-Item 'windows/agent-x64/update-manifest.json' (Join-Path $stage 'windows/agent-x64/update-manifest.json') -Force
+          Copy-Item 'windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe' (Join-Path $stage 'windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe') -Force
+          Copy-Item 'windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe.sha256' (Join-Path $stage 'windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe.sha256') -Force
+          Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zip -CompressionLevel Optimal
+          $zipHash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToUpperInvariant()
+          Set-Content -Path "$zip.sha256" -Value $zipHash -Encoding ascii
+          Write-Host "GODSEYE upload ZIP SHA256: $zipHash"
+
       - name: Upload Windows agent packages
         uses: actions/upload-artifact@v4
         with:
-          name: GODSEYE-Windows-Agent-x64-2.1.0
+          name: GODSEYE-Windows-Agent-x64-2.2.0
           path: |
             windows/agent-x64/GODSEYE.WindowsAgent.exe
             windows/agent-x64/GODSEYE-Windows-Agent-x64.msi
@@ -154,6 +175,14 @@ jobs:
             windows/agent-x64/update-manifest.json
             windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe
             windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe.sha256
+
+      - name: Upload GODSEYE v4.23 Remote Access update package
+        uses: actions/upload-artifact@v4
+        with:
+          name: GODSEYE-v4.23-remote-access-update
+          path: |
+            GODSEYE-v4.23-remote-access.zip
+            GODSEYE-v4.23-remote-access.zip.sha256
 
       - name: Replace repository packages
         if: github.ref == 'refs/heads/main'
@@ -171,5 +200,5 @@ jobs:
             Write-Host 'Generated packages are already current.'
             exit 0
           }
-          git commit -m 'Build Windows agent 2.1.0 packages [skip ci]'
+          git commit -m 'Build Windows agent 2.2.0 packages [skip ci]'
           git push origin HEAD:main

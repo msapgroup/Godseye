@@ -1,0 +1,39 @@
+name: Apply v4.23 Remote Access Patch
+
+on:
+  push:
+    branches:
+      - feature/v423-remote-access
+    paths:
+      - '.github/scripts/apply_v423_remote_access.py'
+      - '.github/workflows/apply-v423-remote-access.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: feature/v423-remote-access
+      - name: Apply patch
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('.github/scripts/apply_v423_remote_access.py')
+          s=p.read_text()
+          s=s.replace("'Version=\"2.0.1\"'","'Version=\"2.1.0\"'")
+          p.write_text(s)
+          PY
+          python .github/scripts/apply_v423_remote_access.py
+      - name: Commit feature
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add VERSION app/main.py windows/agent-x64/src/Godseye.WindowsAgent/GodseyeAgentService.cs windows/agent-x64/src/Godseye.WindowsAgent/Godseye.WindowsAgent.csproj windows/agent-x64/installer/GODSEYE-Agent-x64.iss windows/agent-x64/installer/msi/Package.wxs REMOTE_ACCESS_V4231_RELEASE_NOTES.md tests/test_remote_access_v4231.py
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m 'Add v4.23 Remote Access with Windows Agent 2.2.0'
+          git push origin HEAD:feature/v423-remote-access

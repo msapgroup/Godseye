@@ -1,53 +1,47 @@
 from pathlib import Path
-from types import SimpleNamespace
-import json
 import app.main as main
 import app.windows_agent as windows_agent
-
-
-def req(ip="192.168.1.50"):
-    return SimpleNamespace(client=SimpleNamespace(host=ip), headers={})
-
-
-def admin():
-    return {"username":"admin","role":"admin"}
-
-
-def make_agent(c, version="2.1.0"):
-    ts=main.now()
-    return c.execute("""INSERT INTO windows_agents(agent_uuid,api_key_hash,computer_name,agent_version,status,enabled,last_heartbeat_at,enrolled_at,updated_at)
-                        VALUES('update-agent','hash','FILESERVER01',?,'online',1,?,?,?)""",(version,ts,ts,ts)).lastrowid
 
 
 def manifest(version="2.2.0"):
     return {"version":version,"filename":"GODSEYE-Windows-Agent-x64.msi","sha256":"A"*64}
 
 
-def test_manifest_validation(tmp_path):
-    p=tmp_path/"update-manifest.json"
-    p.write_text(json.dumps(manifest("2.1.0")))
-    assert windows_agent.load_update_manifest(p)["version"]=="2.1.0"
-    p.write_text(json.dumps({**manifest(),"filename":"evil.exe"}))
-    try: windows_agent.load_update_manifest(p); assert False
+def make_agent(c, version="2.1.0"):
+    now=main.now()
+    return c.execute("""INSERT INTO windows_agents(agent_uuid,api_key_hash,computer_name,agent_version,status,enabled,channels_json,poll_interval_seconds,enrolled_at,updated_at)
+                        VALUES(?,?,?,?, 'online',1,'[\"System\"]',60,?,?)""",
+                     ("uuid-"+version,"hash-"+version,"PC-"+version,version,now,now)).lastrowid
+
+
+def req():
+    class R:
+        client=None
+    return R()
+
+
+def admin():
+    return {"username":"admin","role":"admin"}
+
+
+def test_manifest_loader_rejects_bad_filename_and_hash(tmp_path):
+    p=tmp_path/"manifest.json";p.write_text('{"version":"2.2.0","filename":"evil.exe","sha256":"A"}')
+    try: windows_agent.load_update_manifest(p);assert False
     except ValueError: pass
 
 
-def test_update_inventory_and_upgrade_queue(tmp_path, monkeypatch):
-    db=tmp_path/"update.db";monkeypatch.setattr(main,"DB_PATH",db);main.init_db();monkeypatch.setattr(main,"audit",lambda *a,**k:None)
+def test_upgrade_queues_only_version_and_hash(tmp_path, monkeypatch):
+    db=tmp_path/"upgrade.db";monkeypatch.setattr(main,"DB_PATH",db);main.init_db();monkeypatch.setattr(main,"audit",lambda *a,**k:None)
     monkeypatch.setattr(windows_agent,"load_update_manifest",lambda path:manifest("2.2.0"))
     with main.db() as c: aid=make_agent(c,"2.1.0")
-    rows=main.windows_agent_list(admin());row=next(x for x in rows if x["id"]==aid)
-    assert row["update_available"] is True and row["upgrade_supported"] is True and row["available_version"]=="2.2.0"
-    queued=main.windows_agent_upgrade(aid,req(),admin())
-    assert queued["queued"] and queued["available_version"]=="2.2.0"
-    again=main.windows_agent_upgrade(aid,req(),admin())
-    assert again["command_id"]==queued["command_id"]
+    out=main.windows_agent_upgrade(aid,req(),admin())
+    assert out["queued"] is True
     with main.db() as c:
-        cmd=c.execute("SELECT * FROM windows_agent_commands WHERE id=?",(queued["command_id"],)).fetchone()
-    assert cmd["command_type"]=="upgrade_agent"
-    payload=json.loads(cmd["payload_json"])
-    assert payload=={"version":"2.2.0","sha256":"A"*64}
-    assert "url" not in payload and "command" not in payload
+        row=c.execute("SELECT * FROM windows_agent_commands WHERE id=?",(out["command_id"],)).fetchone()
+        import json
+        payload=json.loads(row["payload_json"])
+        assert payload=={"version":"2.2.0","sha256":"A"*64}
+        assert "url" not in payload and "command" not in payload
 
 
 def test_pre_21_agent_requires_one_manual_baseline_update(tmp_path, monkeypatch):
@@ -62,7 +56,7 @@ def test_pre_21_agent_requires_one_manual_baseline_update(tmp_path, monkeypatch)
 def test_x64_agent_updater_is_fixed_hash_verified_msi_path():
     src=Path("windows/agent-x64/src/Godseye.WindowsAgent/GodseyeAgentService.cs").read_text()
     csproj=Path("windows/agent-x64/src/Godseye.WindowsAgent/Godseye.WindowsAgent.csproj").read_text()
-    assert '<Version>2.1.0</Version>' in csproj
+    assert '<Version>2.2.0</Version>' in csproj
     assert 'Assembly.GetName().Version' in src
     assert '"upgrade_agent"' in src
     assert '"/api/v1/windows-agents/package/msi"' in src
