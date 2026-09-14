@@ -1,0 +1,32 @@
+{
+  "name": "GODSEYE",
+  "version": "4.22.0-windows-agent-pull-now",
+  "release": "Windows Agent Pull Events Now",
+  "features": [
+    "windows_agent_service",
+    "one_time_agent_enrollment",
+    "hashed_agent_api_keys",
+    "dpapi_agent_key_storage",
+    "outbound_https_event_upload",
+    "critical_error_warning_filtering",
+    "event_record_bookmarks",
+    "durable_offline_event_queue",
+    "agent_heartbeat_and_status",
+    "agent_configuration_and_revoke",
+    "agent_event_findings",
+    "agent_targeted_recheck",
+    "windows_agent_pull_now",
+    "windows_agent_pull_all_online",
+    "windows_agent_command_queue",
+    "windows_agent_command_results",
+    "windows_agent_v11_upgrade_preserves_enrollment",
+    "winrm_agentless_fallback",
+    "ticket_portal_calendar_workflow",
+    "event_finding_cleanup",
+    "ticket_cleanup",
+    "ticket_assignee_user_picker"
+  ],
+  "tests_expected": 287,
+  "audit_helper": "godseye-release-audit",
+  "block": "windows-agent-pull-now"
+}
