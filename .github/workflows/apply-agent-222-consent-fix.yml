@@ -1,0 +1,35 @@
+name: Apply Agent 2.2.2 Consent Fix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-agent-222-consent-fix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply patch
+        run: python .github/scripts/apply_agent_222_consent_fix.py
+      - name: Verify patch
+        run: |
+          git diff --check
+          grep -q 'WTSSendMessage' windows/agent-x64/src/Godseye.WindowsAgent/GodseyeAgentService.cs
+          grep -q '<Version>2.2.2</Version>' windows/agent-x64/src/Godseye.WindowsAgent/Godseye.WindowsAgent.csproj
+      - name: Commit fix
+        run: |
+          git config user.name 'msapgroup'
+          git config user.email '42919953+msapgroup@users.noreply.github.com'
+          git add windows/agent-x64/src/Godseye.WindowsAgent/GodseyeAgentService.cs \
+                  windows/agent-x64/src/Godseye.WindowsAgent/Godseye.WindowsAgent.csproj \
+                  windows/agent-x64/installer/msi/Package.wxs \
+                  windows/agent-x64/installer/GODSEYE-Agent-x64.iss \
+                  .github/workflows/build-v424-release.yml \
+                  tests/test_permanent_x64_windows_agent_v423.py
+          git commit -m 'Fix Windows remote approval prompt and bump Agent 2.2.2'
+          git push
