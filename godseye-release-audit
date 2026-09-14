@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+set -u
+PASS=0; FAIL=0; WARN=0
+ok(){ echo "PASS  $*"; PASS=$((PASS+1)); }
+bad(){ echo "FAIL  $*"; FAIL=$((FAIL+1)); }
+warn(){ echo "WARN  $*"; WARN=$((WARN+1)); }
+need(){ command -v "$1" >/dev/null 2>&1 && ok "program: $1" || bad "program missing: $1"; }
+
+echo "GODSEYE Raspberry Pi release audit"
+echo "================================="
+for b in python3 ip ping nmap arp-scan dig traceroute avahi-browse nbtscan snmpget snmpwalk wakeonlan sqlite3 ethtool iw mosquitto_pub nginx openssl curl jq; do need "$b"; done
+for svc in godseye-web godseye-scanner; do
+  if systemctl is-active --quiet "$svc"; then ok "service active: $svc"; else bad "service inactive: $svc"; systemctl --no-pager --full status "$svc" 2>/dev/null | tail -12 || true; fi
+done
+DB=${GODSEYE_DB:-/var/lib/godseye/godseye.db}
+if [[ -f "$DB" ]]; then
+  result=$(sqlite3 "$DB" 'PRAGMA integrity_check;' 2>&1 || true)
+  [[ "$result" == "ok" ]] && ok "SQLite integrity" || bad "SQLite integrity: $result"
+else bad "database missing: $DB"; fi
+if ip route show default | grep -q '^default'; then ok "default route detected"; else bad "default route missing"; fi
+iface=$(ip route show default | awk '/^default/{for(i=1;i<=NF;i++)if($i=="dev"){print $(i+1);exit}}')
+[[ -n "$iface" ]] && ok "default interface: $iface" || bad "cannot determine default interface"
+
+echo
+echo "Real local discovery tests"
+if out=$(timeout 45 arp-scan --localnet --retry=2 2>&1); then
+  hosts=$(printf '%s\n' "$out" | grep -Ec '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+[[:space:]]' || true)
+  ok "arp-scan completed ($hosts host rows)"
+else bad "arp-scan failed: $(printf '%s' "$out" | tail -1)"; fi
+cidr=$(ip -4 route show dev "$iface" proto kernel scope link 2>/dev/null | awk 'NR==1{print $1}')
+if [[ -n "$cidr" && "$cidr" != "default" ]]; then
+  if out=$(timeout 60 nmap -sn "$cidr" 2>&1); then
+    hosts=$(printf '%s\n' "$out" | grep -c '^Nmap scan report for' || true); ok "nmap discovery completed on $cidr ($hosts hosts)"
+  else bad "nmap discovery failed on $cidr: $(printf '%s' "$out" | tail -1)"; fi
+else warn "could not determine connected IPv4 CIDR for Nmap test"; fi
+
+echo
+echo "HTTPS"
+nginx -t >/dev/null 2>&1 && ok "nginx configuration syntax" || bad "nginx configuration syntax"
+if [[ -f /var/lib/godseye/tls/godseye.crt ]]; then
+  openssl x509 -in /var/lib/godseye/tls/godseye.crt -noout -checkend 0 >/dev/null 2>&1 && ok "TLS certificate is currently valid" || bad "TLS certificate invalid/expired"
+else warn "GODSEYE TLS certificate not configured"; fi
+
+echo
+echo "Optional live integrations"
+[[ -n "${GODSEYE_AUDIT_PIHOLE_URL:-}" ]] && { curl -fsS --max-time 8 "${GODSEYE_AUDIT_PIHOLE_URL%/}/api/info" >/dev/null && ok "Pi-hole reachable" || bad "Pi-hole test failed"; } || warn "Pi-hole URL not supplied; set GODSEYE_AUDIT_PIHOLE_URL for live audit"
+[[ -n "${GODSEYE_AUDIT_UNIFI_URL:-}" ]] && { curl -kfsS --max-time 8 "${GODSEYE_AUDIT_UNIFI_URL%/}/" >/dev/null && ok "UniFi controller reachable" || bad "UniFi controller reachability failed"; } || warn "UniFi URL not supplied; set GODSEYE_AUDIT_UNIFI_URL for live audit"
+if [[ -n "${GODSEYE_AUDIT_SNMP_HOST:-}" ]]; then
+  [[ -n "${GODSEYE_AUDIT_SNMP_COMMUNITY:-}" ]] && snmpget -v2c -c "$GODSEYE_AUDIT_SNMP_COMMUNITY" -t 3 -r 1 "$GODSEYE_AUDIT_SNMP_HOST" 1.3.6.1.2.1.1.1.0 >/dev/null 2>&1 && ok "SNMP live query" || bad "SNMP live query failed"
+else warn "SNMP target not supplied; set GODSEYE_AUDIT_SNMP_HOST and GODSEYE_AUDIT_SNMP_COMMUNITY"; fi
+
+echo
+echo "Summary: PASS=$PASS WARN=$WARN FAIL=$FAIL"
+[[ $FAIL -eq 0 ]]
