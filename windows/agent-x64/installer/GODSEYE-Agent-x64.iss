@@ -114,6 +114,7 @@ end;
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   ResultCode: Integer;
+  MsiResultCode: Integer;
   MsiPath: String;
   Params: String;
   ExePath: String;
@@ -127,9 +128,9 @@ begin
   { The MSI is the sole owner of files, service registration, repair, upgrades,
     and uninstall. This bootstrapper only supplies first-install enrollment UI. }
   Params := '/i "' + MsiPath + '" /qn /norestart';
-  if not Exec(ExpandConstant('{sys}\msiexec.exe'), Params, '', SW_SHOW, ewWaitUntilTerminated, ResultCode) or
-     ((ResultCode <> 0) and (ResultCode <> 3010)) then
-    RaiseException('Windows Installer could not install GODSEYE Windows Agent. msiexec exit code: ' + IntToStr(ResultCode));
+  if not Exec(ExpandConstant('{sys}\msiexec.exe'), Params, '', SW_SHOW, ewWaitUntilTerminated, MsiResultCode) or
+     ((MsiResultCode <> 0) and (MsiResultCode <> 3010)) then
+    RaiseException('Windows Installer could not install GODSEYE Windows Agent. msiexec exit code: ' + IntToStr(MsiResultCode));
 
   if not ExistingConfig then
   begin
@@ -147,6 +148,6 @@ begin
       RaiseException('The Windows Agent MSI installed successfully, but first-time GODSEYE configuration failed. Agent exit code: ' + IntToStr(ResultCode));
   end;
 
-  if ResultCode = 3010 then
+  if MsiResultCode = 3010 then
     MsgBox('GODSEYE Windows Agent was installed successfully. Windows requested a restart to complete installation.', mbInformation, MB_OK);
 end;
