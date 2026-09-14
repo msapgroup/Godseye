@@ -1,5 +1,5 @@
 #define MyAppName "GODSEYE Windows Agent"
-#define MyAppVersion "2.2.4"
+#define MyAppVersion "2.2.5"
 #define MyAppPublisher "MSAPGROUP LLC"
 #define MyAppExeName "GODSEYE.WindowsAgent.exe"
 #define MyMsiName "GODSEYE-Windows-Agent-x64.msi"

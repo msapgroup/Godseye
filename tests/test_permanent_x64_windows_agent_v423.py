@@ -43,7 +43,7 @@ def test_agent_x64_source_is_self_contained():
     assert '<SelfContained>true</SelfContained>' in csproj
     assert '<PublishSingleFile>true</PublishSingleFile>' in csproj
     assert 'Assembly.GetName().Version' in src
-    assert '<Version>2.2.4</Version>' in csproj
+    assert '<Version>2.2.5</Version>' in csproj
     assert 'GODSEYEWindowsAgent' in wix
     assert '<ServiceInstall' in wix and '<ServiceControl' in wix
     assert 'ArchitecturesInstallIn64BitMode=x64compatible' in iss

@@ -20,7 +20,7 @@ namespace Godseye.WindowsAgent
 
         public static int Run()
         {
-            using var mutex = new Mutex(true, @"Local\GODSEYE.WindowsAgent.Tray", out bool created);
+            using var mutex = new Mutex(true, @"Local\GODSEYE.WindowsAgent.Tray.2.2.5", out bool created);
             if (!created) return 0;
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
