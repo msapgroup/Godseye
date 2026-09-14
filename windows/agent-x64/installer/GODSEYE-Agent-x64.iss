@@ -89,11 +89,20 @@ begin
       Result := False;
       exit;
     end;
-    if Pos('https://', Lowercase(Trim(ConfigPage.Values[0]))) <> 1 then
+    if (Pos('https://', Lowercase(Trim(ConfigPage.Values[0]))) <> 1) and
+       (Pos('http://', Lowercase(Trim(ConfigPage.Values[0]))) <> 1) then
     begin
-      MsgBox('Use an HTTPS GODSEYE URL for the production Windows Agent.', mbError, MB_OK);
+      MsgBox('Enter a GODSEYE URL beginning with https:// or http://.', mbError, MB_OK);
       Result := False;
       exit;
+    end;
+    if Pos('http://', Lowercase(Trim(ConfigPage.Values[0]))) = 1 then
+    begin
+      if MsgBox('This GODSEYE URL uses unencrypted HTTP. Use this only on a trusted LAN. Continue?', mbConfirmation, MB_YESNO) <> IDYES then
+      begin
+        Result := False;
+        exit;
+      end;
     end;
     if Trim(ConfigPage.Values[1]) = '' then
     begin
