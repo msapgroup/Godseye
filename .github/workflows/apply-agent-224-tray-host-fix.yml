@@ -1,0 +1,40 @@
+name: Apply Agent 2.2.4 Tray Host Fix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/apply-agent-224-tray-host-fix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply patch
+        run: python .github/scripts/apply_agent_224_tray_host_fix.py
+      - name: Verify patch
+        run: |
+          git diff --check
+          grep -q '<Version>2.2.4</Version>' windows/agent-x64/src/Godseye.WindowsAgent/Godseye.WindowsAgent.csproj
+          grep -q 'GODSEYE-Tray-' windows/agent-x64/src/Godseye.WindowsAgent/GodseyeAgentService.cs
+          grep -q 'RemotePipeLoop' windows/agent-x64/src/Godseye.WindowsAgent/TrayApp.cs
+          grep -q 'persistent tray remote host' windows/agent-x64/src/Godseye.WindowsAgent/GodseyeAgentService.cs
+      - name: Commit fix
+        run: |
+          git config user.name 'msapgroup'
+          git config user.email '42919953+msapgroup@users.noreply.github.com'
+          git add windows/agent-x64/src/Godseye.WindowsAgent/GodseyeAgentService.cs \
+                  windows/agent-x64/src/Godseye.WindowsAgent/TrayApp.cs \
+                  windows/agent-x64/src/Godseye.WindowsAgent/Godseye.WindowsAgent.csproj \
+                  windows/agent-x64/installer/msi/Package.wxs \
+                  windows/agent-x64/installer/GODSEYE-Agent-x64.iss \
+                  tests/test_permanent_x64_windows_agent_v423.py \
+                  tests/test_remote_access_v4231.py \
+                  tests/test_windows_agent_self_update.py \
+                  V424_RELEASE_NOTES.md
+          git commit -m 'Reuse tray process for remote desktop host and bump Agent 2.2.4'
+          git push
