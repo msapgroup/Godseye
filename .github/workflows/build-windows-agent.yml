@@ -9,6 +9,11 @@ on:
       - '.github/workflows/build-windows-agent.yml'
       - 'windows/agent-x64/src/**'
       - 'windows/agent-x64/installer/**'
+  pull_request:
+    paths:
+      - '.github/workflows/build-windows-agent.yml'
+      - 'windows/agent-x64/src/**'
+      - 'windows/agent-x64/installer/**'
 
 permissions:
   contents: write
@@ -16,7 +21,7 @@ permissions:
 jobs:
   build:
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
 
     steps:
       - name: Checkout
@@ -41,7 +46,22 @@ jobs:
             throw 'Published GODSEYE.WindowsAgent.exe was not created.'
           }
 
-      - name: Install Inno Setup
+      - name: Build x64 MSI package
+        shell: pwsh
+        run: |
+          $project = 'windows/agent-x64/installer/msi/GODSEYE.Agent.Installer.wixproj'
+          dotnet build $project -c Release -p:InstallerPlatform=x64
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          $msi = Get-ChildItem 'windows/agent-x64/installer/msi/bin' -Filter 'GODSEYE-Windows-Agent-x64.msi' -Recurse | Select-Object -First 1
+          if (-not $msi) { throw 'WiX did not create GODSEYE-Windows-Agent-x64.msi.' }
+
+          Copy-Item $msi.FullName 'windows/agent-x64/GODSEYE-Windows-Agent-x64.msi' -Force
+          $msiHash = (Get-FileHash 'windows/agent-x64/GODSEYE-Windows-Agent-x64.msi' -Algorithm SHA256).Hash.ToUpperInvariant()
+          Set-Content -Path 'windows/agent-x64/GODSEYE-Windows-Agent-x64.msi.sha256' -Value $msiHash -Encoding ascii
+          Write-Host "MSI SHA256: $msiHash"
+
+      - name: Install Inno Setup for legacy setup EXE
         shell: pwsh
         run: |
           $iscc = 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe'
@@ -51,7 +71,7 @@ jobs:
           }
           if (-not (Test-Path $iscc)) { throw 'ISCC.exe was not found after installing Inno Setup.' }
 
-      - name: Build replacement installer
+      - name: Build legacy setup EXE
         shell: pwsh
         run: |
           $iscc = 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe'
@@ -67,29 +87,33 @@ jobs:
 
           $hash = (Get-FileHash 'windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe' -Algorithm SHA256).Hash.ToUpperInvariant()
           Set-Content -Path 'windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe.sha256' -Value $hash -Encoding ascii
-          Write-Host "Installer SHA256: $hash"
+          Write-Host "Setup EXE SHA256: $hash"
 
-      - name: Upload build artifact
+      - name: Upload Windows agent packages
         uses: actions/upload-artifact@v4
         with:
           name: GODSEYE-Windows-Agent-x64-2.0.1
           path: |
             windows/agent-x64/GODSEYE.WindowsAgent.exe
+            windows/agent-x64/GODSEYE-Windows-Agent-x64.msi
+            windows/agent-x64/GODSEYE-Windows-Agent-x64.msi.sha256
             windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe
             windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe.sha256
 
-      - name: Replace repository binaries
+      - name: Replace repository packages
         if: github.ref == 'refs/heads/main'
         shell: pwsh
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -f windows/agent-x64/GODSEYE.WindowsAgent.exe
+          git add -f windows/agent-x64/GODSEYE-Windows-Agent-x64.msi
+          git add -f windows/agent-x64/GODSEYE-Windows-Agent-x64.msi.sha256
           git add -f windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe
           git add -f windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe.sha256
           if (git diff --cached --quiet) {
-            Write-Host 'Generated binaries are already current.'
+            Write-Host 'Generated packages are already current.'
             exit 0
           }
-          git commit -m 'Build Windows agent 2.0.1 [skip ci]'
+          git commit -m 'Build Windows agent 2.0.1 packages [skip ci]'
           git push origin HEAD:main
