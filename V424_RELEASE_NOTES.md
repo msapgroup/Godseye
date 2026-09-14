@@ -17,8 +17,10 @@ Upgrades preserve `/var/lib/godseye`, `/etc/godseye.env`, the existing SQLite da
 - All GODSEYE functionality present on the v4.23 release line
 - Dark-mode operator interface
 - Remote Access workspace with the `api is not defined` client-side failure corrected
-- Windows Agent 2.2.2 remote desktop support for authorized sessions
+- Windows Agent 2.2.3 remote desktop support for authorized sessions
 - Reliable local remote-access approval delivered directly to the signed-in Windows session before desktop control starts
+- Reliable post-approval interactive-session handoff using the signed-in user's environment, a second Windows process-launch fallback, and a helper readiness handshake before desktop streaming begins
+- Clear failure reporting if the approved interactive helper cannot start
 - GODSEYE Windows Agent system-tray icon, status window, portal shortcut, and visible approval flow
 - Windows Agent MSI and guided Setup EXE packages
 - Windows Agent self-update support
@@ -26,6 +28,6 @@ Upgrades preserve `/var/lib/godseye`, `/etc/godseye.env`, the existing SQLite da
 
 ## Server update package
 
-The v4.24 release workflow creates a full server ZIP containing the complete source release plus the generated Windows Agent 2.2.2 binaries. The ZIP can be extracted and installed with `install.sh`, and is also suitable for GODSEYE's staged ZIP updater on installations that already expose that update UI.
+The v4.24 release workflow creates a full server ZIP containing the complete source release plus the generated Windows Agent 2.2.3 binaries. The ZIP can be extracted and installed with `install.sh`, and is also suitable for GODSEYE's staged ZIP updater on installations that already expose that update UI.
 
 A SHA-256 checksum is generated alongside the ZIP.
