@@ -118,6 +118,18 @@ jobs:
           foreach ($f in @('GODSEYE.WindowsAgent.exe','GODSEYE-Windows-Agent-x64.msi','GODSEYE-Windows-Agent-x64.msi.sha256','update-manifest.json','GODSEYE-Windows-Agent-x64-Setup.exe','GODSEYE-Windows-Agent-x64-Setup.exe.sha256')) {
             Copy-Item (Join-Path 'windows/agent-x64' $f) (Join-Path $stage 'windows/agent-x64' $f) -Force
           }
+          $linuxScripts = @('install.sh','godseye-apply-update','godseye-https-setup','godseye-release-audit')
+          foreach ($rel in $linuxScripts) {
+            $p = Join-Path $stage $rel
+            if (Test-Path $p) {
+              $text = [System.IO.File]::ReadAllText($p)
+              $text = $text -replace "`r`n", "`n"
+              $text = $text -replace "`r", "`n"
+              [System.IO.File]::WriteAllText($p, $text, (New-Object System.Text.UTF8Encoding($false)))
+              $bytes = [System.IO.File]::ReadAllBytes($p)
+              if ($bytes -contains 13) { throw "CR byte remains in Linux script: $rel" }
+            }
+          }
           $instructions = @(
             'GODSEYE v4.24.0',
             '',
@@ -133,7 +145,7 @@ jobs:
             'The installer self-reexecutes under Bash even if invoked as sh install.sh.',
             'Upgrade mode preserves /var/lib/godseye and /etc/godseye.env and creates a pre-upgrade database backup.'
           )
-          Set-Content (Join-Path $stage 'INSTALL-UPGRADE.txt') -Value $instructions -Encoding ascii
+          [System.IO.File]::WriteAllLines((Join-Path $stage 'INSTALL-UPGRADE.txt'), $instructions, (New-Object System.Text.UTF8Encoding($false)))
           Compress-Archive -Path (Join-Path $stage '*') -DestinationPath 'GODSEYE-v4.24.0-full-upgrade.zip' -CompressionLevel Optimal
           $hash=(Get-FileHash 'GODSEYE-v4.24.0-full-upgrade.zip' -Algorithm SHA256).Hash.ToUpperInvariant()
           Set-Content 'GODSEYE-v4.24.0-full-upgrade.zip.sha256' $hash -Encoding ascii
