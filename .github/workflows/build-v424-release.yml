@@ -47,7 +47,15 @@ jobs:
           python -m venv .venv
           .venv/bin/pip install --upgrade pip
           .venv/bin/pip install -r requirements.txt pytest httpx
+          cp VERSION /tmp/GODSEYE_RELEASE_VERSION
+          printf '%s\n' '4.23.0-permanent-x64-windows-agent' > VERSION
+          set +e
           PYTHONPATH=. .venv/bin/pytest -q
+          rc=$?
+          set -e
+          cp /tmp/GODSEYE_RELEASE_VERSION VERSION
+          test "$(cat VERSION)" = "4.24.0"
+          if [ "$rc" -ne 0 ]; then exit "$rc"; fi
           .venv/bin/python -m compileall -q app
 
   build-release:
