@@ -70,7 +70,7 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
-      - name: Publish Windows Agent 2.2.1
+      - name: Publish Windows Agent 2.2.2
         shell: pwsh
         run: |
           dotnet publish 'windows/agent-x64/src/Godseye.WindowsAgent/Godseye.WindowsAgent.csproj' -c Release -r win-x64 --self-contained true -o 'windows/agent-x64/publish'
@@ -89,7 +89,7 @@ jobs:
           Set-Content 'windows/agent-x64/GODSEYE-Windows-Agent-x64.msi.sha256' $hash -Encoding ascii
           [xml]$project = Get-Content 'windows/agent-x64/src/Godseye.WindowsAgent/Godseye.WindowsAgent.csproj'
           $version = [string]$project.Project.PropertyGroup.Version
-          if ($version -ne '2.2.1') { throw "Unexpected Windows Agent version: $version" }
+          if ($version -ne '2.2.2') { throw "Unexpected Windows Agent version: $version" }
           [ordered]@{version=$version;filename='GODSEYE-Windows-Agent-x64.msi';sha256=$hash} | ConvertTo-Json | Set-Content 'windows/agent-x64/update-manifest.json' -Encoding utf8
       - name: Smoke-test Windows Agent MSI
         shell: pwsh
@@ -147,7 +147,7 @@ jobs:
             'Auto-detect install vs upgrade:',
             '  sudo ./install.sh',
             '',
-            'Includes Windows Agent 2.2.1 with system-tray status UI and approved remote-access prompt.',
+            'Includes Windows Agent 2.2.2 with system-tray status UI and approved remote-access prompt.',
             'The installer self-reexecutes under Bash even if invoked as sh install.sh.',
             'Upgrade mode preserves /var/lib/godseye and /etc/godseye.env and creates a pre-upgrade database backup.'
           )
