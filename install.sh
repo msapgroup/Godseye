@@ -1,4 +1,14 @@
-#!/usr/bin/env bash
+#!/bin/sh
+# Bootstrap into Bash even when an operator, archive manager, or appliance invokes
+# this installer as `sh install.sh`. Keep everything above exec POSIX /bin/sh safe.
+if [ -z "${BASH_VERSION:-}" ]; then
+  if command -v bash >/dev/null 2>&1; then
+    exec bash "$0" "$@"
+  fi
+  echo "GODSEYE installer requires Bash. Install bash and retry." >&2
+  exit 1
+fi
+
 set -Eeuo pipefail
 trap 'echo "GODSEYE installer failed at line $LINENO. Command: $BASH_COMMAND"; exit 1' ERR
 
