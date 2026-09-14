@@ -1,0 +1,204 @@
+name: Build GODSEYE Windows Agent x64
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/build-windows-agent.yml'
+      - 'windows/agent-x64/src/**'
+      - 'windows/agent-x64/installer/**'
+  pull_request:
+    paths:
+      - '.github/workflows/build-windows-agent.yml'
+      - 'windows/agent-x64/src/**'
+      - 'windows/agent-x64/installer/**'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Publish self-contained x64 agent
+        shell: pwsh
+        run: |
+          $project = 'windows/agent-x64/src/Godseye.WindowsAgent/Godseye.WindowsAgent.csproj'
+          $publish = 'windows/agent-x64/publish'
+          if (Test-Path $publish) { Remove-Item $publish -Recurse -Force }
+          dotnet publish $project -c Release -r win-x64 --self-contained true -o $publish
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not (Test-Path "$publish/GODSEYE.WindowsAgent.exe")) {
+            throw 'Published GODSEYE.WindowsAgent.exe was not created.'
+          }
+
+      - name: Build x64 MSI package
+        shell: pwsh
+        run: |
+          $project = 'windows/agent-x64/installer/msi/GODSEYE.Agent.Installer.wixproj'
+          dotnet build $project -c Release -p:InstallerPlatform=x64
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          $msi = Get-ChildItem 'windows/agent-x64/installer/msi/bin' -Filter 'GODSEYE-Windows-Agent-x64.msi' -Recurse | Select-Object -First 1
+          if (-not $msi) { throw 'WiX did not create GODSEYE-Windows-Agent-x64.msi.' }
+
+          Copy-Item $msi.FullName 'windows/agent-x64/GODSEYE-Windows-Agent-x64.msi' -Force
+          $msiHash = (Get-FileHash 'windows/agent-x64/GODSEYE-Windows-Agent-x64.msi' -Algorithm SHA256).Hash.ToUpperInvariant()
+          Set-Content -Path 'windows/agent-x64/GODSEYE-Windows-Agent-x64.msi.sha256' -Value $msiHash -Encoding ascii
+          Write-Host "MSI SHA256: $msiHash"
+
+          [xml]$projectXml = Get-Content 'windows/agent-x64/src/Godseye.WindowsAgent/Godseye.WindowsAgent.csproj'
+          $agentVersion = [string]$projectXml.Project.PropertyGroup.Version
+          if ([string]::IsNullOrWhiteSpace($agentVersion)) { throw 'Could not read Windows Agent version from the project.' }
+          $manifest = [ordered]@{
+            version = $agentVersion
+            filename = 'GODSEYE-Windows-Agent-x64.msi'
+            sha256 = $msiHash
+          } | ConvertTo-Json
+          Set-Content -Path 'windows/agent-x64/update-manifest.json' -Value $manifest -Encoding utf8
+          Write-Host "Update manifest version: $agentVersion"
+
+      - name: Smoke-test MSI install and uninstall
+        shell: pwsh
+        run: |
+          $msi = (Resolve-Path 'windows/agent-x64/GODSEYE-Windows-Agent-x64.msi').Path
+          $installLog = Join-Path $env:RUNNER_TEMP 'godseye-msi-install.log'
+          $uninstallLog = Join-Path $env:RUNNER_TEMP 'godseye-msi-uninstall.log'
+
+          $install = Start-Process msiexec.exe -ArgumentList @('/i', "`"$msi`"", '/qn', '/norestart', '/l*v', "`"$installLog`"") -Wait -PassThru
+          if (($install.ExitCode -ne 0) -and ($install.ExitCode -ne 3010)) {
+            Get-Content $installLog -Tail 200 -ErrorAction SilentlyContinue
+            throw "MSI install failed with exit code $($install.ExitCode)."
+          }
+
+          $service = Get-CimInstance Win32_Service -Filter "Name='GODSEYEWindowsAgent'"
+          if (-not $service) { throw 'MSI did not create the GODSEYEWindowsAgent service.' }
+          if ($service.StartMode -ne 'Auto') { throw "Service start mode is '$($service.StartMode)', expected Auto." }
+          if ($service.StartName -ne 'LocalSystem') { throw "Service account is '$($service.StartName)', expected LocalSystem." }
+          if ($service.PathName -notlike '*\GODSEYE Agent\GODSEYE.WindowsAgent.exe*') {
+            throw "Service executable path is unexpected: $($service.PathName)"
+          }
+
+          $sentinel = Join-Path $env:ProgramData 'GODSEYE\Agent\ci-preserve-test.txt'
+          New-Item -ItemType Directory -Path (Split-Path $sentinel) -Force | Out-Null
+          Set-Content -Path $sentinel -Value 'preserve-me' -Encoding ascii
+
+          $uninstall = Start-Process msiexec.exe -ArgumentList @('/x', "`"$msi`"", '/qn', '/norestart', '/l*v', "`"$uninstallLog`"") -Wait -PassThru
+          if (($uninstall.ExitCode -ne 0) -and ($uninstall.ExitCode -ne 3010)) {
+            Get-Content $uninstallLog -Tail 200 -ErrorAction SilentlyContinue
+            throw "MSI uninstall failed with exit code $($uninstall.ExitCode)."
+          }
+
+          for ($i = 0; $i -lt 10; $i++) {
+            if (-not (Get-Service -Name 'GODSEYEWindowsAgent' -ErrorAction SilentlyContinue)) { break }
+            Start-Sleep -Seconds 1
+          }
+          if (Get-Service -Name 'GODSEYEWindowsAgent' -ErrorAction SilentlyContinue) {
+            throw 'GODSEYEWindowsAgent service still exists after MSI uninstall.'
+          }
+          if (-not (Test-Path $sentinel)) {
+            throw 'ProgramData state was removed by MSI uninstall; agent enrollment/state must be preserved.'
+          }
+          Remove-Item $sentinel -Force
+
+      - name: Install Inno Setup for guided setup EXE
+        shell: pwsh
+        run: |
+          $iscc = 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe'
+          if (-not (Test-Path $iscc)) {
+            choco install innosetup --no-progress -y
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          if (-not (Test-Path $iscc)) { throw 'ISCC.exe was not found after installing Inno Setup.' }
+
+      - name: Build guided MSI bootstrapper EXE
+        shell: pwsh
+        run: |
+          $iscc = 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe'
+          & $iscc 'windows/agent-x64/installer/GODSEYE-Agent-x64.iss'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          $agent = 'windows/agent-x64/publish/GODSEYE.WindowsAgent.exe'
+          $setup = 'windows/agent-x64/installer/output/GODSEYE-Windows-Agent-x64-Setup.exe'
+          if (-not (Test-Path $setup)) { throw 'Inno Setup did not create the guided setup EXE.' }
+
+          Copy-Item $agent 'windows/agent-x64/GODSEYE.WindowsAgent.exe' -Force
+          Copy-Item $setup 'windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe' -Force
+
+          $hash = (Get-FileHash 'windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe' -Algorithm SHA256).Hash.ToUpperInvariant()
+          Set-Content -Path 'windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe.sha256' -Value $hash -Encoding ascii
+          Write-Host "Setup EXE SHA256: $hash"
+
+      - name: Build GODSEYE v4.23 Remote Access upload ZIP
+        shell: pwsh
+        run: |
+          $zip = 'GODSEYE-v4.23-remote-access.zip'
+          $archive = Join-Path $env:RUNNER_TEMP 'godseye-source.zip'
+          $stage = Join-Path $env:RUNNER_TEMP 'godseye-update'
+          if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
+          if (Test-Path $zip) { Remove-Item $zip -Force }
+          git archive --format=zip --output=$archive HEAD
+          Expand-Archive -Path $archive -DestinationPath $stage -Force
+          Copy-Item 'windows/agent-x64/GODSEYE.WindowsAgent.exe' (Join-Path $stage 'windows/agent-x64/GODSEYE.WindowsAgent.exe') -Force
+          Copy-Item 'windows/agent-x64/GODSEYE-Windows-Agent-x64.msi' (Join-Path $stage 'windows/agent-x64/GODSEYE-Windows-Agent-x64.msi') -Force
+          Copy-Item 'windows/agent-x64/GODSEYE-Windows-Agent-x64.msi.sha256' (Join-Path $stage 'windows/agent-x64/GODSEYE-Windows-Agent-x64.msi.sha256') -Force
+          Copy-Item 'windows/agent-x64/update-manifest.json' (Join-Path $stage 'windows/agent-x64/update-manifest.json') -Force
+          Copy-Item 'windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe' (Join-Path $stage 'windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe') -Force
+          Copy-Item 'windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe.sha256' (Join-Path $stage 'windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe.sha256') -Force
+          Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zip -CompressionLevel Optimal
+          $zipHash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToUpperInvariant()
+          Set-Content -Path "$zip.sha256" -Value $zipHash -Encoding ascii
+          Write-Host "GODSEYE upload ZIP SHA256: $zipHash"
+
+      - name: Upload Windows agent packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: GODSEYE-Windows-Agent-x64-2.2.0
+          path: |
+            windows/agent-x64/GODSEYE.WindowsAgent.exe
+            windows/agent-x64/GODSEYE-Windows-Agent-x64.msi
+            windows/agent-x64/GODSEYE-Windows-Agent-x64.msi.sha256
+            windows/agent-x64/update-manifest.json
+            windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe
+            windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe.sha256
+
+      - name: Upload GODSEYE v4.23 Remote Access update package
+        uses: actions/upload-artifact@v4
+        with:
+          name: GODSEYE-v4.23-remote-access-update
+          path: |
+            GODSEYE-v4.23-remote-access.zip
+            GODSEYE-v4.23-remote-access.zip.sha256
+
+      - name: Replace repository packages
+        if: github.ref == 'refs/heads/main'
+        shell: pwsh
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f windows/agent-x64/GODSEYE.WindowsAgent.exe
+          git add -f windows/agent-x64/GODSEYE-Windows-Agent-x64.msi
+          git add -f windows/agent-x64/GODSEYE-Windows-Agent-x64.msi.sha256
+          git add -f windows/agent-x64/update-manifest.json
+          git add -f windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe
+          git add -f windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe.sha256
+          if (git diff --cached --quiet) {
+            Write-Host 'Generated packages are already current.'
+            exit 0
+          }
+          git commit -m 'Build Windows agent 2.2.0 packages [skip ci]'
+          git push origin HEAD:main
