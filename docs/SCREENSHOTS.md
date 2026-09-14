@@ -41,6 +41,11 @@ This release contains **only the current dark-mode screenshot set**. Legacy ligh
 ### Windows Agent — Pull Events Now
 ![Windows Agent](screenshots/dark-windows-agent.png)
 
+### Remote Access — Connected Session and Approval Flow
+![Remote Access working](screenshots/dark-remote-access-working.jpg)
+
+The Remote Access screenshot documents the current Agent 2.2.2 workflow: select an online Windows computer, approve the request on the client, begin the connected remote session, and confirm the GODSEYE Agent tray application is running.
+
 ### Ticket Portal
 ![Ticket Portal](screenshots/dark-ticket-portal.png)
 
@@ -60,4 +65,4 @@ This release contains **only the current dark-mode screenshot set**. Legacy ligh
 
 ![Header Help](screenshots/godseye-dark-mode-header-help.png)
 
-The screenshot pack is refreshed when major GODSEYE UI changes are released so documentation does not fall back to older light-mode artwork.
+The screenshot pack is refreshed when major GODSEYE UI changes are released so documentation does not fall back to older light-mode artwork. New user-facing application screens and major UI features should include an updated screenshot in this set when they are added.
