@@ -151,7 +151,10 @@ begin
 
   Exec(ExpandConstant('{sys}\icacls.exe'), '"' + DataDir() + '" /inheritance:r /grant:r "SYSTEM:(OI)(CI)F" "Administrators:(OI)(CI)F"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
 
-  if not Exec(ExpandConstant('{sys}\sc.exe'), 'create GODSEYEWindowsAgent binPath= ""' + ExePath + '"" start= auto DisplayName= "GODSEYE Windows Agent"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
+  { Exec passes Params directly to CreateProcess. sc.exe needs the service binary path
+    quoted exactly once because the default install directory contains spaces. }
+  Params := 'create GODSEYEWindowsAgent binPath= "' + ExePath + '" start= auto DisplayName= "GODSEYE Windows Agent"';
+  if not Exec(ExpandConstant('{sys}\sc.exe'), Params, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
     RaiseException('Could not create GODSEYE Windows Agent service. sc.exe exit code: ' + IntToStr(ResultCode));
 
   Exec(ExpandConstant('{sys}\sc.exe'), 'description GODSEYEWindowsAgent "Read-only GODSEYE Windows Event Log agent"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
