@@ -1,4 +1,4 @@
-# GODSEYE Windows Agent x64 v2.0.1
+# GODSEYE Windows Agent x64 v2.1.0
 
 GODSEYE Windows Agent 2.x is a standalone x64 Windows service with its own installer lifecycle and versioning. It is designed to remain compatible with future GODSEYE server releases through the stable Windows Agent API rather than being rebuilt for every server release.
 
@@ -58,3 +58,9 @@ The workflow publishes SHA-256 files for both the MSI and guided Setup EXE and u
 ## Code signing
 
 The MSI and Setup EXE are not yet Authenticode-signed by this build pipeline. Production signing should be added using an MSAPGROUP code-signing certificate or managed signing service stored outside the repository. Do not commit a private signing key to GitHub.
+
+## Agent updates
+
+Version 2.1.0 is the first self-update capable baseline. GODSEYE exposes the current agent version and SHA-256 manifest in the Windows Agents view. An administrator can use **Check for Updates** and, for agents already on 2.1.0 or newer, **Upgrade Agent**. The service downloads only the fixed authenticated GODSEYE MSI endpoint, verifies the published SHA-256, and starts Windows Installer silently. The update payload cannot supply an arbitrary URL, executable, shell, or command.
+
+Agents on 2.0.x require one manual upgrade to 2.1.0 using the current x64 Setup/MSI. That baseline upgrade preserves `%ProgramData%\GODSEYE\Agent`, including enrollment, DPAPI-protected API key, bookmarks, pending queue, logs, and configuration. After that baseline, future agent releases can be upgraded from GODSEYE without another enrollment token.

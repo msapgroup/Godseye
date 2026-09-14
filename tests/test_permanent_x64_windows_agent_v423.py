@@ -31,7 +31,8 @@ def test_agent_x64_source_is_self_contained():
     assert '<RuntimeIdentifier>win-x64</RuntimeIdentifier>' in csproj
     assert '<SelfContained>true</SelfContained>' in csproj
     assert '<PublishSingleFile>true</PublishSingleFile>' in csproj
-    assert 'AgentVersion = "2.0.0"' in src
+    assert 'Assembly.GetName().Version' in src
+    assert '<Version>2.1.0</Version>' in csproj
     assert 'GODSEYEWindowsAgent' in iss
     assert 'ArchitecturesInstallIn64BitMode=x64compatible' in iss
     assert 'ExistingConfig' in iss

@@ -4,6 +4,8 @@ import hashlib
 import hmac
 import json
 import secrets
+import re
+from pathlib import Path
 from typing import Any
 
 
@@ -48,3 +50,17 @@ def public_agent(row) -> dict:
         d["channels"] = []
     d["enabled"] = bool(d.get("enabled"))
     return d
+
+def load_update_manifest(path: Path) -> dict:
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    version = str(data.get("version") or "").strip()
+    sha256 = str(data.get("sha256") or "").strip().upper()
+    filename = str(data.get("filename") or "").strip()
+    if not re.fullmatch(r"\d+\.\d+\.\d+", version):
+        raise ValueError("Windows Agent update manifest has an invalid version")
+    if not re.fullmatch(r"[0-9A-F]{64}", sha256):
+        raise ValueError("Windows Agent update manifest has an invalid SHA-256")
+    if filename != "GODSEYE-Windows-Agent-x64.msi":
+        raise ValueError("Windows Agent update manifest has an unexpected filename")
+    return {"version": version, "sha256": sha256, "filename": filename}
+

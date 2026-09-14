@@ -11,9 +11,9 @@
     <InvariantGlobalization>false</InvariantGlobalization>
     <AssemblyName>GODSEYE.WindowsAgent</AssemblyName>
     <RootNamespace>Godseye.WindowsAgent</RootNamespace>
-    <Version>2.0.1</Version>
-    <FileVersion>2.0.1.0</FileVersion>
-    <AssemblyVersion>2.0.1.0</AssemblyVersion>
+    <Version>2.1.0</Version>
+    <FileVersion>2.1.0.0</FileVersion>
+    <AssemblyVersion>2.1.0.0</AssemblyVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
     <NoWarn>SYSLIB0014</NoWarn>
