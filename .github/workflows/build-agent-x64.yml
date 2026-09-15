@@ -1,0 +1,91 @@
+name: Build GODSEYE Agent x64
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'windows/agent-x64/**'
+      - '.github/workflows/build-agent-x64.yml'
+  pull_request:
+    paths:
+      - 'windows/agent-x64/**'
+      - '.github/workflows/build-agent-x64.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-smoke-test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Read independent agent version
+        shell: pwsh
+        run: |
+          [xml]$p=Get-Content 'windows/agent-x64/src/Godseye.WindowsAgent/Godseye.WindowsAgent.csproj'
+          $v=[string]$p.Project.PropertyGroup.Version
+          if (-not $v) { throw 'Agent version is missing.' }
+          "AGENT_VERSION=$v" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Compile native win-x64 service
+        shell: pwsh
+        run: |
+          dotnet publish 'windows/agent-x64/src/Godseye.WindowsAgent/Godseye.WindowsAgent.csproj' -c Release -r win-x64 --self-contained true -o 'windows/agent-x64/publish'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $exe='windows/agent-x64/publish/GODSEYE.Agent.exe'
+          if (-not (Test-Path $exe)) { throw 'GODSEYE.Agent.exe was not created.' }
+          $b=[IO.File]::ReadAllBytes((Resolve-Path $exe))
+          if ($b[0] -ne 0x4D -or $b[1] -ne 0x5A) { throw 'Output is not a Windows PE executable.' }
+          if ((Get-Item $exe).VersionInfo.FileVersion -notlike "$env:AGENT_VERSION*") { throw 'Compiled file version does not match agent product version.' }
+      - name: Build WiX x64 MSI
+        shell: pwsh
+        run: |
+          dotnet build 'windows/agent-x64/installer/msi/GODSEYE.Agent.Installer.wixproj' -c Release -p:InstallerPlatform=x64
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $msi=Get-ChildItem 'windows/agent-x64/installer/msi/bin' -Filter 'GODSEYE-Agent-x64.msi' -Recurse | Select-Object -First 1
+          if (-not $msi) { throw 'GODSEYE-Agent-x64.msi was not created.' }
+          Copy-Item $msi.FullName 'windows/agent-x64/GODSEYE-Agent-x64.msi' -Force
+          $hash=(Get-FileHash 'windows/agent-x64/GODSEYE-Agent-x64.msi' -Algorithm SHA256).Hash.ToUpperInvariant()
+          Set-Content 'windows/agent-x64/GODSEYE-Agent-x64.msi.sha256' $hash -Encoding ascii
+          [ordered]@{version=$env:AGENT_VERSION;filename='GODSEYE-Agent-x64.msi';sha256=$hash} | ConvertTo-Json | Set-Content 'windows/agent-x64/update-manifest.json' -Encoding utf8
+      - name: Prove MSI lifecycle on Windows
+        shell: pwsh
+        run: |
+          $msi=(Resolve-Path 'windows/agent-x64/GODSEYE-Agent-x64.msi').Path
+          $p=Start-Process msiexec.exe -ArgumentList @('/i',"`"$msi`"",'/qn','/norestart') -Wait -PassThru
+          if ($p.ExitCode -notin 0,3010) { throw "MSI install failed: $($p.ExitCode)" }
+          $svc=Get-CimInstance Win32_Service -Filter "Name='GODSEYEWindowsAgent'"
+          if (-not $svc) { throw 'Service was not registered by MSI.' }
+          if ($svc.PathName -notmatch 'GODSEYE.Agent.exe') { throw "Wrong service binary: $($svc.PathName)" }
+          if (-not (Test-Path 'C:\Program Files\GODSEYE Agent\GODSEYE.Agent.exe')) { throw 'Program Files binary missing.' }
+          if (-not (Test-Path 'C:\ProgramData\GODSEYE\Agent')) { throw 'ProgramData state directory missing.' }
+          $p=Start-Process msiexec.exe -ArgumentList @('/fa',"`"$msi`"",'/qn','/norestart') -Wait -PassThru
+          if ($p.ExitCode -notin 0,3010) { throw "MSI repair failed: $($p.ExitCode)" }
+          $p=Start-Process msiexec.exe -ArgumentList @('/x',"`"$msi`"",'/qn','/norestart') -Wait -PassThru
+          if ($p.ExitCode -notin 0,3010) { throw "MSI uninstall failed: $($p.ExitCode)" }
+          if (Get-Service GODSEYEWindowsAgent -ErrorAction SilentlyContinue) { throw 'Service remains after uninstall.' }
+      - name: Build guided first-install Setup
+        shell: pwsh
+        run: |
+          $iscc='C:\Program Files (x86)\Inno Setup 6\ISCC.exe'
+          if (-not (Test-Path $iscc)) { choco install innosetup --no-progress -y }
+          & $iscc 'windows/agent-x64/installer/GODSEYE-Agent-x64.iss'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Copy-Item 'windows/agent-x64/publish/GODSEYE.Agent.exe' 'windows/agent-x64/GODSEYE.Agent.exe' -Force
+          Copy-Item 'windows/agent-x64/installer/output/GODSEYE-Agent-x64-Setup.exe' 'windows/agent-x64/GODSEYE-Agent-x64-Setup.exe' -Force
+          $hash=(Get-FileHash 'windows/agent-x64/GODSEYE-Agent-x64-Setup.exe' -Algorithm SHA256).Hash.ToUpperInvariant()
+          Set-Content 'windows/agent-x64/GODSEYE-Agent-x64-Setup.exe.sha256' $hash -Encoding ascii
+      - name: Upload verified standalone agent
+        uses: actions/upload-artifact@v4
+        with:
+          name: GODSEYE-Agent-x64-${{ env.AGENT_VERSION }}
+          path: |
+            windows/agent-x64/GODSEYE.Agent.exe
+            windows/agent-x64/GODSEYE-Agent-x64.msi
+            windows/agent-x64/GODSEYE-Agent-x64.msi.sha256
+            windows/agent-x64/GODSEYE-Agent-x64-Setup.exe
+            windows/agent-x64/GODSEYE-Agent-x64-Setup.exe.sha256
+            windows/agent-x64/update-manifest.json
