@@ -87,7 +87,7 @@ namespace Godseye.WindowsAgent
         }
     }
 
-    public class GodseyeAgentService : ServiceBase
+    public partial class GodseyeAgentService : ServiceBase
     {
         static readonly string AgentVersion = typeof(GodseyeAgentService).Assembly.GetName().Version?.ToString(3) ?? "2.2.0";
         static readonly JsonCompat Json = new JsonCompat();
@@ -129,6 +129,11 @@ namespace Godseye.WindowsAgent
 
         static void Main(string[] args)
         {
+            if (args.Length > 0 && args[0].Equals("--remote-helper-v2", StringComparison.OrdinalIgnoreCase))
+            {
+                Environment.ExitCode = RemoteHelperV2Main(args);
+                return;
+            }
             if (args.Length > 0 && args[0].Equals("--remote-helper", StringComparison.OrdinalIgnoreCase))
             {
                 Environment.ExitCode = RemoteHelperMain(args);
@@ -716,7 +721,7 @@ namespace Godseye.WindowsAgent
                     {
                         Dictionary<string, object> payload = entry.ContainsKey("payload") ? entry["payload"] as Dictionary<string, object> : null;
                         if(payload==null||!payload.ContainsKey("session_id"))throw new Exception("Remote support session payload is invalid.");
-                        StartRemoteSession(cfg,Convert.ToInt64(payload["session_id"]),payload.ContainsKey("requested_by")?Convert.ToString(payload["requested_by"]):"administrator");
+                        StartRemoteSessionV2(cfg,Convert.ToInt64(payload["session_id"]),payload.ContainsKey("requested_by")?Convert.ToString(payload["requested_by"]):"administrator");
                         result["ok"]=true;result["events"]=0;result["new_findings"]=0;result["details"]="Remote support request displayed to the signed-in Windows user.";
                     }
                     else if (String.Equals(type, "remote_session_stop", StringComparison.OrdinalIgnoreCase))
