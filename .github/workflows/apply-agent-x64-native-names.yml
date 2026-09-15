@@ -1,0 +1,23 @@
+name: Apply native agent naming patch
+on:
+  push:
+    branches: [fix/agent-x64-native-packaging]
+    paths: ['.github/workflows/apply-agent-x64-native-names.yml']
+permissions:
+  contents: write
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: fix/agent-x64-native-packaging}
+      - run: python .github/scripts/patch_agent_x64_native_names.py
+      - run: |
+          python -m compileall -q app
+          git diff --check
+      - run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/main.py tests/
+          git commit -m 'Align server and tests with standalone GODSEYE Agent naming'
+          git push origin HEAD:fix/agent-x64-native-packaging
