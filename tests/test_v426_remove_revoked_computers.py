@@ -1,5 +1,6 @@
 from pathlib import Path
 
+# Regression coverage for the v4.26 two-step revoke -> permanent-remove lifecycle.
 def test_v426_version_and_revoked_agent_purge_contract():
     assert Path("VERSION").read_text().strip()=="4.26.0"
     src=Path("app/main.py").read_text()
