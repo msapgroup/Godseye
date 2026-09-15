@@ -1,0 +1,18 @@
+GODSEYE v4.25.0
+
+Fresh install:
+  sudo bash ./install.sh --fresh
+
+Upgrade an existing GODSEYE installation:
+  sudo bash ./install.sh --upgrade
+
+Auto-detect install vs upgrade:
+  sudo bash ./install.sh
+
+Upgrade mode preserves /var/lib/godseye, SQLite data, secrets/configuration,
+/etc/godseye.env, and creates a pre-upgrade database backup.
+
+Windows Agent:
+  Event Findings and Remote Access use the independently-versioned x64 Windows Agent.
+  Download the guided installer from Event Findings > Windows Agents.
+  Included agent version: 2.2.7.
