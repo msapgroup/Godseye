@@ -1,0 +1,38 @@
+name: Fix v4.26 Remote Access API helper
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/scripts/fix_remote_access_api_helper.py'
+      - '.github/workflows/fix-v426-remote-api-helper.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  repair-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply permanent Remote Access helper repair
+        run: python .github/scripts/fix_remote_access_api_helper.py
+      - name: Verify Python application compiles
+        run: python -m compileall -q app
+      - name: Run Remote Access helper regression
+        run: python -m pytest -q tests/test_v426_remote_access_api_helper.py
+      - name: Commit repaired source and regression test
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/main.py tests/test_v426_remote_access_api_helper.py
+          if ! git diff --cached --quiet; then
+            git commit -m 'Fix Remote Access undefined API helper [skip ci]'
+            git push origin HEAD:main
+          fi
