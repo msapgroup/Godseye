@@ -1,0 +1,79 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
+  <Package
+      Name="GODSEYE Windows Agent"
+      Manufacturer="MSAPGROUP LLC"
+      Version="2.2.9"
+      UpgradeCode="{8FD91243-B37D-4C6C-BFC7-74F833F8C551}"
+      Scope="perMachine">
+
+    <MajorUpgrade
+        Schedule="afterInstallInitialize"
+        DowngradeErrorMessage="A newer version of GODSEYE Windows Agent is already installed." />
+
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="GODSEYE Agent" />
+    </StandardDirectory>
+
+    <StandardDirectory Id="CommonAppDataFolder">
+      <Directory Id="GODSEYEDataFolder" Name="GODSEYE">
+        <Directory Id="AGENTDATAFOLDER" Name="Agent" />
+      </Directory>
+    </StandardDirectory>
+
+    <Feature Id="MainFeature" Title="GODSEYE Windows Agent" Level="1">
+      <ComponentRef Id="AgentServiceComponent" />
+      <ComponentRef Id="AgentDataFolderComponent" />
+    </Feature>
+
+    <Component Id="AgentServiceComponent"
+               Guid="{DFB07F6B-9F67-4A66-A9F7-3CBE18C01DBF}"
+               Directory="INSTALLFOLDER">
+      <File Id="AgentExecutable"
+            Source="..\..\publish\GODSEYE.Agent.exe"
+            KeyPath="yes" />
+
+      <ServiceInstall
+          Id="GODSEYEWindowsAgentServiceInstall"
+          Name="GODSEYEWindowsAgent"
+          DisplayName="GODSEYE Windows Agent"
+          Description="Read-only GODSEYE Windows Event Log agent"
+          Type="ownProcess"
+          Start="auto"
+          ErrorControl="normal"
+          Vital="yes">
+        <util:ServiceConfig
+            FirstFailureActionType="restart"
+            SecondFailureActionType="restart"
+            ThirdFailureActionType="restart"
+            RestartServiceDelayInSeconds="5"
+            ResetPeriodInDays="1" />
+      </ServiceInstall>
+
+      <ServiceControl
+          Id="GODSEYEWindowsAgentServiceControl"
+          Name="GODSEYEWindowsAgent"
+          Start="install"
+          Stop="both"
+          Remove="uninstall"
+          Wait="yes" />
+    </Component>
+
+    <Component Id="AgentDataFolderComponent"
+               Guid="{006D3E46-E235-4D85-82F2-4FD0C72DE4F7}"
+               Directory="AGENTDATAFOLDER"
+               NeverOverwrite="yes">
+      <CreateFolder>
+        <PermissionEx Sddl="D:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)" />
+      </CreateFolder>
+      <RegistryValue Root="HKLM"
+                     Key="Software\MSAPGROUP\GODSEYE Agent"
+                     Name="DataDirectory"
+                     Type="string"
+                     Value="[AGENTDATAFOLDER]"
+                     KeyPath="yes" />
+    </Component>
+  </Package>
+</Wix>
