@@ -9,11 +9,11 @@
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <PublishReadyToRun>true</PublishReadyToRun>
     <InvariantGlobalization>false</InvariantGlobalization>
-    <AssemblyName>GODSEYE.WindowsAgent</AssemblyName>
+    <AssemblyName>GODSEYE.Agent</AssemblyName>
     <RootNamespace>Godseye.WindowsAgent</RootNamespace>
-    <Version>2.2.8</Version>
-    <FileVersion>2.2.8.0</FileVersion>
-    <AssemblyVersion>2.2.8.0</AssemblyVersion>
+    <Version>2.2.9</Version>
+    <FileVersion>2.2.9.0</FileVersion>
+    <AssemblyVersion>2.2.9.0</AssemblyVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
     <NoWarn>SYSLIB0014</NoWarn>
