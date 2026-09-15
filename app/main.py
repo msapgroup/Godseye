@@ -3663,7 +3663,7 @@ def windows_agent_revoke(agent_id: int, request: Request, user=Depends(require_a
     return {"ok":True}
 
 
-@app.delete(f"{router_prefix}/windows-agents/{agent_id}/purge")
+@app.delete(f"{router_prefix}/windows-agents/{{agent_id}}/purge")
 def windows_agent_purge(agent_id: int, request: Request, user=Depends(require_admin)):
     with db() as c:
         row=c.execute("SELECT * FROM windows_agents WHERE id=?",(agent_id,)).fetchone()

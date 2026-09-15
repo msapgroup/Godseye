@@ -3,7 +3,7 @@ from pathlib import Path
 def test_v426_version_and_revoked_agent_purge_contract():
     assert Path("VERSION").read_text().strip()=="4.26.0"
     src=Path("app/main.py").read_text()
-    assert 'windows-agents/{agent_id}/purge' in src
+    assert 'windows-agents/{{agent_id}}/purge' in src
     assert 'def windows_agent_purge' in src
     assert 'Revoke the Windows Agent before removing it permanently' in src
     assert 'DELETE FROM windows_remote_sessions WHERE agent_id=?' in src
