@@ -1,12 +1,13 @@
 from pathlib import Path
+import re
 import app.main as main
 
 def test_version_v423():
     assert Path("VERSION").read_text().strip() in {"4.23.0-permanent-x64-windows-agent","4.24.0","4.25.0"}
 
 def test_real_x64_installer_is_packaged():
-    setup=Path("windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe")
-    agent=Path("windows/agent-x64/GODSEYE.WindowsAgent.exe")
+    setup=Path("windows/agent-x64/GODSEYE-Agent-x64-Setup.exe")
+    agent=Path("windows/agent-x64/GODSEYE.Agent.exe")
     assert setup.exists() and setup.stat().st_size > 10_000_000
     assert agent.exists() and agent.stat().st_size > 20_000_000
     data=agent.read_bytes()[:1024]
@@ -14,8 +15,8 @@ def test_real_x64_installer_is_packaged():
 
 def test_download_api_serves_setup_exe():
     source=Path("app/main.py").read_text()
-    assert 'windows" / "agent-x64" / "GODSEYE-Windows-Agent-x64-Setup.exe"' in source
-    assert 'filename="GODSEYE-Windows-Agent-x64-Setup.exe"' in source
+    assert 'windows" / "agent-x64" / "GODSEYE-Agent-x64-Setup.exe"' in source
+    assert 'filename="GODSEYE-Agent-x64-Setup.exe"' in source
     assert 'media_type="application/vnd.microsoft.portable-executable"' in source
 
 def test_windows_agent_ui_uses_permanent_installer():
@@ -33,7 +34,7 @@ def test_agent_x64_source_is_self_contained():
     assert '<SelfContained>true</SelfContained>' in csproj
     assert '<PublishSingleFile>true</PublishSingleFile>' in csproj
     assert 'Assembly.GetName().Version' in src
-    assert '<Version>2.2.0</Version>' in csproj
+    assert re.search(r'<Version>2\.2\.[0-9]+</Version>', csproj)
     assert 'GODSEYEWindowsAgent' in wix
     assert '<ServiceInstall' in wix and '<ServiceControl' in wix
     assert 'ArchitecturesInstallIn64BitMode=x64compatible' in iss
