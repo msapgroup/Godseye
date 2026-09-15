@@ -8007,7 +8007,7 @@ let REMOTE_POLL_TIMER=null;
 let REMOTE_MOVE_AT=0;
 
 async function loadRemoteAccess(){
- try{REMOTE_AGENTS=await api('/api/v1/windows-agents');renderRemoteAgents();}
+ try{REMOTE_AGENTS=await json('/api/v1/windows-agents');renderRemoteAgents();}
  catch(e){const root=document.getElementById('remoteAgentList');if(root)root.innerHTML=`<div class="empty">${esc(e.message||e)}</div>`;}
 }
 function renderRemoteAgents(){
@@ -8020,7 +8020,7 @@ function renderRemoteAgents(){
 }
 async function startRemoteSession(agentId){
  try{
-  const r=await api('/api/v1/remote-access/sessions',{method:'POST',body:JSON.stringify({agent_id:agentId})});REMOTE_SESSION=r.session;
+  const r=await json('/api/v1/remote-access/sessions',{method:'POST',body:JSON.stringify({agent_id:agentId})});REMOTE_SESSION=r.session;
   const a=REMOTE_AGENTS.find(x=>x.id===agentId)||{};document.getElementById('remoteSessionTitle').textContent='Remote Session — '+(a.computer_name||'Windows Agent');
   document.getElementById('remoteSessionStatus').textContent='Waiting for the signed-in Windows user to approve access…';document.getElementById('remoteSessionStatus').classList.add('remote-waiting');
   document.getElementById('remoteDisconnectBtn').disabled=false;document.getElementById('remoteScreenWrap').focus();pollRemoteSession();
@@ -8029,7 +8029,7 @@ async function startRemoteSession(agentId){
 async function pollRemoteSession(){
  if(!REMOTE_SESSION)return;clearTimeout(REMOTE_POLL_TIMER);
  try{
-  const s=await api(`/api/v1/remote-access/sessions/${REMOTE_SESSION.id}`);REMOTE_SESSION=s;
+  const s=await json(`/api/v1/remote-access/sessions/${REMOTE_SESSION.id}`);REMOTE_SESSION=s;
   const status=document.getElementById('remoteSessionStatus');const img=document.getElementById('remoteScreen');const empty=document.getElementById('remoteEmpty');
   status.classList.toggle('remote-waiting',s.status==='connecting');
   if(s.status==='active'){
@@ -8040,9 +8040,9 @@ async function pollRemoteSession(){
  }catch(e){}
  if(REMOTE_SESSION)REMOTE_POLL_TIMER=setTimeout(pollRemoteSession,650);
 }
-async function stopRemoteSession(){if(!REMOTE_SESSION)return;try{await api(`/api/v1/remote-access/sessions/${REMOTE_SESSION.id}/stop`,{method:'POST',body:'{}'});}catch(e){}clearTimeout(REMOTE_POLL_TIMER);REMOTE_SESSION=null;const img=document.getElementById('remoteScreen');img.style.display='none';document.getElementById('remoteEmpty').style.display='flex';document.getElementById('remoteDisconnectBtn').disabled=true;document.getElementById('remoteScreenshotBtn').disabled=true;document.getElementById('remoteSessionStatus').textContent='Session ended';}
+async function stopRemoteSession(){if(!REMOTE_SESSION)return;try{await json(`/api/v1/remote-access/sessions/${REMOTE_SESSION.id}/stop`,{method:'POST',body:'{}'});}catch(e){}clearTimeout(REMOTE_POLL_TIMER);REMOTE_SESSION=null;const img=document.getElementById('remoteScreen');img.style.display='none';document.getElementById('remoteEmpty').style.display='flex';document.getElementById('remoteDisconnectBtn').disabled=true;document.getElementById('remoteScreenshotBtn').disabled=true;document.getElementById('remoteSessionStatus').textContent='Session ended';}
 function openRemoteScreenshot(){if(REMOTE_SESSION)window.open(`/api/v1/remote-access/sessions/${REMOTE_SESSION.id}/frame?t=${Date.now()}`,'_blank');}
-async function sendRemoteInput(payload){if(!REMOTE_SESSION||REMOTE_SESSION.status!=='active')return;try{await api(`/api/v1/remote-access/sessions/${REMOTE_SESSION.id}/input`,{method:'POST',body:JSON.stringify(payload)});}catch(e){}}
+async function sendRemoteInput(payload){if(!REMOTE_SESSION||REMOTE_SESSION.status!=='active')return;try{await json(`/api/v1/remote-access/sessions/${REMOTE_SESSION.id}/input`,{method:'POST',body:JSON.stringify(payload)});}catch(e){}}
 function remotePointerPayload(ev,action){const img=document.getElementById('remoteScreen');if(!img||img.style.display==='none')return null;const r=img.getBoundingClientRect();if(!r.width||!r.height)return null;const b=ev.button===2?'right':ev.button===1?'middle':'left';return {kind:'pointer',action,x:Math.max(0,Math.min(1,(ev.clientX-r.left)/r.width)),y:Math.max(0,Math.min(1,(ev.clientY-r.top)/r.height)),button:b};}
 (function(){
  const bind=()=>{const wrap=document.getElementById('remoteScreenWrap');const img=document.getElementById('remoteScreen');if(!wrap||!img||wrap.dataset.remoteBound)return;wrap.dataset.remoteBound='1';wrap.addEventListener('contextmenu',e=>e.preventDefault());img.addEventListener('mousemove',e=>{const n=Date.now();if(n-REMOTE_MOVE_AT<80)return;REMOTE_MOVE_AT=n;const p=remotePointerPayload(e,'move');if(p)sendRemoteInput(p)});img.addEventListener('mousedown',e=>{e.preventDefault();wrap.focus();const p=remotePointerPayload(e,'down');if(p)sendRemoteInput(p)});img.addEventListener('mouseup',e=>{e.preventDefault();const p=remotePointerPayload(e,'up');if(p)sendRemoteInput(p)});wrap.addEventListener('wheel',e=>{if(!REMOTE_SESSION)return;e.preventDefault();sendRemoteInput({kind:'wheel',delta:e.deltaY<0?120:-120})},{passive:false});wrap.addEventListener('keydown',e=>{if(!REMOTE_SESSION||REMOTE_SESSION.status!=='active')return;if([116,123].includes(e.keyCode))return;e.preventDefault();sendRemoteInput({kind:'keyboard',action:'down',vk:e.keyCode})});wrap.addEventListener('keyup',e=>{if(!REMOTE_SESSION||REMOTE_SESSION.status!=='active')return;e.preventDefault();sendRemoteInput({kind:'keyboard',action:'up',vk:e.keyCode})});};
