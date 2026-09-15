@@ -1,0 +1,38 @@
+name: Fix v4.26 purge route
+on:
+  push:
+    branches: [feature/v426-remove-revoked-computers]
+    paths: ['.github/workflows/fix-v426-purge-route.yml']
+permissions:
+  contents: write
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/v426-remove-revoked-computers
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Fix route and verify import
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('app/main.py'); s=p.read_text()
+          bad='@app.delete(f"{router_prefix}/windows-agents/{agent_id}/purge")'
+          good='@app.delete(f"{router_prefix}/windows-agents/{{agent_id}}/purge")'
+          assert bad in s
+          p.write_text(s.replace(bad,good,1))
+          PY
+          python -m py_compile app/main.py
+          python -m pip install -q -r requirements.txt pytest httpx
+          PYTHONPATH=. pytest -q tests/test_v426_remove_revoked_computers.py
+      - name: Commit fix and remove one-shot workflow
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm .github/workflows/fix-v426-purge-route.yml
+          git add app/main.py
+          git commit -m 'Fix v4.26 agent purge route parameter'
+          git push origin HEAD:feature/v426-remove-revoked-computers
