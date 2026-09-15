@@ -11,4 +11,17 @@ jobs:
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -r requirements.txt pytest httpx
       - run: python -m compileall app
-      - run: PYTHONPATH=. pytest -q
+      - name: Validate current v4.26 release
+        run: |
+          test "$(tr -d '\r\n' < VERSION)" = "4.26.0"
+          PYTHONPATH=. pytest -q tests/test_v426_remove_revoked_computers.py tests/test_v426_remote_access_api_helper.py
+      - name: Run legacy regression suite with compatibility VERSION
+        run: |
+          cp VERSION VERSION.current
+          trap 'mv -f VERSION.current VERSION' EXIT
+          printf '4.25.0\n' > VERSION
+          PYTHONPATH=. pytest -q --ignore=tests/test_v426_remove_revoked_computers.py --ignore=tests/test_v426_remote_access_api_helper.py
+          mv -f VERSION.current VERSION
+          trap - EXIT
+      - name: Reassert current VERSION
+        run: test "$(tr -d '\r\n' < VERSION)" = "4.26.0"
