@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 
 def test_remote_support_v2_is_loopback_only_and_authenticated():
@@ -34,6 +35,6 @@ def test_patch_switches_command_dispatch_to_v2():
 
 def test_agent_version_bumped_for_real_installer_upgrade():
     project=Path('windows/agent-x64/src/Godseye.WindowsAgent/Godseye.WindowsAgent.csproj').read_text()
-    assert '<Version>2.2.8</Version>' in project
+    assert re.search(r'<Version>2\.2\.(?:[89]|[1-9][0-9]+)</Version>', project)
     assert '<RuntimeIdentifier>win-x64</RuntimeIdentifier>' in project
     assert '<SelfContained>true</SelfContained>' in project

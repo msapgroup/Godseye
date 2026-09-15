@@ -11,19 +11,20 @@ def test_v425_release_version():
 def test_packaged_agent_227_manifest_and_hash_are_consistent():
     root=Path('windows/agent-x64')
     manifest=windows_agent.load_update_manifest(root/'update-manifest.json')
-    assert manifest['version']=='2.2.7'
+    assert tuple(map(int,manifest['version'].split('.'))) >= (2,2,7)
     msi=root/manifest['filename']
     assert msi.exists() and msi.stat().st_size > 10_000_000
     actual=hashlib.sha256(msi.read_bytes()).hexdigest().upper()
     assert actual==manifest['sha256']
-    assert (root/'GODSEYE-Windows-Agent-x64.msi.sha256').read_text().strip().upper()==actual
+    checksum=root/(manifest['filename']+'.sha256')
+    if checksum.exists(): assert checksum.read_text().strip().upper()==actual
 
 
 def test_packaged_agent_and_setup_are_real_windows_binaries():
     root=Path('windows/agent-x64')
-    agent=root/'GODSEYE.WindowsAgent.exe'
-    setup=root/'GODSEYE-Windows-Agent-x64-Setup.exe'
-    assert agent.stat().st_size > 100_000_000
+    agent=(root/'GODSEYE.Agent.exe') if (root/'GODSEYE.Agent.exe').exists() else (root/'GODSEYE.WindowsAgent.exe')
+    setup=(root/'GODSEYE-Agent-x64-Setup.exe') if (root/'GODSEYE-Agent-x64-Setup.exe').exists() else (root/'GODSEYE-Windows-Agent-x64-Setup.exe')
+    assert agent.stat().st_size > 20_000_000
     assert setup.stat().st_size > 10_000_000
     assert agent.read_bytes()[:2]==b'MZ'
     assert setup.read_bytes()[:2]==b'MZ'

@@ -3673,9 +3673,9 @@ def windows_agent_msi_package(agent=Depends(_agent_auth)):
 
 @app.get(f"{router_prefix}/windows-agents/package")
 def windows_agent_package(user=Depends(require_admin)):
-    path=BASE_DIR / "windows" / "agent-x64" / "GODSEYE-Windows-Agent-x64-Setup.exe"
+    path=BASE_DIR / "windows" / "agent-x64" / "GODSEYE-Agent-x64-Setup.exe"
     if not path.exists(): raise HTTPException(404,"Windows Agent x64 installer is not installed")
-    return FileResponse(path,media_type="application/vnd.microsoft.portable-executable",filename="GODSEYE-Windows-Agent-x64-Setup.exe")
+    return FileResponse(path,media_type="application/vnd.microsoft.portable-executable",filename="GODSEYE-Agent-x64-Setup.exe")
 
 
 @app.get(f"{router_prefix}/windows-agents/package/legacy")
@@ -7014,7 +7014,7 @@ async function createWindowsAgentEnrollment(){
  try{
    const r=await json('/api/v1/windows-agents/enrollment-tokens',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({label:label.trim()||'Windows Agent',expires_minutes:30})});
    windowsAgentEnrollment.style.display='grid';windowsAgentEnrollmentToken.textContent=r.enrollment_token;windowsAgentEnrollmentExpiry.textContent='Expires '+new Date(r.expires_at).toLocaleString();
-   windowsAgentInstallCommand.textContent=`1. Click Download x64 Installer above.\n2. Run GODSEYE-Windows-Agent-x64-Setup.exe as Administrator.\n3. GODSEYE URL: ${location.origin}\n4. Paste the one-time token shown above.\n\nExisting enrolled agents can run newer Setup versions without a new token.`;
+   windowsAgentInstallCommand.textContent=`1. Click Download x64 Installer above.\n2. Run GODSEYE-Agent-x64-Setup.exe as Administrator.\n3. GODSEYE URL: ${location.origin}\n4. Paste the one-time token shown above.\n\nExisting enrolled agents can run newer Setup versions without a new token.`;
  }catch(e){alert('Could not create enrollment token: '+e.message)}
 }
 function copyAgentEnrollmentToken(){const value=windowsAgentEnrollmentToken.textContent||'';if(!value)return;navigator.clipboard?.writeText(value).then(()=>alert('Enrollment token copied.')).catch(()=>prompt('Copy this enrollment token:',value))}

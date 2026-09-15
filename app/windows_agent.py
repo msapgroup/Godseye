@@ -51,6 +51,7 @@ def public_agent(row) -> dict:
     d["enabled"] = bool(d.get("enabled"))
     return d
 
+
 def load_update_manifest(path: Path) -> dict:
     data = json.loads(Path(path).read_text(encoding="utf-8"))
     version = str(data.get("version") or "").strip()
@@ -60,7 +61,8 @@ def load_update_manifest(path: Path) -> dict:
         raise ValueError("Windows Agent update manifest has an invalid version")
     if not re.fullmatch(r"[0-9A-F]{64}", sha256):
         raise ValueError("Windows Agent update manifest has an invalid SHA-256")
-    if filename != "GODSEYE-Windows-Agent-x64.msi":
+    # Keep the previous package name readable during the 2.2.9 transition;
+    # new builds always emit GODSEYE-Agent-x64.msi.
+    if filename not in {"GODSEYE-Agent-x64.msi", "GODSEYE-Windows-Agent-x64.msi"}:
         raise ValueError("Windows Agent update manifest has an unexpected filename")
     return {"version": version, "sha256": sha256, "filename": filename}
-

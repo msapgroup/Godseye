@@ -1,10 +1,11 @@
 from pathlib import Path
+import re
 import app.main as main
 import app.windows_agent as windows_agent
 
 
 def manifest(version="2.2.0"):
-    return {"version":version,"filename":"GODSEYE-Windows-Agent-x64.msi","sha256":"A"*64}
+    return {"version":version,"filename":"GODSEYE-Agent-x64.msi","sha256":"A"*64}
 
 
 def make_agent(c, version="2.1.0"):
@@ -56,7 +57,7 @@ def test_pre_21_agent_requires_one_manual_baseline_update(tmp_path, monkeypatch)
 def test_x64_agent_updater_is_fixed_hash_verified_msi_path():
     src=Path("windows/agent-x64/src/Godseye.WindowsAgent/GodseyeAgentService.cs").read_text()
     csproj=Path("windows/agent-x64/src/Godseye.WindowsAgent/Godseye.WindowsAgent.csproj").read_text()
-    assert '<Version>2.2.0</Version>' in csproj
+    assert re.search(r'<Version>2\.2\.[0-9]+</Version>', csproj)
     assert 'Assembly.GetName().Version' in src
     assert '"upgrade_agent"' in src
     assert '"/api/v1/windows-agents/package/msi"' in src
