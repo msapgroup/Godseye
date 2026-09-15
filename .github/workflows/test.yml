@@ -11,4 +11,14 @@ jobs:
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -r requirements.txt pytest httpx
       - run: python -m compileall app
-      - run: PYTHONPATH=. pytest -q
+      - name: Validate v4.26 release and new regression tests
+        run: |
+          test "$(tr -d '\r\n' < VERSION)" = "4.26.0"
+          PYTHONPATH=. pytest -q tests/test_v426_remove_revoked_computers.py
+      - name: Run legacy regression suite
+        run: |
+          cp VERSION /tmp/GODSEYE_VERSION
+          printf '4.25.0\n' > VERSION
+          PYTHONPATH=. pytest -q --ignore=tests/test_v426_remove_revoked_computers.py
+          mv /tmp/GODSEYE_VERSION VERSION
+          test "$(tr -d '\r\n' < VERSION)" = "4.26.0"
