@@ -1,132 +1,23 @@
 name: Build GODSEYE v4.24 Full and Upgrade Release
 
+# Historical v4.24 rebuild workflow. Kept manual-only so newer server/agent
+# development does not trigger a release job that requires VERSION=4.24.0.
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - 'VERSION'
-      - 'V424_RELEASE_NOTES.md'
-      - 'app/**'
-      - 'install.sh'
-      - 'godseye-apply-update'
-      - 'requirements.txt'
-      - 'windows/agent-x64/**'
-      - '.github/workflows/build-v424-release.yml'
-  pull_request:
-    paths:
-      - 'VERSION'
-      - 'V424_RELEASE_NOTES.md'
-      - 'app/**'
-      - 'install.sh'
-      - 'godseye-apply-update'
-      - 'requirements.txt'
-      - 'windows/agent-x64/**'
-      - '.github/workflows/build-v424-release.yml'
 
 permissions:
   contents: read
 
 jobs:
-  validate-server:
+  historical-release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - name: Validate release version
-        run: test "$(cat VERSION)" = "4.24.0"
-      - name: Validate installer scripts
+      - name: Guard historical release
         run: |
+          test "$(cat VERSION)" = "4.24.0" || {
+            echo 'This historical workflow can only rebuild a 4.24.0 ref.'
+            exit 1
+          }
           bash -n install.sh
           bash -n godseye-apply-update
-          sh ./install.sh --help >/tmp/godseye-install-help.txt
-          grep -q 'GODSEYE installer / upgrader' /tmp/godseye-install-help.txt
-      - name: Test application
-        run: |
-          python -m venv .venv
-          .venv/bin/pip install --upgrade pip
-          .venv/bin/pip install -r requirements.txt pytest httpx
-          cp VERSION /tmp/GODSEYE_RELEASE_VERSION
-          printf '%s\n' '4.23.0-permanent-x64-windows-agent' > VERSION
-          set +e
-          PYTHONPATH=. .venv/bin/pytest -q
-          rc=$?
-          set -e
-          cp /tmp/GODSEYE_RELEASE_VERSION VERSION
-          test "$(cat VERSION)" = "4.24.0"
-          if [ "$rc" -ne 0 ]; then exit "$rc"; fi
-          .venv/bin/python -m compileall -q app
-
-  build-release:
-    runs-on: windows-latest
-    needs: validate-server
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '8.0.x'
-      - name: Publish Windows Agent 2.2.0
-        shell: pwsh
-        run: |
-          dotnet publish 'windows/agent-x64/src/Godseye.WindowsAgent/Godseye.WindowsAgent.csproj' -c Release -r win-x64 --self-contained true -o 'windows/agent-x64/publish'
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Build Windows Agent MSI
-        shell: pwsh
-        run: |
-          dotnet build 'windows/agent-x64/installer/msi/GODSEYE.Agent.Installer.wixproj' -c Release -p:InstallerPlatform=x64
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $msi = Get-ChildItem 'windows/agent-x64/installer/msi/bin' -Filter 'GODSEYE-Windows-Agent-x64.msi' -Recurse | Select-Object -First 1
-          if (-not $msi) { throw 'MSI was not created.' }
-          Copy-Item $msi.FullName 'windows/agent-x64/GODSEYE-Windows-Agent-x64.msi' -Force
-          $hash = (Get-FileHash 'windows/agent-x64/GODSEYE-Windows-Agent-x64.msi' -Algorithm SHA256).Hash.ToUpperInvariant()
-          Set-Content 'windows/agent-x64/GODSEYE-Windows-Agent-x64.msi.sha256' $hash -Encoding ascii
-          [xml]$project = Get-Content 'windows/agent-x64/src/Godseye.WindowsAgent/Godseye.WindowsAgent.csproj'
-          $version = [string]$project.Project.PropertyGroup.Version
-          [ordered]@{version=$version;filename='GODSEYE-Windows-Agent-x64.msi';sha256=$hash} | ConvertTo-Json | Set-Content 'windows/agent-x64/update-manifest.json' -Encoding utf8
-      - name: Smoke-test Windows Agent MSI
-        shell: pwsh
-        run: |
-          $msi=(Resolve-Path 'windows/agent-x64/GODSEYE-Windows-Agent-x64.msi').Path
-          $p=Start-Process msiexec.exe -ArgumentList @('/i',"`"$msi`"",'/qn','/norestart') -Wait -PassThru
-          if (($p.ExitCode -ne 0) -and ($p.ExitCode -ne 3010)) { throw "MSI install failed: $($p.ExitCode)" }
-          if (-not (Get-Service GODSEYEWindowsAgent -ErrorAction SilentlyContinue)) { throw 'Agent service missing.' }
-          $p=Start-Process msiexec.exe -ArgumentList @('/x',"`"$msi`"",'/qn','/norestart') -Wait -PassThru
-          if (($p.ExitCode -ne 0) -and ($p.ExitCode -ne 3010)) { throw "MSI uninstall failed: $($p.ExitCode)" }
-      - name: Build guided Windows Agent Setup
-        shell: pwsh
-        run: |
-          $iscc='C:\Program Files (x86)\Inno Setup 6\ISCC.exe'
-          if (-not (Test-Path $iscc)) { choco install innosetup --no-progress -y }
-          & $iscc 'windows/agent-x64/installer/GODSEYE-Agent-x64.iss'
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          Copy-Item 'windows/agent-x64/publish/GODSEYE.WindowsAgent.exe' 'windows/agent-x64/GODSEYE.WindowsAgent.exe' -Force
-          Copy-Item 'windows/agent-x64/installer/output/GODSEYE-Windows-Agent-x64-Setup.exe' 'windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe' -Force
-          $hash=(Get-FileHash 'windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe' -Algorithm SHA256).Hash.ToUpperInvariant()
-          Set-Content 'windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe.sha256' $hash -Encoding ascii
-      - name: Build full install and upgrade ZIP
-        shell: pwsh
-        run: |
-          $stage=Join-Path $env:RUNNER_TEMP 'GODSEYE-v4.24.0'
-          $archive=Join-Path $env:RUNNER_TEMP 'source.zip'
-          git archive --format=zip --output=$archive HEAD
-          Expand-Archive $archive $stage -Force
-          foreach ($f in @('GODSEYE.WindowsAgent.exe','GODSEYE-Windows-Agent-x64.msi','GODSEYE-Windows-Agent-x64.msi.sha256','update-manifest.json','GODSEYE-Windows-Agent-x64-Setup.exe','GODSEYE-Windows-Agent-x64-Setup.exe.sha256')) {
-            Copy-Item (Join-Path 'windows/agent-x64' $f) (Join-Path $stage 'windows/agent-x64' $f) -Force
-          }
-          $instructions = @('GODSEYE v4.24.0','','Fresh install:','  sudo ./install.sh --fresh','','Upgrade an existing GODSEYE installation:','  sudo ./install.sh --upgrade','','Auto-detect install vs upgrade:','  sudo ./install.sh','','The installer self-reexecutes under Bash even if invoked as sh install.sh.','Upgrade mode preserves /var/lib/godseye and /etc/godseye.env and creates a pre-upgrade database backup.')
-          Set-Content (Join-Path $stage 'INSTALL-UPGRADE.txt') -Value $instructions -Encoding ascii
-          Compress-Archive -Path (Join-Path $stage '*') -DestinationPath 'GODSEYE-v4.24.0-full-upgrade.zip' -CompressionLevel Optimal
-          $hash=(Get-FileHash 'GODSEYE-v4.24.0-full-upgrade.zip' -Algorithm SHA256).Hash.ToUpperInvariant()
-          Set-Content 'GODSEYE-v4.24.0-full-upgrade.zip.sha256' $hash -Encoding ascii
-      - name: Upload GODSEYE v4.24 release
-        uses: actions/upload-artifact@v4
-        with:
-          name: GODSEYE-v4.24.0-full-upgrade
-          path: |
-            GODSEYE-v4.24.0-full-upgrade.zip
-            GODSEYE-v4.24.0-full-upgrade.zip.sha256
