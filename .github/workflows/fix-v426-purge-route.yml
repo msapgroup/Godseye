@@ -15,15 +15,19 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Fix route and verify import
+      - name: Fix route and test contract
         run: |
           python - <<'PY'
           from pathlib import Path
           p=Path('app/main.py'); s=p.read_text()
           bad='@app.delete(f"{router_prefix}/windows-agents/{agent_id}/purge")'
           good='@app.delete(f"{router_prefix}/windows-agents/{{agent_id}}/purge")'
-          assert bad in s
-          p.write_text(s.replace(bad,good,1))
+          if bad in s: s=s.replace(bad,good,1)
+          assert good in s
+          p.write_text(s)
+          t=Path('tests/test_v426_remove_revoked_computers.py'); q=t.read_text()
+          q=q.replace("assert 'windows-agents/{agent_id}/purge' in src","assert 'windows-agents/{{agent_id}}/purge' in src")
+          t.write_text(q)
           PY
           python -m py_compile app/main.py
           python -m pip install -q -r requirements.txt pytest httpx
@@ -33,6 +37,6 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git rm .github/workflows/fix-v426-purge-route.yml
-          git add app/main.py
+          git add app/main.py tests/test_v426_remove_revoked_computers.py
           git commit -m 'Fix v4.26 agent purge route parameter'
           git push origin HEAD:feature/v426-remove-revoked-computers
