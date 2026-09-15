@@ -3663,6 +3663,28 @@ def windows_agent_revoke(agent_id: int, request: Request, user=Depends(require_a
     return {"ok":True}
 
 
+@app.delete(f"{router_prefix}/windows-agents/{{agent_id}}/purge")
+def windows_agent_purge(agent_id: int, request: Request, user=Depends(require_admin)):
+    with db() as c:
+        row=c.execute("SELECT * FROM windows_agents WHERE id=?",(agent_id,)).fetchone()
+        if not row: raise HTTPException(404,"Windows Agent not found")
+        if not row["revoked_at"] and row["status"] != "revoked":
+            raise HTTPException(409,"Revoke the Windows Agent before removing it permanently")
+        sessions=[r[0] for r in c.execute("SELECT id FROM windows_remote_sessions WHERE agent_id=?",(agent_id,)).fetchall()]
+        finding_ids=[r[0] for r in c.execute("SELECT id FROM event_findings WHERE agent_id=?",(agent_id,)).fetchall()]
+        if sessions:
+            marks=",".join("?" for _ in sessions)
+            c.execute(f"DELETE FROM windows_remote_events WHERE session_id IN ({marks})",sessions)
+        c.execute("DELETE FROM windows_remote_sessions WHERE agent_id=?",(agent_id,))
+        c.execute("DELETE FROM windows_agent_rechecks WHERE agent_id=?",(agent_id,))
+        c.execute("DELETE FROM windows_agent_commands WHERE agent_id=?",(agent_id,))
+        findings_deleted=0
+        if finding_ids:
+            findings_deleted=len(_delete_event_findings(c,finding_ids))
+        c.execute("DELETE FROM windows_agents WHERE id=?",(agent_id,))
+        audit(c,user["username"],"windows_agent_purged",str(agent_id),json.dumps({"computer_name":row["computer_name"],"findings_deleted":findings_deleted,"remote_sessions_deleted":len(sessions)}),client_ip(request))
+    return {"ok":True,"computer_name":row["computer_name"],"findings_deleted":findings_deleted,"remote_sessions_deleted":len(sessions)}
+
 @app.get(f"{router_prefix}/windows-agents/package/msi")
 def windows_agent_msi_package(agent=Depends(_agent_auth)):
     manifest=_windows_agent_update_manifest()
@@ -6990,7 +7012,7 @@ function renderWindowsAgents(){
      updateBtn=x.upgrade_supported?`<button class="primary admin-only" onclick="upgradeWindowsAgent(${x.id})">↑ Upgrade to ${esc(x.available_version)}</button>`:`<button class="secondary admin-only" onclick="downloadWindowsAgentPackage()" title="Agent 2.0.x needs one manual baseline upgrade; enrollment is preserved.">↓ Manual Update to ${esc(x.available_version)}</button>`;
    }else if(!x.revoked_at&&x.available_version){updateBtn=`<button class="secondary" disabled>✓ Up to date</button>`}
    const updateText=x.available_version?(x.update_available?` · Update available: ${esc(x.available_version)}${x.upgrade_supported?'':' (one manual baseline update required)'}`:` · Latest: ${esc(x.available_version)}`):'';
-   return `<div class="windows-agent-row"><span class="windows-agent-icon">W</span><div><b>${esc(x.computer_name||x.hostname||'Windows Agent')}</b><small><span class="agent-status ${esc(x.status||'enrolled')}"><span class="agent-status-dot"></span>${esc(x.status||'enrolled')}</span> · ${esc(x.ip_address||'no IP')} · ${esc(x.os_version||'Windows')} · Agent ${esc(x.agent_version||'—')} · ${x.open_findings||0} open finding(s)${updateText}</small><small>Last heartbeat: ${x.last_heartbeat_at?esc(new Date(x.last_heartbeat_at).toLocaleString()):'never'} · Channels: ${(x.channels||[]).map(esc).join(', ')} · every ${x.poll_interval_seconds||60}s${pull}${x.last_error?' · '+esc(x.last_error):''}</small></div><div class="actions">${updateBtn}${pullBtn}${x.revoked_at?'':`<button class="secondary admin-only" onclick="configureWindowsAgent(${x.id})">Configure</button><button class="danger admin-only" onclick="revokeWindowsAgent(${x.id})">Revoke</button>`}</div></div>`
+   return `<div class="windows-agent-row"><span class="windows-agent-icon">W</span><div><b>${esc(x.computer_name||x.hostname||'Windows Agent')}</b><small><span class="agent-status ${esc(x.status||'enrolled')}"><span class="agent-status-dot"></span>${esc(x.status||'enrolled')}</span> · ${esc(x.ip_address||'no IP')} · ${esc(x.os_version||'Windows')} · Agent ${esc(x.agent_version||'—')} · ${x.open_findings||0} open finding(s)${updateText}</small><small>Last heartbeat: ${x.last_heartbeat_at?esc(new Date(x.last_heartbeat_at).toLocaleString()):'never'} · Channels: ${(x.channels||[]).map(esc).join(', ')} · every ${x.poll_interval_seconds||60}s${pull}${x.last_error?' · '+esc(x.last_error):''}</small></div><div class="actions">${updateBtn}${pullBtn}${x.revoked_at?`<button class="danger admin-only" onclick="purgeWindowsAgent(${x.id})">Remove Permanently</button>`:`<button class="secondary admin-only" onclick="configureWindowsAgent(${x.id})">Configure</button><button class="danger admin-only" onclick="revokeWindowsAgent(${x.id})">Revoke</button>`}</div></div>`
  }).join(''):'<div class="empty">No Windows Agents enrolled.</div>';
  applyRoleVisibility();
 }
@@ -7046,6 +7068,12 @@ async function configureWindowsAgent(id){
 async function revokeWindowsAgent(id){
  const x=WINDOWS_AGENTS.find(a=>a.id===id);if(!confirm(`Revoke ${x?.computer_name||'this Windows Agent'}? The installed agent will no longer be able to upload events.`))return;
  try{await json('/api/v1/windows-agents/'+id,{method:'DELETE'});await loadWindowsAgents()}catch(e){alert('Could not revoke Windows Agent: '+e.message)}
+}
+async function purgeWindowsAgent(id){
+ const x=WINDOWS_AGENTS.find(a=>a.id===id);if(!x)return;
+ if(!x.revoked_at&&x.status!=='revoked'){alert('Revoke this Windows Agent before removing it permanently.');return}
+ if(!confirm(`Permanently remove ${x.computer_name||x.hostname||'this computer'} from GODSEYE?\n\nThis removes the revoked agent record, its Event Findings, remote-session history, queued commands, and rechecks. Linked tickets remain as history. This cannot be undone.`))return;
+ try{const r=await json('/api/v1/windows-agents/'+id+'/purge',{method:'DELETE'});alert(`Removed ${r.computer_name||'computer'} from GODSEYE. ${r.findings_deleted||0} Event Finding(s) removed.`);await loadWindowsAgents();await loadEventFindings();if(typeof loadRemoteAccess==='function')await loadRemoteAccess()}catch(e){alert('Could not permanently remove Windows Agent: '+e.message)}
 }
 
 async function loadWindowsSources(){
@@ -7987,7 +8015,7 @@ function renderRemoteAgents(){
  const rows=REMOTE_AGENTS.filter(a=>!q||String(a.computer_name||'').toLowerCase().includes(q)||String(a.hostname||'').toLowerCase().includes(q)||String(a.ip_address||'').toLowerCase().includes(q));
  const online=REMOTE_AGENTS.filter(a=>a.status==='online').length;
  const set=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v};set('remoteOnlineCount',online);set('remoteOfflineCount',Math.max(0,REMOTE_AGENTS.length-online));set('remoteTotalCount',REMOTE_AGENTS.length);
- root.innerHTML=rows.length?rows.map(a=>{const on=a.status==='online';const supported=!!a.remote_supported;let action='';if(on&&supported)action=`<button class="primary remote-connect" type="button" onclick="startRemoteSession(${a.id})">Connect</button>`;else if(!supported)action=`<button class="secondary remote-connect" type="button" disabled title="Upgrade to Agent 2.2.0 or newer">Upgrade Agent</button>`;else action=`<button class="secondary remote-connect" type="button" disabled>Offline</button>`;return `<div class="remote-agent-row"><div class="remote-agent-main"><div class="remote-agent-name"><span class="remote-dot ${on?'online':'offline'}"></span>${esc(a.computer_name||a.hostname||('Agent '+a.id))}</div><div class="remote-agent-sub">${esc(a.ip_address||'No IP')} · Agent ${esc(a.agent_version||'unknown')} · ${esc(a.os_version||'Windows')}</div></div>${action}</div>`}).join(''):`<div class="empty">No matching Windows Agents.</div>`;
+ root.innerHTML=rows.length?rows.map(a=>{const on=a.status==='online';const supported=!!a.remote_supported;let action='';if(on&&supported)action=`<button class="primary remote-connect" type="button" onclick="startRemoteSession(${a.id})">Connect</button>`;else if(!supported)action=`<button class="secondary remote-connect" type="button" disabled title="Upgrade to Agent 2.2.0 or newer">Upgrade Agent</button>`;else action=`<button class="secondary remote-connect" type="button" disabled>Offline</button>`;if(a.revoked_at||a.status==='revoked')action=`<button class="danger admin-only" type="button" onclick="purgeWindowsAgent(${a.id})">Remove</button>`;return `<div class="remote-agent-row"><div class="remote-agent-main"><div class="remote-agent-name"><span class="remote-dot ${on?'online':'offline'}"></span>${esc(a.computer_name||a.hostname||('Agent '+a.id))}</div><div class="remote-agent-sub">${esc(a.ip_address||'No IP')} · Agent ${esc(a.agent_version||'unknown')} · ${esc(a.os_version||'Windows')}</div></div>${action}</div>`}).join(''):`<div class="empty">No matching Windows Agents.</div>`;
 }
 async function startRemoteSession(agentId){
  try{
