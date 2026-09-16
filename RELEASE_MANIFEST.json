@@ -4,7 +4,7 @@
   "release": "Clean Release Rebuild",
   "install_model": "complete local release zip",
   "windows_agent": {
-    "version": "2.2.12",
+    "version": "2.2.13",
     "architecture": "x64",
     "source_version": "2.2.13",
     "release_manifest": "windows/agent-x64/update-manifest.json",
