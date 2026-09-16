@@ -11,8 +11,8 @@ def test_real_x64_installer_is_packaged():
 
 def test_download_api_serves_setup_exe():
     source=Path("app/main.py").read_text()
-    assert 'windows" / "agent-x64" / "GODSEYE-Windows-Agent-x64-Setup.exe"' in source
-    assert 'filename="GODSEYE-Windows-Agent-x64-Setup.exe"' in source
+    assert '_resolve_windows_agent_package(manifest,"setup")' in source
+    assert 'manifest.get("setup_filename") or "GODSEYE-Windows-Agent-x64-Setup.exe"' in source
     assert 'media_type="application/vnd.microsoft.portable-executable"' in source
 
 def test_windows_agent_ui_uses_permanent_installer():
