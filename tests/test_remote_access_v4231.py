@@ -14,7 +14,7 @@ def test_remote_access_routes_and_ui_present():
 def test_remote_agent_has_full_desktop_control_after_approval_and_no_shell():
     src=Path("windows/agent-x64/src/Godseye.WindowsAgent/GodseyeAgentService.cs").read_text()
     cs=Path("windows/agent-x64/src/Godseye.WindowsAgent/Godseye.WindowsAgent.csproj").read_text()
-    assert '<Version>2.2.9</Version>' in cs
+    assert '<Version>2.2.10</Version>' in cs
     assert 'MessageBox' in src and 'requesting to view and control this computer' in src
     assert 'WTSQueryUserToken' in src and 'CreateProcessAsUser' in src
     assert 'NamedPipeServerStream' in src and 'CopyFromScreen' in src

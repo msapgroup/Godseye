@@ -3,7 +3,7 @@
   <Package
       Name="GODSEYE Windows Agent"
       Manufacturer="MSAPGROUP LLC"
-      Version="2.2.9"
+      Version="2.2.10"
       UpgradeCode="{8FD91243-B37D-4C6C-BFC7-74F833F8C551}"
       Scope="perMachine">
 
@@ -26,6 +26,7 @@
     <Feature Id="MainFeature" Title="GODSEYE Windows Agent" Level="1">
       <ComponentRef Id="AgentServiceComponent" />
       <ComponentRef Id="AgentDataFolderComponent" />
+      <ComponentRef Id="AgentTrayStartupComponent" />
     </Feature>
 
     <Component Id="AgentServiceComponent"
@@ -59,6 +60,17 @@
           Stop="both"
           Remove="uninstall"
           Wait="yes" />
+    </Component>
+
+    <Component Id="AgentTrayStartupComponent"
+               Guid="{AB4788B6-8A56-4BD8-BF51-61B3C2B65D3B}"
+               Directory="INSTALLFOLDER">
+      <RegistryValue Root="HKLM"
+                     Key="Software\Microsoft\Windows\CurrentVersion\Run"
+                     Name="GODSEYE Windows Agent"
+                     Type="string"
+                     Value="&quot;[INSTALLFOLDER]GODSEYE.Agent.exe&quot; --tray"
+                     KeyPath="yes" />
     </Component>
 
     <Component Id="AgentDataFolderComponent"

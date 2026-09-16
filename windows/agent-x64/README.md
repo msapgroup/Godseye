@@ -1,10 +1,10 @@
-# GODSEYE Windows Agent x64 — 2.2.9
+# GODSEYE Windows Agent x64 — 2.2.10 source
 
 The GODSEYE Windows Agent is a compiled, self-contained **64-bit Windows service** with an installer lifecycle independent from the GODSEYE server release number.
 
 ## Recommended installer
 
-For a normal first installation, use:
+For a normal first installation, download the current package from **Event Findings → Windows Agents** or the [Windows Agent GitHub Release](https://github.com/msapgroup/Godseye/releases), then use:
 
 `GODSEYE-Windows-Agent-x64-Setup.exe`
 
@@ -34,7 +34,7 @@ The MSI uses a stable Windows Installer UpgradeCode and Windows Installer owns s
 
 Agents at the self-update baseline can also be upgraded from **Event Findings → Windows Agents → Upgrade Agent**. The Windows Agent is distributed through a dedicated GitHub Release channel that is independent from the GODSEYE server build number. GODSEYE reads the small signed-by-hash release manifest, downloads the canonical MSI into a local cache when needed, verifies SHA-256, and then serves only the fixed MSI endpoint to enrolled agents. The agent verifies that same MSI SHA-256 again before starting `msiexec.exe`.
 
-Large MSI/EXE/service binaries are **not refreshed into Git history**. This avoids GitHub's 100 MB file limit and prevents every agent build from permanently growing the repository. Workflow artifacts are retained for CI inspection, while durable install/update packages live as GitHub Release assets tagged `windows-agent-vX.Y.Z`.
+Large MSI/EXE/service binaries are **not stored in the repository file list**. The installer and MSI live as GitHub Release assets tagged `windows-agent-vX.Y.Z`; the service executable is included in the workflow artifact and installer. Do not download an installer from an old commit in Git history.
 
 ## Windows service
 
@@ -65,7 +65,7 @@ HTTPS is recommended. If a private CA or self-signed certificate is used, deploy
 
 ## Future upgrades
 
-Run a newer guided Setup EXE or MSI on the same computer. Existing `%ProgramData%\GODSEYE\Agent\agent.json` and `agent.key` are preserved, so no new enrollment token is required.
+Run a newer guided Setup EXE or MSI on the same computer. Existing `%ProgramData%\GODSEYE\Agent\agent.json` and `agent.key` are preserved, so no new enrollment token is required. A configuration file without an enrolled key is treated as an incomplete installation and the guided Setup asks for a new token.
 
 ## Build pipeline
 
@@ -76,6 +76,7 @@ Run a newer guided Setup EXE or MSI on the same computer. Existing `%ProgramData
 - builds `GODSEYE-Windows-Agent-x64.msi` with WiX;
 - installs, repairs, and uninstalls the MSI on a Windows runner;
 - verifies the Windows service and preserved ProgramData state;
+- verifies that tray startup is registered and removed on uninstall;
 - builds the guided Setup EXE;
 - generates SHA-256 files and `update-manifest.json`;
 - uploads the full package set as a workflow artifact;

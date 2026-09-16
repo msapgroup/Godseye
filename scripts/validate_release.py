@@ -70,10 +70,7 @@ def main() -> int:
     required = [
         "VERSION", "README.md", "INSTALL.txt", "RELEASE_MANIFEST.json",
         "requirements.txt", "install.sh", "app/main.py", "app/windows_agent.py",
-        "windows/agent-x64/GODSEYE.Agent.exe",
-        "windows/agent-x64/GODSEYE-Windows-Agent-x64.msi",
         "windows/agent-x64/GODSEYE-Windows-Agent-x64.msi.sha256",
-        "windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe",
         "windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe.sha256",
         "windows/agent-x64/update-manifest.json",
     ]
@@ -97,27 +94,33 @@ def main() -> int:
         fail("legacy script-built Windows agent directory must not be shipped")
 
     agent_dir = root / "windows/agent-x64"
-    manifest = json.loads((agent_dir / "update-manifest.json").read_text(encoding="utf-8-sig"))
-    if manifest.get("filename") != "GODSEYE-Windows-Agent-x64.msi":
-        fail("Windows Agent manifest filename must be GODSEYE-Windows-Agent-x64.msi")
-    agent_version = str(manifest.get("version") or "")
-    if not re.fullmatch(r"\d+\.\d+\.\d+", agent_version):
-        fail("Windows Agent manifest version is invalid")
-    expected = str(manifest.get("sha256") or "").upper()
-    actual = sha256(agent_dir / manifest["filename"])
-    if actual != expected:
-        fail(f"Windows Agent MSI checksum mismatch: manifest={expected}, actual={actual}")
+    sys.path.insert(0, str(root))
+    from app.windows_agent import load_update_manifest
+    try:
+        manifest = load_update_manifest(agent_dir / "update-manifest.json")
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        fail(f"Windows Agent release manifest is invalid: {exc}")
+    agent_version = manifest["version"]
+    if not manifest.get("url") or not manifest.get("setup_url"):
+        fail("Windows Agent manifest must identify both verified GitHub Release assets")
+    expected = manifest["sha256"]
 
     checksum_file = (agent_dir / "GODSEYE-Windows-Agent-x64.msi.sha256").read_text().strip().split()[0].upper()
-    if checksum_file != actual:
-        fail("Windows Agent MSI .sha256 file does not match package")
-    setup = agent_dir / "GODSEYE-Windows-Agent-x64-Setup.exe"
+    if checksum_file != expected:
+        fail("Windows Agent MSI .sha256 file does not match release manifest")
     setup_expected = (agent_dir / "GODSEYE-Windows-Agent-x64-Setup.exe.sha256").read_text().strip().split()[0].upper()
-    if sha256(setup) != setup_expected:
-        fail("Windows Agent Setup EXE .sha256 file does not match package")
+    if setup_expected != manifest["setup_sha256"]:
+        fail("Windows Agent Setup .sha256 file does not match release manifest")
 
+    # Release packages live on GitHub Releases. Locally built packages must
+    # still match the manifest; stale binaries must never pass validation.
+    for filename, digest in ((manifest["filename"], expected),
+                             (manifest["setup_filename"], setup_expected)):
+        package = agent_dir / filename
+        if package.exists() and sha256(package) != digest:
+            fail(f"Windows Agent {filename} differs from its release manifest")
     service = agent_dir / "GODSEYE.Agent.exe"
-    if pe_machine(service) != 0x8664:
+    if service.exists() and pe_machine(service) != 0x8664:
         fail("GODSEYE.Agent.exe is not an x86-64 PE executable")
 
     csproj = (agent_dir / "src/Godseye.WindowsAgent/Godseye.WindowsAgent.csproj").read_text(encoding="utf-8")
@@ -125,8 +128,10 @@ def main() -> int:
         if marker not in csproj:
             fail(f"Windows Agent project is missing {marker}")
     m = re.search(r"<Version>([^<]+)</Version>", csproj)
-    if not m or m.group(1).strip() != agent_version:
-        fail("Windows Agent project version and update manifest version differ")
+    if not m or not re.fullmatch(r"\d+\.\d+\.\d+", m.group(1).strip()):
+        fail("Windows Agent project version is invalid")
+    if tuple(map(int, m.group(1).split("."))) < tuple(map(int, agent_version.split("."))):
+        fail("Windows Agent project version is older than the published release")
 
     wix = (agent_dir / "installer/msi/Package.wxs").read_text(encoding="utf-8")
     for marker in ("ProgramFiles64Folder", "GODSEYEWindowsAgent", "GODSEYE.Agent.exe", "UpgradeCode"):

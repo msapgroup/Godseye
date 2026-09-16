@@ -9,3 +9,8 @@ data/
 .env
 .env.*
 !*.env.example
+/windows/agent-x64/GODSEYE.Agent.exe
+/windows/agent-x64/GODSEYE-Windows-Agent-x64.msi
+/windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe
+/windows/agent-x64/publish/
+/windows/agent-x64/installer/output/

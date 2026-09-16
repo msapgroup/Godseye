@@ -85,6 +85,8 @@ jobs:
           if ($service.StartMode -ne 'Auto') { throw "Service start mode is $($service.StartMode), expected Auto." }
           if ($service.StartName -ne 'LocalSystem') { throw "Service account is $($service.StartName), expected LocalSystem." }
           if ($service.PathName -notlike '*\GODSEYE Agent\GODSEYE.Agent.exe*') { throw "Unexpected service path: $($service.PathName)" }
+          $trayRun = (Get-ItemProperty -Path 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Run' -Name 'GODSEYE Windows Agent' -ErrorAction Stop).'GODSEYE Windows Agent'
+          if ($trayRun -notmatch 'GODSEYE.Agent.exe.*--tray') { throw "Tray sign-in registration is invalid: $trayRun" }
 
           $sentinel = Join-Path $env:ProgramData 'GODSEYE\Agent\ci-preserve-test.txt'
           New-Item -ItemType Directory -Path (Split-Path $sentinel) -Force | Out-Null
@@ -97,6 +99,7 @@ jobs:
           $uninstall = Start-Process msiexec.exe -ArgumentList @('/x', "`"$msi`"", '/qn', '/norestart', '/l*v', "`"$uninstallLog`"") -Wait -PassThru
           if ($uninstall.ExitCode -notin 0,3010) { Get-Content $uninstallLog -Tail 200; throw "MSI uninstall failed: $($uninstall.ExitCode)" }
           if (Get-Service GODSEYEWindowsAgent -ErrorAction SilentlyContinue) { throw 'Windows service remains after uninstall.' }
+          if (Get-ItemProperty -Path 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Run' -Name 'GODSEYE Windows Agent' -ErrorAction SilentlyContinue) { throw 'Tray sign-in registration remains after uninstall.' }
           if (-not (Test-Path $sentinel)) { throw 'Uninstall removed persistent ProgramData state.' }
           Remove-Item $sentinel -Force
 
@@ -195,13 +198,13 @@ jobs:
         shell: pwsh
         run: |
           # Large packages live in GitHub Releases, not Git history.
-          # Keep the tracked baseline binaries unchanged for offline fallback.
-          git restore --worktree windows/agent-x64/GODSEYE.Agent.exe
-          git restore --worktree windows/agent-x64/GODSEYE-Windows-Agent-x64.msi
-          git restore --worktree windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe
-
+          # Generated packages are ignored in Git and published as verified assets.
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          $releaseManifest = Get-Content 'RELEASE_MANIFEST.json' -Raw | ConvertFrom-Json
+          $releaseManifest.windows_agent.version = '${{ steps.version.outputs.version }}'
+          $releaseManifest | ConvertTo-Json -Depth 8 | Set-Content 'RELEASE_MANIFEST.json' -Encoding utf8
+          git add RELEASE_MANIFEST.json
           git add windows/agent-x64/GODSEYE-Windows-Agent-x64.msi.sha256
           git add windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe.sha256
           git add windows/agent-x64/update-manifest.json

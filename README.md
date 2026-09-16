@@ -11,7 +11,7 @@ V4.28 is a **clean release package**, not a patch bundle and not a repository cl
 The server release and Windows Agent are intentionally versioned independently:
 
 - GODSEYE server: **4.28.0**
-- bundled Windows Agent: **2.2.9 x64**
+- Windows Agent source: **2.2.10 x64**; download the current guided installer from **Event Findings → Windows Agents** or the verified [Windows Agent releases](https://github.com/msapgroup/Godseye/releases)
 
 A GODSEYE server update does not by itself require reinstalling the Windows Agent. The permanent Windows Agent uses the stable GODSEYE Windows Agent API and Windows Installer owns its future upgrade lifecycle.
 

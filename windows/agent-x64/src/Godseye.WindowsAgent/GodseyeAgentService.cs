@@ -218,8 +218,8 @@ namespace Godseye.WindowsAgent
                 int wait = 60;
                 try
                 {
-                    AgentConfig cfg = LoadConfig();
                     EnsureTrayProcess();
+                    AgentConfig cfg = LoadConfig();
                     if (cfg.SkipTlsVerify)
                         ServicePointManager.ServerCertificateValidationCallback = delegate { return true; };
                     else
@@ -498,6 +498,7 @@ namespace Godseye.WindowsAgent
                         if (pi.hThread != IntPtr.Zero) CloseHandle(pi.hThread);
                         if (pi.hProcess != IntPtr.Zero) CloseHandle(pi.hProcess);
                     }
+                    else Log("Could not start tray helper (Windows error " + Marshal.GetLastWin32Error() + ").");
                 }
                 finally { CloseHandle(token); }
             }

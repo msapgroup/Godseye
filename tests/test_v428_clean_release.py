@@ -1,7 +1,8 @@
 from pathlib import Path
 import hashlib
-import json
-import struct
+import subprocess
+
+from app.windows_agent import load_update_manifest
 
 ROOT=Path(__file__).resolve().parents[1]
 
@@ -31,27 +32,29 @@ def test_staged_update_reuses_main_installer():
 
 def test_windows_agent_packages_use_one_canonical_contract():
     d=ROOT/'windows/agent-x64'
-    manifest=json.loads((d/'update-manifest.json').read_text())
+    manifest=load_update_manifest(d/'update-manifest.json')
     assert manifest['filename']=='GODSEYE-Windows-Agent-x64.msi'
-    msi=d/manifest['filename']
-    assert msi.exists() and msi.stat().st_size>100_000
-    actual=hashlib.sha256(msi.read_bytes()).hexdigest().upper()
-    assert actual==manifest['sha256']
-    assert actual==(d/'GODSEYE-Windows-Agent-x64.msi.sha256').read_text().strip().upper()
-    assert (d/'GODSEYE-Windows-Agent-x64-Setup.exe').exists()
-    assert (d/'GODSEYE.Agent.exe').exists()
+    assert manifest['setup_filename']=='GODSEYE-Windows-Agent-x64-Setup.exe'
+    assert manifest['sha256']==(d/'GODSEYE-Windows-Agent-x64.msi.sha256').read_text().strip().upper()
+    assert manifest['setup_sha256']==(d/'GODSEYE-Windows-Agent-x64-Setup.exe.sha256').read_text().strip().upper()
+    for name, digest in ((manifest['filename'], manifest['sha256']),
+                         (manifest['setup_filename'], manifest['setup_sha256'])):
+        package=d/name
+        if package.exists():
+            assert hashlib.sha256(package.read_bytes()).hexdigest().upper()==digest
     assert not (d/'GODSEYE-Agent-x64.msi').exists()
     assert not (d/'GODSEYE-Agent-x64-Setup.exe').exists()
 
 
-def test_bundled_windows_service_is_x64_pe():
-    p=ROOT/'windows/agent-x64/GODSEYE.Agent.exe'
-    with p.open('rb') as f:
-        assert f.read(2)==b'MZ'
-        f.seek(0x3c); peoff=struct.unpack('<I',f.read(4))[0]
-        f.seek(peoff); assert f.read(4)==b'PE\0\0'
-        machine=struct.unpack('<H',f.read(2))[0]
-    assert machine==0x8664
+def test_stale_agent_packages_are_not_tracked():
+    if not (ROOT/'.git').exists():
+        return
+    packages=('GODSEYE.Agent.exe', 'GODSEYE-Windows-Agent-x64.msi',
+              'GODSEYE-Windows-Agent-x64-Setup.exe')
+    tracked=subprocess.check_output(
+        ['git', 'ls-files', '--', *(f'windows/agent-x64/{name}' for name in packages)],
+        cwd=ROOT, text=True)
+    assert tracked == ''
 
 
 def test_agent_source_workflow_and_installer_names_match():

@@ -1,13 +1,11 @@
 from pathlib import Path
 import app.main as main
+from app.windows_agent import load_update_manifest
 
-def test_real_x64_installer_is_packaged():
-    setup=Path("windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe")
-    agent=Path("windows/agent-x64/GODSEYE.Agent.exe")
-    assert setup.exists() and setup.stat().st_size > 10_000_000
-    assert agent.exists() and agent.stat().st_size > 20_000_000
-    data=agent.read_bytes()[:1024]
-    assert data[:2]==b"MZ"
+def test_released_setup_is_available_to_installer_endpoint():
+    manifest=load_update_manifest(Path("windows/agent-x64/update-manifest.json"))
+    assert manifest['setup_url'].endswith('/'+manifest['setup_filename'])
+    assert len(manifest['setup_sha256'])==64
 
 def test_download_api_serves_setup_exe():
     source=Path("app/main.py").read_text()
@@ -30,7 +28,7 @@ def test_agent_x64_source_is_self_contained():
     assert '<SelfContained>true</SelfContained>' in csproj
     assert '<PublishSingleFile>true</PublishSingleFile>' in csproj
     assert 'Assembly.GetName().Version' in src
-    assert '<Version>2.2.9</Version>' in csproj
+    assert '<Version>2.2.10</Version>' in csproj
     assert 'GODSEYEWindowsAgent' in wix
     assert '<ServiceInstall' in wix and '<ServiceControl' in wix
     assert 'ArchitecturesInstallIn64BitMode=x64compatible' in iss

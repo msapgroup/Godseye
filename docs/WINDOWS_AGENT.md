@@ -48,14 +48,14 @@ Get-CimInstance Win32_Service -Filter "Name='GODSEYEWindowsAgent'" |
 Get-Content "C:\ProgramData\GODSEYE\Agent\agent.log" -Tail 100
 ```
 
-If an update is offered but fails, verify that the GODSEYE server contains a matching `update-manifest.json` and `GODSEYE-Windows-Agent-x64.msi`. V4.28 validates that pair before installation and before packaged updates are accepted.
+If an update is offered but fails, verify that GODSEYE can reach the release asset named by `update-manifest.json`. GODSEYE verifies its SHA-256 before serving it. Check the agent log for enrollment and tray startup errors.
 
 
 ## Independent agent release channel
 
 The x64 Windows Agent has its own release lifecycle. GODSEYE server releases do not need to rebuild or reinstall the Windows Agent unless the stable Agent API contract changes.
 
-Large Windows packages are published as GitHub Release assets under tags such as `windows-agent-v2.2.9`. Only the small `update-manifest.json` and SHA-256 metadata are refreshed on the main branch. This keeps MSI/EXE files out of normal Git pushes and avoids GitHub's 100 MB per-file Git limit.
+Large Windows packages are published as GitHub Release assets under tags such as `windows-agent-v2.2.10`. Only the small `update-manifest.json` and SHA-256 metadata are refreshed on the main branch. The repository's old tracked installers were removed because they did not match the release manifest. Download the guided Setup from GODSEYE or the matching GitHub Release, not from an old commit in Git history.
 
 When an administrator downloads the guided installer, or when an enrolled agent performs **Upgrade Agent**, the GODSEYE server:
 

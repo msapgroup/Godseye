@@ -1,5 +1,5 @@
 #define MyAppName "GODSEYE Windows Agent"
-#define MyAppVersion "2.2.9"
+#define MyAppVersion "2.2.10"
 #define MyAppPublisher "MSAPGROUP LLC"
 #define MyAppExeName "GODSEYE.Agent.exe"
 #define MyMsiName "GODSEYE-Windows-Agent-x64.msi"
@@ -49,7 +49,8 @@ end;
 
 procedure InitializeWizard;
 begin
-  ExistingConfig := FileExists(ConfigPath());
+  { A partial first installation can leave agent.json without an enrolled key. }
+  ExistingConfig := FileExists(ConfigPath()) and FileExists(DataDir() + '\agent.key');
 
   ConfigPage := CreateInputQueryPage(wpWelcome,
     'Connect to GODSEYE',
@@ -146,6 +147,14 @@ begin
 
     if not Exec(ExePath, Params, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
       RaiseException('The Windows Agent MSI installed successfully, but first-time GODSEYE configuration failed. Agent exit code: ' + IntToStr(ResultCode));
+  end;
+
+  { Start the tray for the installing user now. The MSI starts it at sign-in. }
+  ExePath := AgentExePath();
+  if FileExists(ExePath) then
+  begin
+    if not ExecAsOriginalUser(ExePath, '--tray', '', SW_HIDE, ewNoWait, ResultCode) then
+      Log('Could not start the tray now; it will start at the next sign-in.');
   end;
 
   if MsiResultCode = 3010 then
