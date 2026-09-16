@@ -218,8 +218,8 @@ namespace Godseye.WindowsAgent
                 int wait = 60;
                 try
                 {
-                    EnsureTrayProcess();
                     AgentConfig cfg = LoadConfig();
+                    EnsureTrayProcess();
                     if (cfg.SkipTlsVerify)
                         ServicePointManager.ServerCertificateValidationCallback = delegate { return true; };
                     else

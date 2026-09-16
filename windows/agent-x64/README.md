@@ -14,6 +14,8 @@ For software deployment systems, the authoritative package is:
 
 `GODSEYE-Windows-Agent-x64.msi`
 
+The MSI installs without enrollment prompts. For a first installation on a workstation, run the guided Setup EXE. If the MSI was installed before enrollment, run Setup afterward; it will ask for the server URL and a token.
+
 The installed service binary is:
 
 `C:\Program Files\GODSEYE Agent\GODSEYE.Agent.exe`
