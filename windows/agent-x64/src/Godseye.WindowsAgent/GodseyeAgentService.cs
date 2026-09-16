@@ -176,19 +176,37 @@ namespace Godseye.WindowsAgent
                 };
             }
 
+            bool reEnroll = false;
+            bool tokenSupplied = false;
             for (int i = 1; i < args.Length; i++)
             {
                 string a = args[i];
                 if (a.Equals("--server-url", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length) cfg.ServerUrl = args[++i].TrimEnd('/');
-                else if (a.Equals("--enrollment-token", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length) cfg.EnrollmentToken = args[++i];
+                else if (a.Equals("--enrollment-token", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length) { cfg.EnrollmentToken = args[++i]; tokenSupplied = true; }
                 else if (a.Equals("--skip-tls-verify", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length) cfg.SkipTlsVerify = Boolean.Parse(args[++i]);
+                else if (a.Equals("--re-enroll", StringComparison.OrdinalIgnoreCase)) reEnroll = true;
             }
 
             if (String.IsNullOrWhiteSpace(cfg.ServerUrl)) throw new Exception("ServerUrl is required for first-time configuration.");
+            if (reEnroll && (!tokenSupplied || String.IsNullOrWhiteSpace(cfg.EnrollmentToken))) throw new Exception("A new enrollment token is required to reconnect.");
             if (!File.Exists(KeyPath) && String.IsNullOrWhiteSpace(cfg.EnrollmentToken)) throw new Exception("EnrollmentToken is required for first-time enrollment.");
             if (String.IsNullOrWhiteSpace(cfg.AgentUuid)) cfg.AgentUuid = Guid.NewGuid().ToString();
             if (cfg.Channels == null || cfg.Channels.Count == 0) cfg.Channels = new List<string>() { "System", "Application" };
             if (cfg.PollIntervalSeconds < 30) cfg.PollIntervalSeconds = 60;
+            if (reEnroll)
+            {
+                // Enroll before changing local files. A bad URL or token must leave the
+                // previous connection usable, and an active UUID cannot enroll twice.
+                cfg.AgentUuid = Guid.NewGuid().ToString();
+                ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
+                if (cfg.SkipTlsVerify)
+                    ServicePointManager.ServerCertificateValidationCallback = delegate { return true; };
+                else
+                    ServicePointManager.ServerCertificateValidationCallback = null;
+                Enroll(cfg);
+                Console.WriteLine("GODSEYE Windows Agent enrolled with " + cfg.ServerUrl);
+                return;
+            }
             SaveConfig(cfg);
             Console.WriteLine("GODSEYE Windows Agent configuration saved to " + ConfigPath);
         }
@@ -310,6 +328,11 @@ namespace Godseye.WindowsAgent
         {
             string key = ReadApiKey();
             if (!String.IsNullOrWhiteSpace(key)) return;
+            Enroll(cfg);
+        }
+
+        void Enroll(AgentConfig cfg)
+        {
             if (String.IsNullOrWhiteSpace(cfg.EnrollmentToken)) throw new Exception("Agent is not enrolled and no enrollment token is present");
             Dictionary<string, object> body = new Dictionary<string, object>();
             body["enrollment_token"] = cfg.EnrollmentToken;

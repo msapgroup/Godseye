@@ -1,4 +1,4 @@
-# GODSEYE Windows Agent x64 — 2.2.10 source
+# GODSEYE Windows Agent x64 — 2.2.11 source
 
 The GODSEYE Windows Agent is a compiled, self-contained **64-bit Windows service** with an installer lifecycle independent from the GODSEYE server release number.
 
@@ -8,7 +8,7 @@ For a normal first installation, download the current package from **Event Findi
 
 `GODSEYE-Windows-Agent-x64-Setup.exe`
 
-The guided setup asks for the GODSEYE server URL and a one-time enrollment token, then installs the authoritative x64 MSI.
+The guided setup asks for the GODSEYE server URL and a one-time enrollment token on a new installation, then installs the authoritative x64 MSI. If an enrollment already exists, it offers a choice to keep that connection or connect with a fresh URL and token.
 
 For software deployment systems, the authoritative package is:
 
@@ -67,7 +67,7 @@ HTTPS is recommended. If a private CA or self-signed certificate is used, deploy
 
 ## Future upgrades
 
-Run a newer guided Setup EXE or MSI on the same computer. Existing `%ProgramData%\GODSEYE\Agent\agent.json` and `agent.key` are preserved, so no new enrollment token is required. A configuration file without an enrolled key is treated as an incomplete installation and the guided Setup asks for a new token.
+Run a newer guided Setup EXE or MSI on the same computer. Existing `%ProgramData%\GODSEYE\Agent\agent.json` and `agent.key` are preserved, so select **Keep the current connection** to upgrade without a new token. To repair an expired or incorrect connection, create a fresh token in GODSEYE and select **Connect using a new server URL and enrollment token** in Setup. Setup verifies enrollment before replacing the local key or configuration; reconnecting creates a new agent entry on the server. A configuration file without an enrolled key is treated as an incomplete installation and the guided Setup asks for a new token.
 
 ## Build pipeline
 

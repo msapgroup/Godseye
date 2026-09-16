@@ -1,5 +1,5 @@
 #define MyAppName "GODSEYE Windows Agent"
-#define MyAppVersion "2.2.10"
+#define MyAppVersion "2.2.11"
 #define MyAppPublisher "MSAPGROUP LLC"
 #define MyAppExeName "GODSEYE.Agent.exe"
 #define MyMsiName "GODSEYE-Windows-Agent-x64.msi"
@@ -28,6 +28,7 @@ Source: "..\{#MyMsiName}"; Flags: dontcopy
 
 [Code]
 var
+  ConnectionPage: TInputOptionWizardPage;
   ConfigPage: TInputQueryWizardPage;
   TlsPage: TInputOptionWizardPage;
   ExistingConfig: Boolean;
@@ -52,10 +53,22 @@ begin
   { A partial first installation can leave agent.json without an enrolled key. }
   ExistingConfig := FileExists(ConfigPath()) and FileExists(DataDir() + '\agent.key');
 
-  ConfigPage := CreateInputQueryPage(wpWelcome,
+  ConnectionPage := CreateInputOptionPage(wpWelcome,
+    'GODSEYE connection',
+    'Choose how this computer connects',
+    'Keep the existing enrollment for an upgrade, or enter a new server URL and one-time token to reconnect.',
+    True, False);
+  ConnectionPage.Add('Keep the current connection (no token needed)');
+  ConnectionPage.Add('Connect using a new server URL and enrollment token');
+  if ExistingConfig then
+    ConnectionPage.SelectedValueIndex := 0
+  else
+    ConnectionPage.SelectedValueIndex := 1;
+
+  ConfigPage := CreateInputQueryPage(ConnectionPage.ID,
     'Connect to GODSEYE',
     'Enroll this Windows computer with GODSEYE',
-    'Enter the GODSEYE server URL and a one-time Windows Agent enrollment token. Existing installations keep their current enrollment automatically.');
+    'Enter the GODSEYE server URL and a one-time Windows Agent enrollment token.');
   ConfigPage.Add('GODSEYE URL:', False);
   ConfigPage.Add('Enrollment token:', True);
   ConfigPage.Values[0] := 'https://';
@@ -71,13 +84,15 @@ end;
 
 function ShouldSkipPage(PageID: Integer): Boolean;
 begin
-  Result := ExistingConfig and ((PageID = ConfigPage.ID) or (PageID = TlsPage.ID));
+  Result := ((PageID = ConnectionPage.ID) and (not ExistingConfig)) or
+    (ExistingConfig and (ConnectionPage.SelectedValueIndex = 0) and
+      ((PageID = ConfigPage.ID) or (PageID = TlsPage.ID)));
 end;
 
 function NextButtonClick(CurPageID: Integer): Boolean;
 begin
   Result := True;
-  if (not ExistingConfig) and (CurPageID = ConfigPage.ID) then
+  if CurPageID = ConfigPage.ID then
   begin
     if Trim(ConfigPage.Values[0]) = '' then
     begin
@@ -127,26 +142,26 @@ begin
   MsiPath := ExpandConstant('{tmp}\{#MyMsiName}');
 
   { The MSI is the sole owner of files, service registration, repair, upgrades,
-    and uninstall. This bootstrapper only supplies first-install enrollment UI. }
+    and uninstall. This bootstrapper supplies interactive enrollment UI. }
   Params := '/i "' + MsiPath + '" /qn /norestart';
   if not Exec(ExpandConstant('{sys}\msiexec.exe'), Params, '', SW_SHOW, ewWaitUntilTerminated, MsiResultCode) or
      ((MsiResultCode <> 0) and (MsiResultCode <> 3010)) then
     RaiseException('Windows Installer could not install GODSEYE Windows Agent. msiexec exit code: ' + IntToStr(MsiResultCode));
 
-  if not ExistingConfig then
+  if (not ExistingConfig) or (ConnectionPage.SelectedValueIndex = 1) then
   begin
     ExePath := AgentExePath();
     if not FileExists(ExePath) then
       RaiseException('GODSEYE Windows Agent was installed, but the service executable was not found at ' + ExePath);
 
-    Params := '--configure --server-url "' + Trim(ConfigPage.Values[0]) + '" --enrollment-token "' + Trim(ConfigPage.Values[1]) + '" --skip-tls-verify ';
+    Params := '--configure --re-enroll --server-url "' + Trim(ConfigPage.Values[0]) + '" --enrollment-token "' + Trim(ConfigPage.Values[1]) + '" --skip-tls-verify ';
     if TlsPage.SelectedValueIndex = 0 then
       Params := Params + 'false'
     else
       Params := Params + 'true';
 
     if not Exec(ExePath, Params, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
-      RaiseException('The Windows Agent MSI installed successfully, but first-time GODSEYE configuration failed. Agent exit code: ' + IntToStr(ResultCode));
+      RaiseException('The Windows Agent MSI installed successfully, but GODSEYE enrollment failed. Check the URL and token, then run Setup again. Agent exit code: ' + IntToStr(ResultCode));
   end;
 
   { Start the tray for the installing user now. The MSI starts it at sign-in. }
