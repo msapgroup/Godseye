@@ -1,0 +1,23 @@
+[Unit]
+Description=GODSEYE Network Intelligence Web
+After=network-online.target godseye-scanner.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=godseye
+Group=godseye
+WorkingDirectory=/opt/godseye
+EnvironmentFile=-/etc/godseye.env
+Environment=PYTHONPATH=/opt/godseye
+ExecStart=/opt/godseye/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8080
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/godseye
+
+[Install]
+WantedBy=multi-user.target

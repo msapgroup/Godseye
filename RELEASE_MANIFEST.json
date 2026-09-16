@@ -1,0 +1,30 @@
+{
+  "name": "GODSEYE",
+  "version": "4.28.0-clean-rebuild",
+  "release": "Clean Release Rebuild",
+  "install_model": "complete local release zip",
+  "windows_agent": {
+    "version": "2.2.9",
+    "architecture": "x64",
+    "service_executable": "windows/agent-x64/GODSEYE.Agent.exe",
+    "setup": "windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe",
+    "msi": "windows/agent-x64/GODSEYE-Windows-Agent-x64.msi",
+    "api_contract": "v1",
+    "independent_release_lifecycle": true
+  },
+  "persistent_data": [
+    "/var/lib/godseye",
+    "/etc/godseye.env"
+  ],
+  "release_validator": "scripts/validate_release.py",
+  "validation": {
+    "pytest": "286 passed",
+    "javascript_blocks": 10,
+    "screenshots": 18,
+    "release_validator": "PASS",
+    "linux_build_environment": true,
+    "real_raspberry_pi_install_tested": false,
+    "real_windows_msi_install_tested_in_this_environment": false
+  },
+  "clean_rebuild_audit": "docs/V4.28_CLEANUP.md"
+}

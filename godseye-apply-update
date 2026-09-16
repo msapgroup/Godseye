@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+ZIP="${1:-}"
+EXPECTED="${2:-}"
+[[ -n "$ZIP" && -n "$EXPECTED" ]] || { echo "Usage: godseye-apply-update <zip> <sha256>" >&2; exit 2; }
+[[ "$ZIP" == /var/lib/godseye/updates/*.zip ]] || { echo "Refusing update path outside /var/lib/godseye/updates" >&2; exit 2; }
+ACTUAL="$(sha256sum "$ZIP" | awk '{print $1}')"
+[[ "${ACTUAL,,}" == "${EXPECTED,,}" ]] || { echo "SHA256 mismatch" >&2; exit 3; }
+TMP="$(mktemp -d /tmp/godseye-update.XXXXXX)"
+trap 'rm -rf "$TMP"' EXIT
+unzip -q "$ZIP" -d "$TMP"
+ROOT="$TMP"
+if [[ ! -f "$ROOT/app/main.py" ]]; then
+  CANDIDATE="$(find "$TMP" -mindepth 2 -maxdepth 3 -type f -path '*/app/main.py' -print -quit || true)"
+  [[ -n "$CANDIDATE" ]] && ROOT="$(dirname "$(dirname "$CANDIDATE")")"
+fi
+[[ -f "$ROOT/app/main.py" && -f "$ROOT/install.sh" && -f "$ROOT/VERSION" && -f "$ROOT/scripts/validate_release.py" ]] || { echo "Invalid GODSEYE release ZIP" >&2; exit 4; }
+python3 "$ROOT/scripts/validate_release.py" "$ROOT"
+bash -n "$ROOT/install.sh"
+exec bash "$ROOT/install.sh" --upgrade

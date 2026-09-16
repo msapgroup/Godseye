@@ -1,0 +1,30 @@
+GODSEYE V4.28 INSTALLATION
+==========================
+
+This release is a complete local install package. You do not need to git clone an older GODSEYE tree.
+
+FRESH INSTALL
+-------------
+1. Copy GODSEYE-V4.28.zip to the Raspberry Pi.
+2. Extract it:
+     unzip GODSEYE-V4.28.zip
+3. Enter the folder:
+     cd GODSEYE-V4.28
+4. Install:
+     sudo bash ./install.sh --fresh
+
+UPGRADE AN EXISTING APPLIANCE
+-----------------------------
+1. Extract the V4.28 ZIP to a temporary folder.
+2. Run:
+     sudo bash ./install.sh --upgrade
+
+The upgrade keeps persistent data under /var/lib/godseye and /etc/godseye.env, creates a pre-upgrade SQLite backup, and replaces the application directory with only current V4.28 files.
+
+DIAGNOSTICS
+-----------
+     sudo bash ./install.sh --doctor
+
+WINDOWS AGENT
+-------------
+In GODSEYE, open Event Findings -> Windows Agents, create an enrollment token, download the x64 installer, and run GODSEYE-Windows-Agent-x64-Setup.exe as Administrator on the Windows endpoint.
