@@ -7,7 +7,7 @@
     <SelfContained>true</SelfContained>
     <PublishSingleFile>true</PublishSingleFile>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
-    <PublishReadyToRun>true</PublishReadyToRun>
+    <PublishReadyToRun>false</PublishReadyToRun>
     <InvariantGlobalization>false</InvariantGlobalization>
     <UseWindowsForms>true</UseWindowsForms>
     <AssemblyName>GODSEYE.Agent</AssemblyName>
