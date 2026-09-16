@@ -32,7 +32,9 @@ The stable contract is:
 
 The MSI uses a stable Windows Installer UpgradeCode and Windows Installer owns service stop/start, repair, replacement, rollback, and uninstall. ProgramData is intentionally not owned by the MSI, so upgrades and uninstall/reinstall do not delete enrollment identity, the DPAPI-protected API key, Event Log bookmarks, queued events, or agent configuration.
 
-Agents at the self-update baseline can also be upgraded from **Event Findings → Windows Agents → Upgrade Agent**. GODSEYE serves only the fixed MSI endpoint. The agent verifies the MSI SHA-256 from `update-manifest.json` before starting `msiexec.exe`.
+Agents at the self-update baseline can also be upgraded from **Event Findings → Windows Agents → Upgrade Agent**. The Windows Agent is distributed through a dedicated GitHub Release channel that is independent from the GODSEYE server build number. GODSEYE reads the small signed-by-hash release manifest, downloads the canonical MSI into a local cache when needed, verifies SHA-256, and then serves only the fixed MSI endpoint to enrolled agents. The agent verifies that same MSI SHA-256 again before starting `msiexec.exe`.
+
+Large MSI/EXE/service binaries are **not refreshed into Git history**. This avoids GitHub's 100 MB file limit and prevents every agent build from permanently growing the repository. Workflow artifacts are retained for CI inspection, while durable install/update packages live as GitHub Release assets tagged `windows-agent-vX.Y.Z`.
 
 ## Windows service
 
@@ -75,10 +77,13 @@ Run a newer guided Setup EXE or MSI on the same computer. Existing `%ProgramData
 - installs, repairs, and uninstalls the MSI on a Windows runner;
 - verifies the Windows service and preserved ProgramData state;
 - builds the guided Setup EXE;
-- generates SHA-256 files and `update-manifest.json`; and
-- checks that package names and hashes agree before publishing artifacts.
+- generates SHA-256 files and `update-manifest.json`;
+- uploads the full package set as a workflow artifact;
+- publishes the MSI and guided Setup EXE as durable GitHub Release assets under `windows-agent-vX.Y.Z`;
+- refreshes only the small release manifest/hash metadata on `main`; and
+- checks that package names, release URLs, and hashes agree before publication.
 
-This validation prevents the filename/version drift that can otherwise break agent self-update.
+This validation prevents filename/version drift while keeping large binaries out of normal Git pushes.
 
 ## Code signing
 
