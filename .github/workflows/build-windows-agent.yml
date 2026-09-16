@@ -48,7 +48,7 @@ jobs:
           $project = 'windows/agent-x64/src/Godseye.WindowsAgent/Godseye.WindowsAgent.csproj'
           $publish = 'windows/agent-x64/publish'
           if (Test-Path $publish) { Remove-Item $publish -Recurse -Force }
-          dotnet publish $project -c Release -r win-x64 --self-contained true -o $publish
+          dotnet publish $project -c Release -r win-x64 --self-contained true -p:PublishReadyToRun=false -o $publish
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $exe = Join-Path $publish 'GODSEYE.Agent.exe'
           if (-not (Test-Path $exe)) { throw 'Publish did not create GODSEYE.Agent.exe.' }
@@ -68,12 +68,6 @@ jobs:
           Copy-Item $built.FullName $msi -Force
           $hash = (Get-FileHash $msi -Algorithm SHA256).Hash.ToUpperInvariant()
           Set-Content "$msi.sha256" $hash -Encoding ascii
-          $manifest = [ordered]@{
-            version = '${{ steps.version.outputs.version }}'
-            filename = 'GODSEYE-Windows-Agent-x64.msi'
-            sha256 = $hash
-          } | ConvertTo-Json
-          Set-Content 'windows/agent-x64/update-manifest.json' $manifest -Encoding utf8
 
       - name: Smoke-test Windows Installer lifecycle
         shell: pwsh
@@ -126,15 +120,40 @@ jobs:
           $hash = (Get-FileHash 'windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe' -Algorithm SHA256).Hash.ToUpperInvariant()
           Set-Content 'windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe.sha256' $hash -Encoding ascii
 
+      - name: Build release manifest
+        shell: pwsh
+        run: |
+          $version = '${{ steps.version.outputs.version }}'
+          $tag = "windows-agent-v$version"
+          $base = "https://github.com/${{ github.repository }}/releases/download/$tag"
+          $msi = 'windows/agent-x64/GODSEYE-Windows-Agent-x64.msi'
+          $setup = 'windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe'
+          $manifest = [ordered]@{
+            version = $version
+            filename = 'GODSEYE-Windows-Agent-x64.msi'
+            sha256 = (Get-FileHash $msi -Algorithm SHA256).Hash.ToUpperInvariant()
+            url = "$base/GODSEYE-Windows-Agent-x64.msi"
+            setup_filename = 'GODSEYE-Windows-Agent-x64-Setup.exe'
+            setup_sha256 = (Get-FileHash $setup -Algorithm SHA256).Hash.ToUpperInvariant()
+            setup_url = "$base/GODSEYE-Windows-Agent-x64-Setup.exe"
+          } | ConvertTo-Json
+          Set-Content 'windows/agent-x64/update-manifest.json' $manifest -Encoding utf8
+
       - name: Validate package naming and hashes
         shell: pwsh
         run: |
           $manifest = Get-Content 'windows/agent-x64/update-manifest.json' -Raw | ConvertFrom-Json
           if ($manifest.filename -ne 'GODSEYE-Windows-Agent-x64.msi') { throw 'Manifest filename is not canonical.' }
-          $actual = (Get-FileHash ('windows/agent-x64/' + $manifest.filename) -Algorithm SHA256).Hash.ToUpperInvariant()
-          if ($actual -ne $manifest.sha256) { throw 'Manifest MSI hash mismatch.' }
+          if ($manifest.setup_filename -ne 'GODSEYE-Windows-Agent-x64-Setup.exe') { throw 'Manifest setup filename is not canonical.' }
+          $actualMsi = (Get-FileHash ('windows/agent-x64/' + $manifest.filename) -Algorithm SHA256).Hash.ToUpperInvariant()
+          $actualSetup = (Get-FileHash ('windows/agent-x64/' + $manifest.setup_filename) -Algorithm SHA256).Hash.ToUpperInvariant()
+          if ($actualMsi -ne $manifest.sha256) { throw 'Manifest MSI hash mismatch.' }
+          if ($actualSetup -ne $manifest.setup_sha256) { throw 'Manifest Setup hash mismatch.' }
+          $expectedPrefix = "https://github.com/${{ github.repository }}/releases/download/windows-agent-v$($manifest.version)/"
+          if (-not $manifest.url.StartsWith($expectedPrefix)) { throw 'Manifest MSI release URL is unexpected.' }
+          if (-not $manifest.setup_url.StartsWith($expectedPrefix)) { throw 'Manifest Setup release URL is unexpected.' }
 
-      - name: Upload Windows Agent x64 packages
+      - name: Upload Windows Agent x64 workflow artifact
         uses: actions/upload-artifact@v4
         with:
           name: GODSEYE-Windows-Agent-x64-${{ steps.version.outputs.version }}
@@ -146,18 +165,46 @@ jobs:
             windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe.sha256
             windows/agent-x64/update-manifest.json
 
-      - name: Refresh generated packages on main
-        if: github.ref == 'refs/heads/main'
+      - name: Publish Windows Agent release assets
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = '${{ steps.version.outputs.version }}'
+          $tag = "windows-agent-v$version"
+          $repo = '${{ github.repository }}'
+          $assets = @(
+            'windows/agent-x64/GODSEYE-Windows-Agent-x64.msi',
+            'windows/agent-x64/GODSEYE-Windows-Agent-x64.msi.sha256',
+            'windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe',
+            'windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe.sha256',
+            'windows/agent-x64/update-manifest.json'
+          )
+
+          gh release view $tag --repo $repo *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $tag @assets --clobber --repo $repo
+          } else {
+            gh release create $tag @assets --repo $repo --title "GODSEYE Windows Agent x64 $version" --notes "Stable x64 Windows Agent release. The agent version is independent from the GODSEYE server version. Use the guided Setup EXE for interactive installs or the MSI for managed deployment and self-update."
+          }
+          if ($LASTEXITCODE -ne 0) { throw 'Publishing the Windows Agent GitHub Release failed.' }
+
+      - name: Refresh release manifest on main
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         shell: pwsh
         run: |
+          # Large packages live in GitHub Releases, not Git history.
+          # Keep the tracked baseline binaries unchanged for offline fallback.
+          git restore --worktree windows/agent-x64/GODSEYE.Agent.exe
+          git restore --worktree windows/agent-x64/GODSEYE-Windows-Agent-x64.msi
+          git restore --worktree windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe
+
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -f windows/agent-x64/GODSEYE.Agent.exe
-          git add -f windows/agent-x64/GODSEYE-Windows-Agent-x64.msi
-          git add -f windows/agent-x64/GODSEYE-Windows-Agent-x64.msi.sha256
-          git add -f windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe
-          git add -f windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe.sha256
-          git add -f windows/agent-x64/update-manifest.json
-          if (git diff --cached --quiet) { Write-Host 'Generated packages are already current.'; exit 0 }
-          git commit -m 'Refresh Windows Agent x64 ${{ steps.version.outputs.version }} packages [skip ci]'
+          git add windows/agent-x64/GODSEYE-Windows-Agent-x64.msi.sha256
+          git add windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe.sha256
+          git add windows/agent-x64/update-manifest.json
+          if (git diff --cached --quiet) { Write-Host 'Release manifest is already current.'; exit 0 }
+          git commit -m 'Refresh Windows Agent x64 ${{ steps.version.outputs.version }} release manifest [skip ci]'
           git push origin HEAD:main
