@@ -1,4 +1,4 @@
-# GODSEYE Windows Agent x64 — 2.2.11 source
+# GODSEYE Windows Agent x64 — 2.2.12 source
 
 The GODSEYE Windows Agent is a compiled, self-contained **64-bit Windows service** with an installer lifecycle independent from the GODSEYE server release number.
 

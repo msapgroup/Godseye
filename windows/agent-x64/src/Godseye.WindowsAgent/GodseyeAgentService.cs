@@ -159,6 +159,55 @@ namespace Godseye.WindowsAgent
 
         void ConfigureFromArgs(string[] args)
         {
+            bool reconnect = false;
+            foreach (string arg in args)
+                if (arg.Equals("--re-enroll", StringComparison.OrdinalIgnoreCase)) reconnect = true;
+            if (!reconnect)
+            {
+                ConfigureFromArgsCore(args);
+                return;
+            }
+
+            // The service writes its configuration at the end of each poll. Stop it
+            // while changing identity so an in-flight poll cannot restore the old URL.
+            using (ServiceController agent = new ServiceController("GODSEYEWindowsAgent"))
+            {
+                agent.Refresh();
+                bool restart = agent.Status != ServiceControllerStatus.Stopped;
+                try
+                {
+                    if (restart)
+                    {
+                        if (agent.Status == ServiceControllerStatus.StartPending)
+                            agent.WaitForStatus(ServiceControllerStatus.Running, TimeSpan.FromSeconds(30));
+                        agent.Refresh();
+                        if (agent.Status == ServiceControllerStatus.StopPending)
+                            agent.WaitForStatus(ServiceControllerStatus.Stopped, TimeSpan.FromSeconds(30));
+                        else if (agent.Status != ServiceControllerStatus.Stopped)
+                        {
+                            agent.Stop();
+                            agent.WaitForStatus(ServiceControllerStatus.Stopped, TimeSpan.FromSeconds(30));
+                        }
+                    }
+                    ConfigureFromArgsCore(args);
+                }
+                finally
+                {
+                    if (restart)
+                    {
+                        agent.Refresh();
+                        if (agent.Status == ServiceControllerStatus.Stopped)
+                        {
+                            agent.Start();
+                            agent.WaitForStatus(ServiceControllerStatus.Running, TimeSpan.FromSeconds(30));
+                        }
+                    }
+                }
+            }
+        }
+
+        void ConfigureFromArgsCore(string[] args)
+        {
             Directory.CreateDirectory(BaseDir);
             AgentConfig cfg;
             if (File.Exists(ConfigPath))
