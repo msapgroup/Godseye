@@ -776,21 +776,32 @@ namespace Godseye.WindowsAgent
             Log("Remote support request " + sessionId + " targeting Windows session " + windowsSessionId + ".");
             if (!RequestRemoteConsent(windowsSessionId, requestedBy))
             {
-                try { Post(cfg,"/api/v1/windows-agents/remote/sessions/"+sessionId+"/state",new Dictionary<string,object>{{"status","denied"},{"error","The signed-in Windows user denied remote access."}},ReadApiKey()); } catch {}
+                try { Post(cfg,"/api/v1/windows-agents/remote/sessions/"+sessionId+"/state",new Dictionary<string,object>{{"status","failed"},{"error","The signed-in Windows user denied remote access."}},ReadApiKey()); } catch {}
                 throw new Exception("The signed-in Windows user denied remote access.");
             }
             remoteStop=false; remoteSessionId=sessionId; remoteHelperProcessId=0;
             remotePipeName="GODSEYE-Tray-"+windowsSessionId;
             try
             {
-                WaitForRemoteHelperReady(remotePipeName,15000);
+                WaitForRemoteHelperReady(remotePipeName,3500);
                 Log("Remote support request "+sessionId+" approved; connected to persistent tray remote host in Windows session "+windowsSessionId+".");
             }
-            catch(Exception ex)
+            catch(Exception trayError)
             {
-                try { Post(cfg,"/api/v1/windows-agents/remote/sessions/"+sessionId+"/state",new Dictionary<string,object>{{"status","failed"},{"error","Approved, but the interactive tray remote host was unavailable: "+ex.Message}},ReadApiKey()); } catch {}
-                StopRemoteSession();
-                throw;
+                Log("Remote tray host unavailable ("+trayError.Message+"); starting an interactive helper in the approved Windows session.");
+                try
+                {
+                    remotePipeName="GODSEYE-Remote-"+sessionId+"-"+Guid.NewGuid().ToString("N");
+                    LaunchRemoteHelper(remotePipeName,requestedBy,windowsSessionId);
+                    WaitForRemoteHelperReady(remotePipeName,15000);
+                }
+                catch(Exception helperError)
+                {
+                    string reason="Approved, but the interactive desktop could not be reached: "+helperError.Message;
+                    try { Post(cfg,"/api/v1/windows-agents/remote/sessions/"+sessionId+"/state",new Dictionary<string,object>{{"status","failed"},{"error",reason}},ReadApiKey()); } catch {}
+                    StopRemoteSession();
+                    throw new Exception(reason,helperError);
+                }
             }
             remoteWorker=new Thread(()=>RemoteSessionLoop(cfg,sessionId,remotePipeName)){IsBackground=true,Name="GODSEYE Remote Support"}; remoteWorker.Start();
         }
@@ -811,8 +822,9 @@ namespace Godseye.WindowsAgent
                 while(!remoteStop&&!stopping)
                 {
                     Dictionary<string,object> frame=null;
-                    try{frame=RemoteHelperRequest(pipeName,new Dictionary<string,object>{{"kind","capture"}},1500);}catch{if(DateTime.UtcNow>=consentDeadline)throw new Exception("The Windows user did not approve remote support or the interactive desktop is unavailable.");Thread.Sleep(700);continue;}
-                    if(frame==null||!frame.ContainsKey("image_base64"))throw new Exception("Remote desktop capture failed.");
+                    try{frame=RemoteHelperRequest(pipeName,new Dictionary<string,object>{{"kind","capture"}},5000);}catch{if(DateTime.UtcNow>=consentDeadline)throw new Exception("The approved interactive desktop is unavailable.");Thread.Sleep(700);continue;}
+                    if(frame==null||!frame.ContainsKey("image_base64"))
+                        throw new Exception("Remote desktop capture failed: "+(frame!=null&&frame.ContainsKey("error")?Convert.ToString(frame["error"]):"no image was returned."));
                     Post(cfg,"/api/v1/windows-agents/remote/sessions/"+sessionId+"/frame",new Dictionary<string,object>{{"image_base64",frame["image_base64"]},{"width",frame["width"]},{"height",frame["height"]}},ReadApiKey());
                     if(!activeReported){Post(cfg,"/api/v1/windows-agents/remote/sessions/"+sessionId+"/state",new Dictionary<string,object>{{"status","active"}},ReadApiKey());activeReported=true;}
                     Dictionary<string,object> poll=Get(cfg,"/api/v1/windows-agents/remote/sessions/"+sessionId+"/events?after="+after,ReadApiKey());

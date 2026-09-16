@@ -3396,6 +3396,13 @@ def windows_agent_command_result(command_id: int, req: WindowsAgentCommandResult
         result={"ok":bool(req.ok),"events":max(0,int(req.events or 0)),"new_findings":max(0,int(req.new_findings or 0)),"details":req.details[:4000],"completed_at":req.completed_at or ts}
         c.execute("UPDATE windows_agent_commands SET status=?,completed_at=?,result_json=? WHERE id=?",('completed' if req.ok else 'failed',ts,json.dumps(result),command_id))
         c.execute("UPDATE windows_agents SET status='online',last_heartbeat_at=?,last_error=?,updated_at=? WHERE id=?",(ts,'' if req.ok else req.details[:1000],ts,agent["id"]))
+        if row["command_type"] == "remote_session_start" and not req.ok:
+            try: session_id=int(json.loads(row["payload_json"] or "{}")["session_id"])
+            except (ValueError, TypeError, KeyError, json.JSONDecodeError): session_id=None
+            if session_id is not None:
+                c.execute("""UPDATE windows_remote_sessions SET status='failed',ended_at=?,last_error=?
+                             WHERE id=? AND agent_id=? AND status='connecting'""",
+                          (ts,req.details[:1000] or "The Windows Agent could not start remote support.",session_id,agent["id"]))
         audit(c,"windows-agent","windows_agent_command_completed",str(command_id),json.dumps({"agent_id":agent["id"],"command_type":row["command_type"],**result})[:2000],client_ip(request))
     return {"ok":True}
 
@@ -3500,7 +3507,9 @@ def windows_agent_list(user=Depends(get_current_user)):
 
 
 def _remote_frame_path(session_id: int):
-    root=BASE_DIR / "data" / "remote-frames"
+    # The installed application under /opt/godseye is root-owned. The service
+    # writes frames under its persistent, writable data directory instead.
+    root=DB_PATH.parent / "remote-frames"
     root.mkdir(parents=True,exist_ok=True)
     return root / f"session-{int(session_id)}.jpg"
 
@@ -3510,6 +3519,25 @@ def _remote_session_public(row):
     d=dict(row)
     d["frame_url"]=f"{router_prefix}/remote-access/sessions/{d['id']}/frame"
     return d
+
+
+def _expire_stalled_remote_session(c, row):
+    if not row or row["status"] != "connecting": return False
+    try:
+        requested=dt.datetime.fromisoformat(row["requested_at"])
+        if requested.tzinfo is None: requested=requested.replace(tzinfo=dt.timezone.utc)
+        if (dt.datetime.now(dt.timezone.utc)-requested).total_seconds() < 120: return False
+    except (ValueError, TypeError): pass
+    ts=now(); reason="The Windows Agent did not establish a remote connection in time. Disconnect and try again."
+    c.execute("UPDATE windows_remote_sessions SET status='failed',ended_at=?,last_error=? WHERE id=? AND status='connecting'",(ts,reason,row["id"]))
+    for command in c.execute("""SELECT id,payload_json FROM windows_agent_commands
+                               WHERE agent_id=? AND command_type='remote_session_start' AND status IN ('pending','delivered')""",(row["agent_id"],)).fetchall():
+        try: matches=int(json.loads(command["payload_json"])["session_id"])==row["id"]
+        except (ValueError, TypeError, KeyError, json.JSONDecodeError): matches=False
+        if matches:
+            c.execute("UPDATE windows_agent_commands SET status='failed',completed_at=?,result_json=? WHERE id=?",
+                      (ts,json.dumps({"ok":False,"details":reason}),command["id"]))
+    return True
 
 
 @app.post(f"{router_prefix}/remote-access/sessions")
@@ -3528,6 +3556,7 @@ def windows_remote_start(req: WindowsRemoteStartRequest, request: Request, user=
         except HTTPException: raise
         except Exception: raise HTTPException(409,"Windows Agent heartbeat is invalid")
         existing=c.execute("SELECT * FROM windows_remote_sessions WHERE agent_id=? AND status IN ('connecting','active') ORDER BY id DESC LIMIT 1",(req.agent_id,)).fetchone()
+        if _expire_stalled_remote_session(c,existing): existing=None
         if existing: return {"ok":True,"session":_remote_session_public(existing),"message":"A remote support session is already open for this computer."}
         cur=c.execute("INSERT INTO windows_remote_sessions(agent_id,status,requested_by,requested_at) VALUES(?,'connecting',?,?)",(req.agent_id,user["username"],ts))
         sid=cur.lastrowid
@@ -3542,6 +3571,8 @@ def windows_remote_start(req: WindowsRemoteStartRequest, request: Request, user=
 def windows_remote_session(session_id: int, user=Depends(get_current_user)):
     with db() as c:
         row=c.execute("SELECT s.*,a.computer_name,a.hostname,a.ip_address,a.os_version,a.agent_version FROM windows_remote_sessions s JOIN windows_agents a ON a.id=s.agent_id WHERE s.id=?",(session_id,)).fetchone()
+        if _expire_stalled_remote_session(c,row):
+            row=c.execute("SELECT s.*,a.computer_name,a.hostname,a.ip_address,a.os_version,a.agent_version FROM windows_remote_sessions s JOIN windows_agents a ON a.id=s.agent_id WHERE s.id=?",(session_id,)).fetchone()
     if not row: raise HTTPException(404,"Remote support session not found")
     return _remote_session_public(row)
 
@@ -8014,6 +8045,7 @@ let REMOTE_AGENTS=[];
 let REMOTE_SESSION=null;
 let REMOTE_POLL_TIMER=null;
 let REMOTE_MOVE_AT=0;
+let REMOTE_POLL_FAILURES=0;
 
 function remoteCsrf(){const raw=(document.cookie.match('(?:^|; )godseye_csrf=([^;]*)')||[])[1]||'';return decodeURIComponent(raw)}
 async function remoteApi(url,opt={}){
@@ -8036,7 +8068,7 @@ function renderRemoteAgents(){
 }
 async function startRemoteSession(agentId){
  try{
-  const r=await remoteApi('/api/v1/remote-access/sessions',{method:'POST',body:JSON.stringify({agent_id:agentId})});REMOTE_SESSION=r.session;
+  const r=await remoteApi('/api/v1/remote-access/sessions',{method:'POST',body:JSON.stringify({agent_id:agentId})});REMOTE_SESSION=r.session;REMOTE_POLL_FAILURES=0;
   const a=REMOTE_AGENTS.find(x=>x.id===agentId)||{};document.getElementById('remoteSessionTitle').textContent='Remote Session — '+(a.computer_name||'Windows Agent');
   document.getElementById('remoteSessionStatus').textContent='Waiting for the signed-in Windows user to approve access…';document.getElementById('remoteSessionStatus').classList.add('remote-waiting');
   document.getElementById('remoteDisconnectBtn').disabled=false;document.getElementById('remoteScreenWrap').focus();pollRemoteSession();
@@ -8045,15 +8077,17 @@ async function startRemoteSession(agentId){
 async function pollRemoteSession(){
  if(!REMOTE_SESSION)return;clearTimeout(REMOTE_POLL_TIMER);
  try{
-  const s=await remoteApi(`/api/v1/remote-access/sessions/${REMOTE_SESSION.id}`);REMOTE_SESSION=s;
+  const s=await remoteApi(`/api/v1/remote-access/sessions/${REMOTE_SESSION.id}`);REMOTE_SESSION=s;REMOTE_POLL_FAILURES=0;
   const status=document.getElementById('remoteSessionStatus');const img=document.getElementById('remoteScreen');const empty=document.getElementById('remoteEmpty');
+  const meta=document.getElementById('remoteSessionMeta');if(meta)meta.innerHTML=`<span>Computer: <b>${esc(s.computer_name||'—')}</b></span><span>User approval: <b>${s.connected_at?'Approved':s.status==='connecting'?'Pending':'Not connected'}</b></span><span>Agent: <b>${esc(s.agent_version||'—')}</b></span><span>Status: <b>${esc(s.status)}</b></span>`;
   status.classList.toggle('remote-waiting',s.status==='connecting');
   if(s.status==='active'){
    status.textContent='Connected · interactive support session active';empty.style.display='none';img.style.display='block';img.src=`${s.frame_url}?t=${Date.now()}`;document.getElementById('remoteScreenshotBtn').disabled=false;
   }else if(s.status==='connecting'){status.textContent='Waiting for local user approval…';}
   else{status.textContent=(s.status==='failed'?'Connection failed: '+(s.last_error||'user declined or desktop unavailable'):'Session ended');img.style.display='none';empty.style.display='flex';document.getElementById('remoteDisconnectBtn').disabled=true;document.getElementById('remoteScreenshotBtn').disabled=true;REMOTE_SESSION=null;return;}
-  const meta=document.getElementById('remoteSessionMeta');if(meta)meta.innerHTML=`<span>Computer: <b>${esc(s.computer_name||'—')}</b></span><span>User approval: <b>${s.connected_at?'Approved':'Pending'}</b></span><span>Agent: <b>${esc(s.agent_version||'—')}</b></span><span>Status: <b>${esc(s.status)}</b></span>`;
- }catch(e){}
+ }catch(e){
+  if(++REMOTE_POLL_FAILURES>=2){const status=document.getElementById('remoteSessionStatus');status.textContent='Could not check remote connection: '+(e.message||e);status.classList.remove('remote-waiting');}
+ }
  if(REMOTE_SESSION)REMOTE_POLL_TIMER=setTimeout(pollRemoteSession,650);
 }
 async function stopRemoteSession(){if(!REMOTE_SESSION)return;try{await remoteApi(`/api/v1/remote-access/sessions/${REMOTE_SESSION.id}/stop`,{method:'POST',body:'{}'});}catch(e){}clearTimeout(REMOTE_POLL_TIMER);REMOTE_SESSION=null;const img=document.getElementById('remoteScreen');img.style.display='none';document.getElementById('remoteEmpty').style.display='flex';document.getElementById('remoteDisconnectBtn').disabled=true;document.getElementById('remoteScreenshotBtn').disabled=true;document.getElementById('remoteSessionStatus').textContent='Session ended';}
