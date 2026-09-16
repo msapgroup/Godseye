@@ -3685,19 +3685,34 @@ def windows_agent_purge(agent_id: int, request: Request, user=Depends(require_ad
         audit(c,user["username"],"windows_agent_purged",str(agent_id),json.dumps({"computer_name":row["computer_name"],"findings_deleted":findings_deleted,"remote_sessions_deleted":len(sessions)}),client_ip(request))
     return {"ok":True,"computer_name":row["computer_name"],"findings_deleted":findings_deleted,"remote_sessions_deleted":len(sessions)}
 
+def _resolve_windows_agent_package(manifest: dict, kind: str) -> Path:
+    from .windows_agent import resolve_update_asset
+    try:
+        return resolve_update_asset(
+            manifest,
+            BASE_DIR / "windows" / "agent-x64",
+            DB_PATH.parent / "windows-agent-cache",
+            kind,
+        )
+    except (OSError, ValueError) as exc:
+        raise HTTPException(503,f"Windows Agent release package is unavailable: {exc}")
+
+
 @app.get(f"{router_prefix}/windows-agents/package/msi")
 def windows_agent_msi_package(agent=Depends(_agent_auth)):
     manifest=_windows_agent_update_manifest()
-    path=BASE_DIR / "windows" / "agent-x64" / manifest["filename"]
-    if not path.exists(): raise HTTPException(404,"Windows Agent x64 MSI is not installed")
+    path=_resolve_windows_agent_package(manifest,"msi")
     return FileResponse(path,media_type="application/octet-stream",filename=manifest["filename"],headers={"X-GODSEYE-Agent-Version":manifest["version"],"X-GODSEYE-SHA256":manifest["sha256"]})
 
 
 @app.get(f"{router_prefix}/windows-agents/package")
 def windows_agent_package(user=Depends(require_admin)):
-    path=BASE_DIR / "windows" / "agent-x64" / "GODSEYE-Windows-Agent-x64-Setup.exe"
-    if not path.exists(): raise HTTPException(404,"Windows Agent x64 installer is not installed")
-    return FileResponse(path,media_type="application/vnd.microsoft.portable-executable",filename="GODSEYE-Windows-Agent-x64-Setup.exe")
+    manifest=_windows_agent_update_manifest()
+    path=_resolve_windows_agent_package(manifest,"setup")
+    filename=manifest.get("setup_filename") or "GODSEYE-Windows-Agent-x64-Setup.exe"
+    headers={"X-GODSEYE-Agent-Version":manifest["version"]}
+    if manifest.get("setup_sha256"): headers["X-GODSEYE-SHA256"]=manifest["setup_sha256"]
+    return FileResponse(path,media_type="application/vnd.microsoft.portable-executable",filename=filename,headers=headers)
 
 
 
