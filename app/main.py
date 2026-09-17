@@ -3570,9 +3570,9 @@ def windows_remote_start(req: WindowsRemoteStartRequest, request: Request, user=
 @app.get(f"{router_prefix}/remote-access/sessions/{{session_id}}")
 def windows_remote_session(session_id: int, user=Depends(get_current_user)):
     with db() as c:
-        row=c.execute("SELECT s.*,a.computer_name,a.hostname,a.ip_address,a.os_version,a.agent_version FROM windows_remote_sessions s JOIN windows_agents a ON a.id=s.agent_id WHERE s.id=?",(session_id,)).fetchone()
+        row=c.execute("SELECT s.*,a.computer_name,a.hostname,a.ip_address,a.os_version,a.agent_version,a.last_error AS agent_last_error FROM windows_remote_sessions s JOIN windows_agents a ON a.id=s.agent_id WHERE s.id=?",(session_id,)).fetchone()
         if _expire_stalled_remote_session(c,row):
-            row=c.execute("SELECT s.*,a.computer_name,a.hostname,a.ip_address,a.os_version,a.agent_version FROM windows_remote_sessions s JOIN windows_agents a ON a.id=s.agent_id WHERE s.id=?",(session_id,)).fetchone()
+            row=c.execute("SELECT s.*,a.computer_name,a.hostname,a.ip_address,a.os_version,a.agent_version,a.last_error AS agent_last_error FROM windows_remote_sessions s JOIN windows_agents a ON a.id=s.agent_id WHERE s.id=?",(session_id,)).fetchone()
     if not row: raise HTTPException(404,"Remote support session not found")
     return _remote_session_public(row)
 
@@ -8083,7 +8083,7 @@ async function pollRemoteSession(){
   status.classList.toggle('remote-waiting',s.status==='connecting');
   if(s.status==='active'){
    status.textContent='Connected · interactive support session active';empty.style.display='none';img.style.display='block';img.src=`${s.frame_url}?t=${Date.now()}`;document.getElementById('remoteScreenshotBtn').disabled=false;
-  }else if(s.status==='connecting'){status.textContent='Waiting for local user approval…';}
+  }else if(s.status==='connecting'){status.textContent=s.agent_last_error?'Agent error: '+s.agent_last_error:'Waiting for local user approval…';}
   else{status.textContent=(s.status==='failed'?'Connection failed: '+(s.last_error||'user declined or desktop unavailable'):'Session ended');img.style.display='none';empty.style.display='flex';document.getElementById('remoteDisconnectBtn').disabled=true;document.getElementById('remoteScreenshotBtn').disabled=true;REMOTE_SESSION=null;return;}
  }catch(e){
   if(++REMOTE_POLL_FAILURES>=2){const status=document.getElementById('remoteSessionStatus');status.textContent='Could not check remote connection: '+(e.message||e);status.classList.remove('remote-waiting');}
