@@ -1,5 +1,7 @@
 name: Build GODSEYE Windows Agent x64
 
+# Remote-support builds include the interactive per-session desktop helper.
+
 on:
   workflow_dispatch:
   push:
