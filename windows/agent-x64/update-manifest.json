@@ -1,9 +1,9 @@
 {
-  "version": "2.2.14",
+  "version": "2.2.15",
   "filename": "GODSEYE-Windows-Agent-x64.msi",
-  "sha256": "C0E1B128C6B1862F6CCEC8833F2E071A88B5E09A7A995CA11AABE8B2B33B748E",
-  "url": "https://github.com/msapgroup/Godseye/releases/download/windows-agent-v2.2.14/GODSEYE-Windows-Agent-x64.msi",
+  "sha256": "A0A24694EC4261C0191FD1FE5922A3EB99B3097354A3922E0BADE43D164B6028",
+  "url": "https://github.com/msapgroup/Godseye/releases/download/windows-agent-v2.2.15/GODSEYE-Windows-Agent-x64.msi",
   "setup_filename": "GODSEYE-Windows-Agent-x64-Setup.exe",
-  "setup_sha256": "183EC91AFED90CF5286C14CF491C38166477BB949503467A7D8F01DC79A2D50A",
-  "setup_url": "https://github.com/msapgroup/Godseye/releases/download/windows-agent-v2.2.14/GODSEYE-Windows-Agent-x64-Setup.exe"
+  "setup_sha256": "FC1B6C277CE55D33F4BC9ECDE43525E55DEA9D00443720811DF792866B6A498F",
+  "setup_url": "https://github.com/msapgroup/Godseye/releases/download/windows-agent-v2.2.15/GODSEYE-Windows-Agent-x64-Setup.exe"
 }
