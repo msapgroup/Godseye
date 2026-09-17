@@ -1,5 +1,5 @@
-Warning: truncated output (original token count: 193748)
-Total output lines: 8829
+Warning: truncated output (original token count: 193767)
+Total output lines: 8832
 
 from __future__ import annotations
 import base64
@@ -853,7 +853,7 @@ def device_icon_asset(icon_name: str):
 async def security_headers(request: Request, call_next):
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Opti…173748 tokens truncated…trip()
+    response.headers["X-Frame-Opti…173767 tokens truncated…trip()
         if len(reason) < 5:
             raise HTTPException(400, "A reason of at least 5 characters is required")
         if len(reason) > 500:
