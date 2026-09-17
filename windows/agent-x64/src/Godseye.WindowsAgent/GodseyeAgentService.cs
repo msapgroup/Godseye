@@ -551,7 +551,7 @@ namespace Godseye.WindowsAgent
                     catch { }
                     trayHelperProcessId = 0;
                 }
-                uint sessionId = WTSGetActiveConsoleSessionId();
+                uint sessionId = GetInteractiveSessionId();
                 if (sessionId == INVALID_SESSION_ID) return;
                 IntPtr token = IntPtr.Zero;
                 if (!WTSQueryUserToken(sessionId, out token) || token == IntPtr.Zero) return;
@@ -578,6 +578,23 @@ namespace Godseye.WindowsAgent
         }
 
         const uint INVALID_SESSION_ID = 0xFFFFFFFF;
+
+        // The console session is not necessarily the user's desktop (RDP and
+        // Fast User Switching create a different active session). Prefer the
+        // session hosting Explorer, then fall back to the physical console.
+        static uint GetInteractiveSessionId()
+        {
+            try
+            {
+                foreach (Process p in Process.GetProcessesByName("explorer"))
+                {
+                    try { if (p.SessionId > 0) return (uint)p.SessionId; } catch { }
+                    finally { p.Dispose(); }
+                }
+            }
+            catch { }
+            return WTSGetActiveConsoleSessionId();
+        }
         const uint CREATE_UNICODE_ENVIRONMENT = 0x00000400;
         const uint LOGON_WITH_PROFILE = 0x00000001;
         const uint MB_YESNO = 0x00000004;
@@ -774,7 +791,7 @@ namespace Godseye.WindowsAgent
         void StartRemoteSession(AgentConfig cfg, long sessionId, string requestedBy)
         {
             StopRemoteSession();
-            uint windowsSessionId = WTSGetActiveConsoleSessionId();
+            uint windowsSessionId = GetInteractiveSessionId();
             if (windowsSessionId == INVALID_SESSION_ID) throw new Exception("No interactive Windows session is signed in.");
             Log("Remote support request " + sessionId + " targeting Windows session " + windowsSessionId + ".");
             remoteStop=false; remoteSessionId=sessionId; remoteHelperProcessId=0;
@@ -1061,3 +1078,4 @@ namespace Godseye.WindowsAgent
         }
     }
 }
+
