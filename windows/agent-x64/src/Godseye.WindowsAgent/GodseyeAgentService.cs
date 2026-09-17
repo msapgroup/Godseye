@@ -709,12 +709,15 @@ namespace Godseye.WindowsAgent
                 si.cb=Marshal.SizeOf(typeof(STARTUPINFO));
                 si.lpDesktop=@"winsta0\default";
                 PROCESS_INFORMATION pi;
-                var cmd=new System.Text.StringBuilder("\""+exe+"\" --remote-helper \""+pipeName+"\" \""+requestedBy+"\" --consent-granted");
+                // The helper runs in the signed-in user's desktop and owns the
+                // consent dialog, like standard remote-support applications. The
+                // pipe is created only after the user selects Allow.
+                var cmd=new System.Text.StringBuilder("\""+exe+"\" --remote-helper \""+pipeName+"\" \""+requestedBy+"\"");
                 bool created=CreateProcessAsUser(token,exe,cmd,IntPtr.Zero,IntPtr.Zero,false,CREATE_UNICODE_ENVIRONMENT,environment,Path.GetDirectoryName(exe),ref si,out pi);
                 int createAsUserError=created?0:Marshal.GetLastWin32Error();
                 if(!created)
                 {
-                    cmd=new System.Text.StringBuilder("\""+exe+"\" --remote-helper \""+pipeName+"\" \""+requestedBy+"\" --consent-granted");
+                    cmd=new System.Text.StringBuilder("\""+exe+"\" --remote-helper \""+pipeName+"\" \""+requestedBy+"\"");
                     created=CreateProcessWithTokenW(token,LOGON_WITH_PROFILE,exe,cmd,CREATE_UNICODE_ENVIRONMENT,environment,Path.GetDirectoryName(exe),ref si,out pi);
                 }
                 if(!created) throw new Exception("Could not launch the interactive GODSEYE helper. CreateProcessAsUser="+createAsUserError+", CreateProcessWithTokenW="+Marshal.GetLastWin32Error()+".");
@@ -774,11 +777,6 @@ namespace Godseye.WindowsAgent
             uint windowsSessionId = WTSGetActiveConsoleSessionId();
             if (windowsSessionId == INVALID_SESSION_ID) throw new Exception("No interactive Windows session is signed in.");
             Log("Remote support request " + sessionId + " targeting Windows session " + windowsSessionId + ".");
-            if (!RequestRemoteConsent(windowsSessionId, requestedBy))
-            {
-                try { Post(cfg,"/api/v1/windows-agents/remote/sessions/"+sessionId+"/state",new Dictionary<string,object>{{"status","failed"},{"error","The signed-in Windows user denied remote access."}},ReadApiKey()); } catch {}
-                throw new Exception("The signed-in Windows user denied remote access.");
-            }
             remoteStop=false; remoteSessionId=sessionId; remoteHelperProcessId=0;
             // Use a fresh per-session helper. A persistent tray can be stale or
             // belong to an older agent build, which leaves approval successful but
@@ -787,7 +785,7 @@ namespace Godseye.WindowsAgent
             {
                 remotePipeName="GODSEYE-Remote-"+sessionId+"-"+Guid.NewGuid().ToString("N");
                 LaunchRemoteHelper(remotePipeName,requestedBy,windowsSessionId);
-                WaitForRemoteHelperReady(remotePipeName,15000);
+                WaitForRemoteHelperReady(remotePipeName,75000);
                 Log("Remote support request "+sessionId+" approved; connected to dedicated interactive helper in Windows session "+windowsSessionId+".");
             }
             catch(Exception helperError)

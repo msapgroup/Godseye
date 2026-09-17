@@ -4,9 +4,9 @@
   "release": "Clean Release Rebuild",
   "install_model": "complete local release zip",
   "windows_agent": {
-    "version": "2.2.14",
+    "version": "2.2.12",
     "architecture": "x64",
-    "source_version": "2.2.14",
+    "source_version": "2.2.15",
     "release_manifest": "windows/agent-x64/update-manifest.json",
     "packages": "GitHub Windows Agent Release assets",
     "api_contract": "v1",
