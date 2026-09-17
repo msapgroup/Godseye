@@ -56,7 +56,7 @@ def test_pre_21_agent_requires_one_manual_baseline_update(tmp_path, monkeypatch)
 def test_x64_agent_updater_is_fixed_hash_verified_msi_path():
     src=Path("windows/agent-x64/src/Godseye.WindowsAgent/GodseyeAgentService.cs").read_text()
     csproj=Path("windows/agent-x64/src/Godseye.WindowsAgent/Godseye.WindowsAgent.csproj").read_text()
-    assert '<Version>2.2.13</Version>' in csproj
+    assert '<Version>2.2.14</Version>' in csproj
     assert 'Assembly.GetName().Version' in src
     assert '"upgrade_agent"' in src
     assert '"/api/v1/windows-agents/package/msi"' in src

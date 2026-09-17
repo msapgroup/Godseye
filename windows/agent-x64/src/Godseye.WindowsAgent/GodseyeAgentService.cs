@@ -780,28 +780,22 @@ namespace Godseye.WindowsAgent
                 throw new Exception("The signed-in Windows user denied remote access.");
             }
             remoteStop=false; remoteSessionId=sessionId; remoteHelperProcessId=0;
-            remotePipeName="GODSEYE-Tray-"+windowsSessionId;
+            // Use a fresh per-session helper. A persistent tray can be stale or
+            // belong to an older agent build, which leaves approval successful but
+            // the capture channel disconnected.
             try
             {
-                WaitForRemoteHelperReady(remotePipeName,3500);
-                Log("Remote support request "+sessionId+" approved; connected to persistent tray remote host in Windows session "+windowsSessionId+".");
+                remotePipeName="GODSEYE-Remote-"+sessionId+"-"+Guid.NewGuid().ToString("N");
+                LaunchRemoteHelper(remotePipeName,requestedBy,windowsSessionId);
+                WaitForRemoteHelperReady(remotePipeName,15000);
+                Log("Remote support request "+sessionId+" approved; connected to dedicated interactive helper in Windows session "+windowsSessionId+".");
             }
-            catch(Exception trayError)
+            catch(Exception helperError)
             {
-                Log("Remote tray host unavailable ("+trayError.Message+"); starting an interactive helper in the approved Windows session.");
-                try
-                {
-                    remotePipeName="GODSEYE-Remote-"+sessionId+"-"+Guid.NewGuid().ToString("N");
-                    LaunchRemoteHelper(remotePipeName,requestedBy,windowsSessionId);
-                    WaitForRemoteHelperReady(remotePipeName,15000);
-                }
-                catch(Exception helperError)
-                {
-                    string reason="Approved, but the interactive desktop could not be reached: "+helperError.Message;
-                    try { Post(cfg,"/api/v1/windows-agents/remote/sessions/"+sessionId+"/state",new Dictionary<string,object>{{"status","failed"},{"error",reason}},ReadApiKey()); } catch {}
-                    StopRemoteSession();
-                    throw new Exception(reason,helperError);
-                }
+                string reason="Approved, but the interactive desktop could not be reached: "+helperError.Message;
+                try { Post(cfg,"/api/v1/windows-agents/remote/sessions/"+sessionId+"/state",new Dictionary<string,object>{{"status","failed"},{"error",reason}},ReadApiKey()); } catch {}
+                StopRemoteSession();
+                throw new Exception(reason,helperError);
             }
             remoteWorker=new Thread(()=>RemoteSessionLoop(cfg,sessionId,remotePipeName)){IsBackground=true,Name="GODSEYE Remote Support"}; remoteWorker.Start();
         }

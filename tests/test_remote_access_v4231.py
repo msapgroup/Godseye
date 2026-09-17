@@ -18,7 +18,7 @@ def test_remote_access_routes_and_ui_present():
 def test_remote_agent_has_full_desktop_control_after_approval_and_no_shell():
     src=Path("windows/agent-x64/src/Godseye.WindowsAgent/GodseyeAgentService.cs").read_text()
     cs=Path("windows/agent-x64/src/Godseye.WindowsAgent/Godseye.WindowsAgent.csproj").read_text()
-    assert '<Version>2.2.13</Version>' in cs
+    assert '<Version>2.2.14</Version>' in cs
     assert 'MessageBox' in src and 'requesting to view and control this computer' in src
     assert 'WTSQueryUserToken' in src and 'CreateProcessAsUser' in src
     assert 'NamedPipeServerStream' in src and 'CopyFromScreen' in src
@@ -34,7 +34,7 @@ def _remote_agent_and_session():
     with main.db() as c:
         agent_id=c.execute("""INSERT INTO windows_agents
             (agent_uuid,api_key_hash,computer_name,agent_version,status,last_heartbeat_at,enrolled_at,updated_at)
-            VALUES('remote-test','remote-key','GMRS','2.2.13','online',?,?,?)""",(ts,ts,ts)).lastrowid
+            VALUES('remote-test','remote-key','GMRS','2.2.14','online',?,?,?)""",(ts,ts,ts)).lastrowid
         session_id=c.execute("""INSERT INTO windows_remote_sessions(agent_id,status,requested_by,requested_at)
             VALUES(?,'connecting','admin',?)""",(agent_id,ts)).lastrowid
     return agent_id,session_id
