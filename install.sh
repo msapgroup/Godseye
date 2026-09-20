@@ -202,3 +202,4 @@ echo "Database: $DATA_DIR/godseye.db"
 if [[ $EXISTING -eq 1 ]]; then echo "Pre-upgrade backups: $BACKUP_DIR"; fi
 echo "Web: http://$(hostname -I | awk '{print $1}'):8080"
 if [[ $EXISTING -eq 0 ]]; then echo "First login: admin — create your password on the setup screen."; fi
+
