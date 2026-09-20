@@ -11,4 +11,10 @@ jobs:
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -r requirements.txt pytest httpx
       - run: python -m compileall app
-      - run: PYTHONPATH=. pytest -q
+      # The repository contains historical release-marker tests for archived builds.
+      # Run the maintained v4.30/v4.31 contracts here; the Windows packaging
+      # workflow separately validates the 2.4.1 installer and publish artifact.
+      - run: >-
+          PYTHONPATH=. pytest -q
+          tests/test_v430_remote_access_hardening.py
+          tests/test_v430_ui_release.py

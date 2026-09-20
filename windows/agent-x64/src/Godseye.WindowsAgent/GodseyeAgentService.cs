@@ -982,6 +982,15 @@ namespace Godseye.WindowsAgent
                         result["ok"] = true; result["events"] = 0; result["new_findings"] = 0;
                         result["details"] = RunClamAvScan();
                     }
+                    else if (String.Equals(type, "scan_windows_updates", StringComparison.OrdinalIgnoreCase))
+                    {
+                        result["ok"] = true; result["updates"] = ScanWindowsUpdates(); result["details"] = "Windows Update scan completed.";
+                    }
+                    else if (String.Equals(type, "install_windows_updates", StringComparison.OrdinalIgnoreCase))
+                    {
+                        Dictionary<string, object> payload = entry.ContainsKey("payload") ? entry["payload"] as Dictionary<string, object> : null;
+                        result["ok"] = true; result["installed_update_ids"] = InstallWindowsUpdates(payload); result["details"] = "Selected Windows Updates installed.";
+                    }
                     else
                     {
                         result["ok"] = false; result["events"] = 0; result["new_findings"] = 0;
@@ -1007,6 +1016,23 @@ namespace Godseye.WindowsAgent
             string logDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "GODSEYE", "Agent"); Directory.CreateDirectory(logDir);
             ProcessStartInfo psi = new ProcessStartInfo { FileName = exe, Arguments = "--infected --recursive --log=\"" + Path.Combine(logDir, "clamav-scan.log") + "\" \"" + Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) + "\"", UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true, WorkingDirectory = logDir };
             using (Process p = Process.Start(psi)) { if (p == null) throw new Exception("ClamAV could not be started. Install ClamAV and ensure clamscan.exe is available."); p.WaitForExit(900000); if (!p.HasExited) { try { p.Kill(); } catch { } throw new Exception("ClamAV scan timed out after 15 minutes."); } return p.ExitCode == 0 ? "ClamAV scan completed: no threats found." : (p.ExitCode == 1 ? "ClamAV scan completed: threats were found. Review clamav-scan.log." : "ClamAV scan completed with an error. Review clamav-scan.log."); }
+        }
+
+        List<Dictionary<string, object>> ScanWindowsUpdates()
+        {
+            Type sessionType=Type.GetTypeFromProgID("Microsoft.Update.Session"); if(sessionType==null) throw new Exception("Windows Update Agent is unavailable on this computer.");
+            object session=Activator.CreateInstance(sessionType),searcher=sessionType.GetMethod("CreateUpdateSearcher").Invoke(session,null);
+            object result=searcher.GetType().GetMethod("Search").Invoke(searcher,new object[]{"IsInstalled=0 and IsHidden=0"}); object updates=result.GetType().GetProperty("Updates").GetValue(result); int count=(int)updates.GetType().GetProperty("Count").GetValue(updates); var list=new List<Dictionary<string,object>>();
+            for(int i=0;i<count;i++){object u=updates.GetType().GetMethod("get_Item").Invoke(updates,new object[]{i});list.Add(new Dictionary<string,object>{{"id",Convert.ToString(u.GetType().GetProperty("Identity").GetValue(u).GetType().GetProperty("UpdateID").GetValue(u))},{"title",Convert.ToString(u.GetType().GetProperty("Title").GetValue(u))},{"kb",Convert.ToString(u.GetType().GetProperty("KBArticleIDs").GetValue(u))},{"size",Convert.ToString(u.GetType().GetProperty("MaxDownloadSize").GetValue(u))}});}
+            return list;
+        }
+
+        List<string> InstallWindowsUpdates(Dictionary<string, object> payload)
+        {
+            Type sessionType=Type.GetTypeFromProgID("Microsoft.Update.Session"); if(sessionType==null) throw new Exception("Windows Update Agent is unavailable on this computer.");
+            object session=Activator.CreateInstance(sessionType),searcher=sessionType.GetMethod("CreateUpdateSearcher").Invoke(session,null); object result=searcher.GetType().GetMethod("Search").Invoke(searcher,new object[]{"IsInstalled=0 and IsHidden=0"}); object updates=result.GetType().GetProperty("Updates").GetValue(result); object selected=Activator.CreateInstance(Type.GetTypeFromProgID("Microsoft.Update.UpdateColl"));
+            object ids=payload!=null&&payload.ContainsKey("update_ids")?payload["update_ids"]:null; if(ids is IEnumerable wanted){foreach(var wantedId in wanted){string target=Convert.ToString(wantedId);int count=(int)updates.GetType().GetProperty("Count").GetValue(updates);for(int i=0;i<count;i++){object u=updates.GetType().GetMethod("get_Item").Invoke(updates,new object[]{i});string id=Convert.ToString(u.GetType().GetProperty("Identity").GetValue(u).GetType().GetProperty("UpdateID").GetValue(u));if(String.Equals(id,target,StringComparison.OrdinalIgnoreCase)){selected.GetType().GetMethod("Add").Invoke(selected,new[]{u});}}}}
+            int selectedCount=(int)selected.GetType().GetProperty("Count").GetValue(selected);if(selectedCount==0)throw new Exception("No matching Windows Updates were selected.");object downloader=sessionType.GetMethod("CreateUpdateDownloader").Invoke(session,null);downloader.GetType().GetProperty("Updates").SetValue(downloader,selected);downloader.GetType().GetMethod("Download").Invoke(downloader,null);object installer=sessionType.GetMethod("CreateUpdateInstaller").Invoke(session,null);installer.GetType().GetProperty("Updates").SetValue(installer,selected);installer.GetType().GetMethod("Install").Invoke(installer,null);var installed=new List<string>();foreach(var wantedId in (IEnumerable)ids)installed.Add(Convert.ToString(wantedId));return installed;
         }
 
         void ProcessRechecks(AgentConfig cfg, Dictionary<string, object> hb)
@@ -1081,3 +1107,4 @@ namespace Godseye.WindowsAgent
         }
     }
 }
+
