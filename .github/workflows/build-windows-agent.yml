@@ -8,11 +8,15 @@ on:
       - '.github/workflows/build-windows-agent.yml'
       - 'windows/agent-x64/src/**'
       - 'windows/agent-x64/installer/**'
+      - 'install.sh'
+      - 'doctor.sh'
   pull_request:
     paths:
       - '.github/workflows/build-windows-agent.yml'
       - 'windows/agent-x64/src/**'
       - 'windows/agent-x64/installer/**'
+      - 'install.sh'
+      - 'doctor.sh'
 
 # This workflow only builds and validates artifacts. It never commits generated
 # binaries back to the repository; the release owner can download/test/upload them.
