@@ -17,7 +17,7 @@ on:
 # This workflow only builds and validates artifacts. It never commits generated
 # binaries back to the repository; the release owner can download/test/upload them.
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -178,6 +178,29 @@ jobs:
         with:
           name: GODSEYE-v4.31.0-with-agent
           path: |
+            GODSEYE-v4.31.0-with-agent.zip
+            GODSEYE-v4.31.0-with-agent.zip.sha256
+
+      - name: Publish GitHub Release assets
+        if: github.event_name != 'pull_request'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v4.31.0-agent
+          name: GODSEYE v4.31.0 Windows Agent
+          body: |
+            GODSEYE v4.31.0 server candidate with Windows Agent 2.4.1.
+
+            Includes the guided Windows installer, MSI, agent executable, checksums, and full source candidate ZIP.
+          draft: false
+          prerelease: false
+          make_latest: true
+          files: |
+            windows/agent-x64/GODSEYE.Agent.exe
+            windows/agent-x64/GODSEYE-Windows-Agent-x64.msi
+            windows/agent-x64/GODSEYE-Windows-Agent-x64.msi.sha256
+            windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe
+            windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe.sha256
+            windows/agent-x64/update-manifest.json
             GODSEYE-v4.31.0-with-agent.zip
             GODSEYE-v4.31.0-with-agent.zip.sha256
 
