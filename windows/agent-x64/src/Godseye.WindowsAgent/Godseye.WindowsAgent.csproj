@@ -13,9 +13,9 @@
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <AssemblyName>GODSEYE.Agent</AssemblyName>
     <RootNamespace>Godseye.WindowsAgent</RootNamespace>
-    <Version>2.4.0</Version>
-    <FileVersion>2.4.0.0</FileVersion>
-    <AssemblyVersion>2.4.0.0</AssemblyVersion>
+    <Version>2.4.1</Version>
+    <FileVersion>2.4.1.0</FileVersion>
+    <AssemblyVersion>2.4.1.0</AssemblyVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
     <NoWarn>SYSLIB0014</NoWarn>
