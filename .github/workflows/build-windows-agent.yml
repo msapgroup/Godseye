@@ -35,7 +35,7 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      - name: Publish self-contained x64 Agent 2.4.0
+      - name: Publish self-contained x64 Agent 2.4.1
         shell: pwsh
         run: |
           $project = 'windows/agent-x64/src/Godseye.WindowsAgent/Godseye.WindowsAgent.csproj'
@@ -46,7 +46,7 @@ jobs:
           $agent = Join-Path $publish 'GODSEYE.Agent.exe'
           if (-not (Test-Path $agent)) { throw 'Published GODSEYE.Agent.exe was not created.' }
           $fileVersion = (Get-Item $agent).VersionInfo.FileVersion
-          if ($fileVersion -notlike '2.4.0*') { throw "Unexpected Agent file version: $fileVersion" }
+          if ($fileVersion -notlike '2.4.1*') { throw "Unexpected Agent file version: $fileVersion" }
 
       - name: Build x64 MSI package
         shell: pwsh
@@ -64,7 +64,7 @@ jobs:
 
           [xml]$projectXml = Get-Content 'windows/agent-x64/src/Godseye.WindowsAgent/Godseye.WindowsAgent.csproj'
           $agentVersion = [string]$projectXml.Project.PropertyGroup.Version
-          if ($agentVersion -ne '2.4.0') { throw "Expected Agent 2.4.0, found '$agentVersion'." }
+          if ($agentVersion -ne '2.4.1') { throw "Expected Agent 2.4.1, found '$agentVersion'." }
           $manifest = [ordered]@{
             status = 'ready'
             version = $agentVersion
@@ -160,12 +160,13 @@ jobs:
           $zipHash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToUpperInvariant()
           Set-Content -Path "$zip.sha256" -Value $zipHash -Encoding ascii
 
-      - name: Upload Windows Agent 2.4.0 packages
+      - name: Upload Windows Agent 2.4.1 packages
         uses: actions/upload-artifact@v4
         with:
-          name: GODSEYE-Windows-Agent-x64-2.4.0
+          name: GODSEYE-Windows-Agent-x64-2.4.1
           path: |
             windows/agent-x64/GODSEYE.Agent.exe
+            windows/agent-x64/publish/GODSEYE.Agent.exe
             windows/agent-x64/GODSEYE-Windows-Agent-x64.msi
             windows/agent-x64/GODSEYE-Windows-Agent-x64.msi.sha256
             windows/agent-x64/update-manifest.json
@@ -179,3 +180,4 @@ jobs:
           path: |
             GODSEYE-v4.31.0-with-agent.zip
             GODSEYE-v4.31.0-with-agent.zip.sha256
+
