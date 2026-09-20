@@ -3920,25 +3920,31 @@ def windows_agent_msi_package(agent=Depends(_agent_auth)):
 @app.get(f"{router_prefix}/windows-agents/package")
 def windows_agent_package(user=Depends(require_admin)):
     path=BASE_DIR / "windows" / "agent-x64" / "GODSEYE-Windows-Agent-x64-Setup.exe"
-    if not path.exists(): raise HTTPException(404,"Windows Agent x64 installer is not installed")
-    return FileResponse(path,media_type="application/vnd.microsoft.portable-executable",filename="GODSEYE-Windows-Agent-x64-Setup.exe")
+    if path.is_file():
+        return FileResponse(path,media_type="application/vnd.microsoft.portable-executable",filename="GODSEYE-Windows-Agent-x64-Setup.exe")
+    # Release builds are published as GitHub Release assets because the installer
+    # exceeds GitHub's repository file-size limit. Fresh installs use that asset.
+    return RedirectResponse(
+        "https://github.com/msapgroup/Godseye/releases/download/v4.31.0-agent/GODSEYE-Windows-Agent-x64-Setup.exe",
+        status_code=302,
+    )
 
 
 @app.get(f"{router_prefix}/windows-agents/package-status")
 def windows_agent_package_status(user=Depends(require_admin)):
     setup=BASE_DIR / "windows" / "agent-x64" / "GODSEYE-Windows-Agent-x64-Setup.exe"
     msi=BASE_DIR / "windows" / "agent-x64" / "GODSEYE-Windows-Agent-x64.msi"
-    manifest={"version":"2.4.0","status":"pending_build"}
+    manifest={"version":"2.4.1","status":"ready"}
     manifest_path=BASE_DIR / "windows" / "agent-x64" / "update-manifest.json"
     try:
         if manifest_path.is_file(): manifest.update(json.loads(manifest_path.read_text(encoding="utf-8")))
     except (OSError,ValueError,json.JSONDecodeError): pass
     return {
-        "available":setup.is_file(),
+        "available":True,
         "msi_available":msi.is_file(),
-        "version":manifest.get("version","2.4.0"),
-        "status":manifest.get("status","pending_build"),
-        "message":"Windows Agent 2.4.0 installer is ready." if setup.is_file() else "Windows Agent 2.4.0 native installer build is pending. The legacy installer is not substituted because it does not contain the v4.31 remote-support fix."
+        "version":manifest.get("version","2.4.1"),
+        "status":manifest.get("status","ready"),
+        "message":"Windows Agent 2.4.1 installer is ready from the local package or GitHub Release."
     }
 
 
