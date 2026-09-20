@@ -7,14 +7,15 @@
     <SelfContained>true</SelfContained>
     <PublishSingleFile>true</PublishSingleFile>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
-    <PublishReadyToRun>false</PublishReadyToRun>
+    <PublishReadyToRun>true</PublishReadyToRun>
     <InvariantGlobalization>false</InvariantGlobalization>
     <UseWindowsForms>true</UseWindowsForms>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <AssemblyName>GODSEYE.Agent</AssemblyName>
     <RootNamespace>Godseye.WindowsAgent</RootNamespace>
-    <Version>2.2.15</Version>
-    <FileVersion>2.2.15.0</FileVersion>
-    <AssemblyVersion>2.2.15.0</AssemblyVersion>
+    <Version>2.4.0</Version>
+    <FileVersion>2.4.0.0</FileVersion>
+    <AssemblyVersion>2.4.0.0</AssemblyVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
     <NoWarn>SYSLIB0014</NoWarn>
@@ -26,3 +27,4 @@
     <PackageReference Include="System.ServiceProcess.ServiceController" Version="8.0.0" />
   </ItemGroup>
 </Project>
+

@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using System.Diagnostics;
 using System.Diagnostics.Eventing.Reader;
 using System.IO;
@@ -15,6 +16,7 @@ using System.Text;
 using System.Threading;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Windows.Forms;
 using Microsoft.Win32;
 
 namespace Godseye.WindowsAgent
@@ -89,7 +91,7 @@ namespace Godseye.WindowsAgent
 
     public class GodseyeAgentService : ServiceBase
     {
-        static readonly string AgentVersion = typeof(GodseyeAgentService).Assembly.GetName().Version?.ToString(3) ?? "2.2.1";
+        static readonly string AgentVersion = typeof(GodseyeAgentService).Assembly.GetName().Version?.ToString(3) ?? "2.4.0";
         static readonly JsonCompat Json = new JsonCompat();
         readonly string BaseDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "GODSEYE", "Agent");
         Thread worker;
@@ -101,6 +103,7 @@ namespace Godseye.WindowsAgent
         string remotePipeName;
         int remoteHelperProcessId;
         int trayHelperProcessId;
+        uint trayHelperSessionId = INVALID_SESSION_ID;
 
         string ConfigPath { get { return Path.Combine(BaseDir, "agent.json"); } }
         string StatePath { get { return Path.Combine(BaseDir, "state.json"); } }
@@ -159,55 +162,6 @@ namespace Godseye.WindowsAgent
 
         void ConfigureFromArgs(string[] args)
         {
-            bool reconnect = false;
-            foreach (string arg in args)
-                if (arg.Equals("--re-enroll", StringComparison.OrdinalIgnoreCase)) reconnect = true;
-            if (!reconnect)
-            {
-                ConfigureFromArgsCore(args);
-                return;
-            }
-
-            // The service writes its configuration at the end of each poll. Stop it
-            // while changing identity so an in-flight poll cannot restore the old URL.
-            using (ServiceController agent = new ServiceController("GODSEYEWindowsAgent"))
-            {
-                agent.Refresh();
-                bool restart = agent.Status != ServiceControllerStatus.Stopped;
-                try
-                {
-                    if (restart)
-                    {
-                        if (agent.Status == ServiceControllerStatus.StartPending)
-                            agent.WaitForStatus(ServiceControllerStatus.Running, TimeSpan.FromSeconds(30));
-                        agent.Refresh();
-                        if (agent.Status == ServiceControllerStatus.StopPending)
-                            agent.WaitForStatus(ServiceControllerStatus.Stopped, TimeSpan.FromSeconds(30));
-                        else if (agent.Status != ServiceControllerStatus.Stopped)
-                        {
-                            agent.Stop();
-                            agent.WaitForStatus(ServiceControllerStatus.Stopped, TimeSpan.FromSeconds(30));
-                        }
-                    }
-                    ConfigureFromArgsCore(args);
-                }
-                finally
-                {
-                    if (restart)
-                    {
-                        agent.Refresh();
-                        if (agent.Status == ServiceControllerStatus.Stopped)
-                        {
-                            agent.Start();
-                            agent.WaitForStatus(ServiceControllerStatus.Running, TimeSpan.FromSeconds(30));
-                        }
-                    }
-                }
-            }
-        }
-
-        void ConfigureFromArgsCore(string[] args)
-        {
             Directory.CreateDirectory(BaseDir);
             AgentConfig cfg;
             if (File.Exists(ConfigPath))
@@ -225,37 +179,19 @@ namespace Godseye.WindowsAgent
                 };
             }
 
-            bool reEnroll = false;
-            bool tokenSupplied = false;
             for (int i = 1; i < args.Length; i++)
             {
                 string a = args[i];
                 if (a.Equals("--server-url", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length) cfg.ServerUrl = args[++i].TrimEnd('/');
-                else if (a.Equals("--enrollment-token", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length) { cfg.EnrollmentToken = args[++i]; tokenSupplied = true; }
+                else if (a.Equals("--enrollment-token", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length) cfg.EnrollmentToken = args[++i];
                 else if (a.Equals("--skip-tls-verify", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length) cfg.SkipTlsVerify = Boolean.Parse(args[++i]);
-                else if (a.Equals("--re-enroll", StringComparison.OrdinalIgnoreCase)) reEnroll = true;
             }
 
             if (String.IsNullOrWhiteSpace(cfg.ServerUrl)) throw new Exception("ServerUrl is required for first-time configuration.");
-            if (reEnroll && (!tokenSupplied || String.IsNullOrWhiteSpace(cfg.EnrollmentToken))) throw new Exception("A new enrollment token is required to reconnect.");
             if (!File.Exists(KeyPath) && String.IsNullOrWhiteSpace(cfg.EnrollmentToken)) throw new Exception("EnrollmentToken is required for first-time enrollment.");
             if (String.IsNullOrWhiteSpace(cfg.AgentUuid)) cfg.AgentUuid = Guid.NewGuid().ToString();
             if (cfg.Channels == null || cfg.Channels.Count == 0) cfg.Channels = new List<string>() { "System", "Application" };
             if (cfg.PollIntervalSeconds < 30) cfg.PollIntervalSeconds = 60;
-            if (reEnroll)
-            {
-                // Enroll before changing local files. A bad URL or token must leave the
-                // previous connection usable, and an active UUID cannot enroll twice.
-                cfg.AgentUuid = Guid.NewGuid().ToString();
-                ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
-                if (cfg.SkipTlsVerify)
-                    ServicePointManager.ServerCertificateValidationCallback = delegate { return true; };
-                else
-                    ServicePointManager.ServerCertificateValidationCallback = null;
-                Enroll(cfg);
-                Console.WriteLine("GODSEYE Windows Agent enrolled with " + cfg.ServerUrl);
-                return;
-            }
             SaveConfig(cfg);
             Console.WriteLine("GODSEYE Windows Agent configuration saved to " + ConfigPath);
         }
@@ -377,11 +313,6 @@ namespace Godseye.WindowsAgent
         {
             string key = ReadApiKey();
             if (!String.IsNullOrWhiteSpace(key)) return;
-            Enroll(cfg);
-        }
-
-        void Enroll(AgentConfig cfg)
-        {
             if (String.IsNullOrWhiteSpace(cfg.EnrollmentToken)) throw new Exception("Agent is not enrolled and no enrollment token is present");
             Dictionary<string, object> body = new Dictionary<string, object>();
             body["enrollment_token"] = cfg.EnrollmentToken;
@@ -545,14 +476,22 @@ namespace Godseye.WindowsAgent
         {
             try
             {
+                uint sessionId = WTSGetActiveConsoleSessionId();
+                if (sessionId == INVALID_SESSION_ID) return;
                 if (trayHelperProcessId > 0)
                 {
-                    try { using (Process p = Process.GetProcessById(trayHelperProcessId)) { if (!p.HasExited) return; } }
+                    try
+                    {
+                        using (Process p = Process.GetProcessById(trayHelperProcessId))
+                        {
+                            if (!p.HasExited && trayHelperSessionId == sessionId) return;
+                            if (!p.HasExited) p.Kill();
+                        }
+                    }
                     catch { }
                     trayHelperProcessId = 0;
+                    trayHelperSessionId = INVALID_SESSION_ID;
                 }
-                uint sessionId = GetInteractiveSessionId();
-                if (sessionId == INVALID_SESSION_ID) return;
                 IntPtr token = IntPtr.Zero;
                 if (!WTSQueryUserToken(sessionId, out token) || token == IntPtr.Zero) return;
                 try
@@ -564,13 +503,22 @@ namespace Godseye.WindowsAgent
                     si.lpDesktop = @"winsta0\default";
                     PROCESS_INFORMATION pi;
                     var cmd = new StringBuilder("\"" + exe + "\" --tray");
-                    if (CreateProcessAsUser(token, exe, cmd, IntPtr.Zero, IntPtr.Zero, false, CREATE_UNICODE_ENVIRONMENT, IntPtr.Zero, Path.GetDirectoryName(exe), ref si, out pi))
+                    bool created=CreateProcessAsUser(token, exe, cmd, IntPtr.Zero, IntPtr.Zero, false, 0, IntPtr.Zero, Path.GetDirectoryName(exe), ref si, out pi);
+                    int firstError=created?0:Marshal.GetLastWin32Error();
+                    if(!created)
+                    {
+                        cmd = new StringBuilder("\"" + exe + "\" --tray");
+                        created=CreateProcessWithTokenW(token,LOGON_WITH_PROFILE,exe,cmd,0,IntPtr.Zero,Path.GetDirectoryName(exe),ref si,out pi);
+                    }
+                    if (created)
                     {
                         trayHelperProcessId = unchecked((int)pi.dwProcessId);
+                        trayHelperSessionId = sessionId;
                         if (pi.hThread != IntPtr.Zero) CloseHandle(pi.hThread);
                         if (pi.hProcess != IntPtr.Zero) CloseHandle(pi.hProcess);
+                        Log("Tray helper launched in Windows session "+sessionId+" as process "+trayHelperProcessId+".");
                     }
-                    else Log("Could not start tray helper (Windows error " + Marshal.GetLastWin32Error() + ").");
+                    else Log("Could not launch tray helper. CreateProcessAsUser="+firstError+", CreateProcessWithTokenW="+Marshal.GetLastWin32Error()+".");
                 }
                 finally { CloseHandle(token); }
             }
@@ -578,23 +526,6 @@ namespace Godseye.WindowsAgent
         }
 
         const uint INVALID_SESSION_ID = 0xFFFFFFFF;
-
-        // The console session is not necessarily the user's desktop (RDP and
-        // Fast User Switching create a different active session). Prefer the
-        // session hosting Explorer, then fall back to the physical console.
-        static uint GetInteractiveSessionId()
-        {
-            try
-            {
-                foreach (Process p in Process.GetProcessesByName("explorer"))
-                {
-                    try { if (p.SessionId > 0) return (uint)p.SessionId; } catch { }
-                    finally { p.Dispose(); }
-                }
-            }
-            catch { }
-            return WTSGetActiveConsoleSessionId();
-        }
         const uint CREATE_UNICODE_ENVIRONMENT = 0x00000400;
         const uint LOGON_WITH_PROFILE = 0x00000001;
         const uint MB_YESNO = 0x00000004;
@@ -617,7 +548,6 @@ namespace Godseye.WindowsAgent
         [DllImport("advapi32.dll", CharSet=CharSet.Unicode, SetLastError=true)] static extern bool CreateProcessWithTokenW(IntPtr hToken, uint dwLogonFlags, string lpApplicationName, System.Text.StringBuilder lpCommandLine, uint dwCreationFlags, IntPtr lpEnvironment, string lpCurrentDirectory, ref STARTUPINFO lpStartupInfo, out PROCESS_INFORMATION lpProcessInformation);
         [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr hObject);
         [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern int MessageBox(IntPtr hWnd, string text, string caption, uint type);
-        [DllImport("user32.dll")] static extern int GetSystemMetrics(int nIndex);
         [DllImport("user32.dll")] static extern bool SetCursorPos(int X, int Y);
         [DllImport("user32.dll")] static extern void mouse_event(uint dwFlags, uint dx, uint dy, int dwData, UIntPtr dwExtraInfo);
         [DllImport("user32.dll")] static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
@@ -628,9 +558,10 @@ namespace Godseye.WindowsAgent
             string pipeName = args[1]; string requestedBy = args[2];
             bool consentAlreadyGranted = args.Length > 3 && args[3].Equals("--consent-granted", StringComparison.OrdinalIgnoreCase);
             if (!consentAlreadyGranted && !TrayApp.ShowConsentDialog(requestedBy)) return 2;
+            Thread sharingBanner = TrayApp.StartSharingBanner(requestedBy);
             try
             {
-                while (true)
+                while (!TrayApp.SharingStopRequested)
                 {
                     using (NamedPipeServerStream pipe = new NamedPipeServerStream(pipeName, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.None))
                     {
@@ -649,6 +580,8 @@ namespace Godseye.WindowsAgent
                 }
             }
             catch { return 1; }
+            finally { TrayApp.CloseSharingBanner(); if(sharingBanner!=null)sharingBanner.Join(1500); }
+            return 0;
         }
 
         internal static string HandleTrayPipeLine(string line)
@@ -669,20 +602,37 @@ namespace Godseye.WindowsAgent
         {
             string kind = request != null && request.ContainsKey("kind") ? Convert.ToString(request["kind"]) : "";
             if (String.Equals(kind,"ping",StringComparison.OrdinalIgnoreCase)) return new Dictionary<string,object>{{"ok",true},{"ready",true}};
+            if (String.Equals(kind,"consent",StringComparison.OrdinalIgnoreCase))
+            {
+                string requestedBy = request != null && request.ContainsKey("requested_by") ? Convert.ToString(request["requested_by"]) : "administrator";
+                bool approved = TrayApp.ShowConsentDialog(requestedBy);
+                return new Dictionary<string,object>{{"ok",true},{"approved",approved}};
+            }
+            if (String.Equals(kind,"control-consent",StringComparison.OrdinalIgnoreCase))
+            {
+                string requestedBy = request != null && request.ContainsKey("requested_by") ? Convert.ToString(request["requested_by"]) : "administrator";
+                bool approved = TrayApp.ShowControlConsentDialog(requestedBy);
+                return new Dictionary<string,object>{{"ok",true},{"approved",approved}};
+            }
             if (String.Equals(kind,"capture",StringComparison.OrdinalIgnoreCase))
             {
-                int width=Math.Max(1,GetSystemMetrics(0)), height=Math.Max(1,GetSystemMetrics(1));
+                Rectangle bounds=SystemInformation.VirtualScreen;
+                int width=Math.Max(1,bounds.Width), height=Math.Max(1,bounds.Height);
                 using (Bitmap bmp=new Bitmap(width,height))
                 using (Graphics g=Graphics.FromImage(bmp))
                 using (MemoryStream ms=new MemoryStream())
                 {
-                    g.CopyFromScreen(0,0,0,0,new Size(width,height)); bmp.Save(ms,ImageFormat.Jpeg);
-                    return new Dictionary<string,object>{{"ok",true},{"image_base64",Convert.ToBase64String(ms.ToArray())},{"width",width},{"height",height}};
+                    g.CopyFromScreen(bounds.Left,bounds.Top,0,0,new Size(width,height));
+                    bmp.Save(ms,ImageFormat.Jpeg);
+                    return new Dictionary<string,object>{{"ok",true},{"image_base64",Convert.ToBase64String(ms.ToArray())},{"width",width},{"height",height},{"left",bounds.Left},{"top",bounds.Top}};
                 }
             }
             if (String.Equals(kind,"pointer",StringComparison.OrdinalIgnoreCase))
             {
-                double nx=Convert.ToDouble(request["x"]), ny=Convert.ToDouble(request["y"]); int x=(int)(Math.Max(0,Math.Min(1,nx))*Math.Max(1,GetSystemMetrics(0)-1)), y=(int)(Math.Max(0,Math.Min(1,ny))*Math.Max(1,GetSystemMetrics(1)-1)); SetCursorPos(x,y);
+                Rectangle bounds=SystemInformation.VirtualScreen;
+                double nx=Math.Max(0,Math.Min(1,Convert.ToDouble(request["x"]))), ny=Math.Max(0,Math.Min(1,Convert.ToDouble(request["y"])));
+                int x=bounds.Left+(int)(nx*Math.Max(1,bounds.Width-1)), y=bounds.Top+(int)(ny*Math.Max(1,bounds.Height-1));
+                SetCursorPos(x,y);
                 string action=Convert.ToString(request.ContainsKey("action")?request["action"]:"move"), button=Convert.ToString(request.ContainsKey("button")?request["button"]:"left");
                 uint down=button=="right"?MOUSEEVENTF_RIGHTDOWN:button=="middle"?MOUSEEVENTF_MIDDLEDOWN:MOUSEEVENTF_LEFTDOWN; uint up=button=="right"?MOUSEEVENTF_RIGHTUP:button=="middle"?MOUSEEVENTF_MIDDLEUP:MOUSEEVENTF_LEFTUP;
                 if(action=="down")mouse_event(down,0,0,0,UIntPtr.Zero); else if(action=="up")mouse_event(up,0,0,0,UIntPtr.Zero); else if(action=="click"){mouse_event(down,0,0,0,UIntPtr.Zero);mouse_event(up,0,0,0,UIntPtr.Zero);} return new Dictionary<string,object>{{"ok",true}};
@@ -726,15 +676,12 @@ namespace Godseye.WindowsAgent
                 si.cb=Marshal.SizeOf(typeof(STARTUPINFO));
                 si.lpDesktop=@"winsta0\default";
                 PROCESS_INFORMATION pi;
-                // The helper runs in the signed-in user's desktop and owns the
-                // consent dialog, like standard remote-support applications. The
-                // pipe is created only after the user selects Allow.
-                var cmd=new System.Text.StringBuilder("\""+exe+"\" --remote-helper \""+pipeName+"\" \""+requestedBy+"\"");
+                var cmd=new System.Text.StringBuilder("\""+exe+"\" --remote-helper \""+pipeName+"\" \""+requestedBy+"\" --consent-granted");
                 bool created=CreateProcessAsUser(token,exe,cmd,IntPtr.Zero,IntPtr.Zero,false,CREATE_UNICODE_ENVIRONMENT,environment,Path.GetDirectoryName(exe),ref si,out pi);
                 int createAsUserError=created?0:Marshal.GetLastWin32Error();
                 if(!created)
                 {
-                    cmd=new System.Text.StringBuilder("\""+exe+"\" --remote-helper \""+pipeName+"\" \""+requestedBy+"\"");
+                    cmd=new System.Text.StringBuilder("\""+exe+"\" --remote-helper \""+pipeName+"\" \""+requestedBy+"\" --consent-granted");
                     created=CreateProcessWithTokenW(token,LOGON_WITH_PROFILE,exe,cmd,CREATE_UNICODE_ENVIRONMENT,environment,Path.GetDirectoryName(exe),ref si,out pi);
                 }
                 if(!created) throw new Exception("Could not launch the interactive GODSEYE helper. CreateProcessAsUser="+createAsUserError+", CreateProcessWithTokenW="+Marshal.GetLastWin32Error()+".");
@@ -791,28 +738,56 @@ namespace Godseye.WindowsAgent
         void StartRemoteSession(AgentConfig cfg, long sessionId, string requestedBy)
         {
             StopRemoteSession();
-            uint windowsSessionId = GetInteractiveSessionId();
+            uint windowsSessionId = WTSGetActiveConsoleSessionId();
             if (windowsSessionId == INVALID_SESSION_ID) throw new Exception("No interactive Windows session is signed in.");
             Log("Remote support request " + sessionId + " targeting Windows session " + windowsSessionId + ".");
             remoteStop=false; remoteSessionId=sessionId; remoteHelperProcessId=0;
-            // Use a fresh per-session helper. A persistent tray can be stale or
-            // belong to an older agent build, which leaves approval successful but
-            // the capture channel disconnected.
+            remotePipeName="GODSEYE-Tray-"+windowsSessionId;
             try
             {
-                remotePipeName="GODSEYE-Remote-"+sessionId+"-"+Guid.NewGuid().ToString("N");
-                LaunchRemoteHelper(remotePipeName,requestedBy,windowsSessionId);
-                WaitForRemoteHelperReady(remotePipeName,75000);
-                Log("Remote support request "+sessionId+" approved; connected to dedicated interactive helper in Windows session "+windowsSessionId+".");
+                Post(cfg,"/api/v1/windows-agents/remote/sessions/"+sessionId+"/state",new Dictionary<string,object>{{"status","waiting_for_tray"}},ReadApiKey());
+                bool trayAlreadyReady=false;
+                try
+                {
+                    Dictionary<string,object> ping=RemoteHelperRequest(remotePipeName,new Dictionary<string,object>{{"kind","ping"}},500);
+                    trayAlreadyReady=ping!=null&&ping.ContainsKey("ok")&&Convert.ToBoolean(ping["ok"]);
+                }
+                catch { }
+                if(!trayAlreadyReady) EnsureTrayProcess();
+                WaitForRemoteHelperReady(remotePipeName,15000);
+                Post(cfg,"/api/v1/windows-agents/remote/sessions/"+sessionId+"/state",new Dictionary<string,object>{{"status","tray_ready"}},ReadApiKey());
+
+                Post(cfg,"/api/v1/windows-agents/remote/sessions/"+sessionId+"/state",new Dictionary<string,object>{{"status","waiting_for_user"}},ReadApiKey());
+                Dictionary<string,object> consent=RemoteHelperRequest(remotePipeName,new Dictionary<string,object>{{"kind","consent"},{"requested_by",String.IsNullOrWhiteSpace(requestedBy)?"administrator":requestedBy}},65000);
+                bool approved=consent!=null&&consent.ContainsKey("approved")&&Convert.ToBoolean(consent["approved"]);
+                if(!approved)
+                {
+                    Post(cfg,"/api/v1/windows-agents/remote/sessions/"+sessionId+"/state",new Dictionary<string,object>{{"status","denied"},{"error","The signed-in Windows user denied remote access."}},ReadApiKey());
+                    throw new Exception("The signed-in Windows user denied remote access.");
+                }
+                Post(cfg,"/api/v1/windows-agents/remote/sessions/"+sessionId+"/state",new Dictionary<string,object>{{"status","approved"}},ReadApiKey());
+                Log("Remote support request "+sessionId+" approved by the signed-in Windows user through the GODSEYE tray.");
+
+                // Hand the approved session to a dedicated process in the user's
+                // interactive desktop. The persistent tray owns consent/status only;
+                // it must never be blocked by capture or input traffic.
+                string sessionPipe="GODSEYE-Remote-"+sessionId+"-"+Guid.NewGuid().ToString("N");
+                LaunchRemoteHelper(sessionPipe,requestedBy,windowsSessionId);
+                WaitForRemoteHelperReady(sessionPipe,20000);
+                remotePipeName=sessionPipe;
+                Post(cfg,"/api/v1/windows-agents/remote/sessions/"+sessionId+"/state",new Dictionary<string,object>{{"status","capture_started"}},ReadApiKey());
+                remoteWorker=new Thread(()=>RemoteSessionLoop(cfg,sessionId,sessionPipe,requestedBy)){IsBackground=true,Name="GODSEYE Remote Support"}; remoteWorker.Start();
             }
-            catch(Exception helperError)
+            catch(Exception ex)
             {
-                string reason="Approved, but the interactive desktop could not be reached: "+helperError.Message;
-                try { Post(cfg,"/api/v1/windows-agents/remote/sessions/"+sessionId+"/state",new Dictionary<string,object>{{"status","failed"},{"error",reason}},ReadApiKey()); } catch {}
+                Log("Remote support request "+sessionId+" could not start: "+ex.Message);
+                if(!ex.Message.Contains("denied remote access"))
+                {
+                    try { Post(cfg,"/api/v1/windows-agents/remote/sessions/"+sessionId+"/state",new Dictionary<string,object>{{"status","failed"},{"error",ex.Message}},ReadApiKey()); } catch {}
+                }
                 StopRemoteSession();
-                throw new Exception(reason,helperError);
+                throw;
             }
-            remoteWorker=new Thread(()=>RemoteSessionLoop(cfg,sessionId,remotePipeName)){IsBackground=true,Name="GODSEYE Remote Support"}; remoteWorker.Start();
         }
 
         void StopRemoteSession()
@@ -823,28 +798,42 @@ namespace Godseye.WindowsAgent
             if(remoteWorker!=null&&remoteWorker!=Thread.CurrentThread)try{remoteWorker.Join(3000);}catch{} remoteWorker=null; remoteSessionId=0;remotePipeName=null;
         }
 
-        void RemoteSessionLoop(AgentConfig cfg,long sessionId,string pipeName)
+        void RemoteSessionLoop(AgentConfig cfg,long sessionId,string pipeName,string requestedBy)
         {
-            long after=0; bool activeReported=false; DateTime consentDeadline=DateTime.UtcNow.AddSeconds(60);
+            long after=0; bool frameDelivered=false; bool controlPromptHandled=false;
             try
             {
                 while(!remoteStop&&!stopping)
                 {
-                    Dictionary<string,object> frame=null;
-                    try{frame=RemoteHelperRequest(pipeName,new Dictionary<string,object>{{"kind","capture"}},5000);}catch{if(DateTime.UtcNow>=consentDeadline)throw new Exception("The approved interactive desktop is unavailable.");Thread.Sleep(700);continue;}
-                    if(frame==null||!frame.ContainsKey("image_base64"))
-                        throw new Exception("Remote desktop capture failed: "+(frame!=null&&frame.ContainsKey("error")?Convert.ToString(frame["error"]):"no image was returned."));
-                    Post(cfg,"/api/v1/windows-agents/remote/sessions/"+sessionId+"/frame",new Dictionary<string,object>{{"image_base64",frame["image_base64"]},{"width",frame["width"]},{"height",frame["height"]}},ReadApiKey());
-                    if(!activeReported){Post(cfg,"/api/v1/windows-agents/remote/sessions/"+sessionId+"/state",new Dictionary<string,object>{{"status","active"}},ReadApiKey());activeReported=true;}
+                    Dictionary<string,object> frame=RemoteHelperRequest(pipeName,new Dictionary<string,object>{{"kind","capture"}},2500);
+                    if(frame==null||!frame.ContainsKey("image_base64"))throw new Exception("Remote desktop capture failed.");
+                    Dictionary<string,object> accepted=Post(cfg,"/api/v1/windows-agents/remote/sessions/"+sessionId+"/frame",new Dictionary<string,object>{{"image_base64",frame["image_base64"]},{"width",frame["width"]},{"height",frame["height"]}},ReadApiKey());
+                    frameDelivered=true;
                     Dictionary<string,object> poll=Get(cfg,"/api/v1/windows-agents/remote/sessions/"+sessionId+"/events?after="+after,ReadApiKey());
                     if(poll.ContainsKey("active")&&!Convert.ToBoolean(poll["active"]))break;
+                    string controlStatus=poll.ContainsKey("control_status")?Convert.ToString(poll["control_status"]):"view_only";
+                    if(String.Equals(controlStatus,"requested",StringComparison.OrdinalIgnoreCase)&&!controlPromptHandled)
+                    {
+                        controlPromptHandled=true;
+                        Dictionary<string,object> decision=RemoteHelperRequest(pipeName,new Dictionary<string,object>{{"kind","control-consent"},{"requested_by",requestedBy}},65000);
+                        bool controlApproved=decision!=null&&decision.ContainsKey("approved")&&Convert.ToBoolean(decision["approved"]);
+                        Post(cfg,"/api/v1/windows-agents/remote/sessions/"+sessionId+"/control/decision",new Dictionary<string,object>{{"approved",controlApproved}},ReadApiKey());
+                        Log("Remote control permission for session "+sessionId+": "+(controlApproved?"approved":"denied")+".");
+                        controlStatus=controlApproved?"approved":"denied";
+                    }
                     object rawEvents;if(poll.TryGetValue("events",out rawEvents)&&rawEvents is IEnumerable list&&! (rawEvents is string))foreach(object o in list){Dictionary<string,object> e=o as Dictionary<string,object>;if(e==null)continue;after=Math.Max(after,Convert.ToInt64(e["event_id"]));Dictionary<string,object> ev=e["event"] as Dictionary<string,object>;if(ev!=null)try{RemoteHelperRequest(pipeName,ev,1500);}catch{}}
                     Thread.Sleep(450);
                 }
-                if(activeReported)try{Post(cfg,"/api/v1/windows-agents/remote/sessions/"+sessionId+"/state",new Dictionary<string,object>{{"status","ended"}},ReadApiKey());}catch{}
+                if(frameDelivered)try{Post(cfg,"/api/v1/windows-agents/remote/sessions/"+sessionId+"/state",new Dictionary<string,object>{{"status","ended"}},ReadApiKey());}catch{}
             }
             catch(Exception ex){Log("Remote support session "+sessionId+" failed: "+ex.Message);try{Post(cfg,"/api/v1/windows-agents/remote/sessions/"+sessionId+"/state",new Dictionary<string,object>{{"status","failed"},{"error",ex.Message}},ReadApiKey());}catch{}}
-            finally{remoteStop=true;if(remoteSessionId==sessionId){try{if(remoteHelperProcessId>0){Process p=Process.GetProcessById(remoteHelperProcessId);if(!p.HasExited)p.Kill();}}catch{}remoteHelperProcessId=0;remoteSessionId=0;remotePipeName=null;}}
+            finally
+            {
+                remoteStop=true;
+                try{RemoteHelperRequest(pipeName,new Dictionary<string,object>{{"kind","terminate"}},500);}catch{}
+                if(remoteHelperProcessId>0){try{using(Process p=Process.GetProcessById(remoteHelperProcessId)){if(!p.HasExited)p.Kill();}}catch{}}
+                if(remoteSessionId==sessionId){remoteHelperProcessId=0;remoteSessionId=0;remotePipeName=null;}
+            }
         }
 
         int IntValue(Dictionary<string, object> value, string key)
@@ -988,6 +977,11 @@ namespace Godseye.WindowsAgent
                     {
                         StopRemoteSession(); result["ok"]=true;result["events"]=0;result["new_findings"]=0;result["details"]="Remote support session stopped.";
                     }
+                    else if (String.Equals(type, "clamav_scan", StringComparison.OrdinalIgnoreCase))
+                    {
+                        result["ok"] = true; result["events"] = 0; result["new_findings"] = 0;
+                        result["details"] = RunClamAvScan();
+                    }
                     else
                     {
                         result["ok"] = false; result["events"] = 0; result["new_findings"] = 0;
@@ -1004,6 +998,15 @@ namespace Godseye.WindowsAgent
                 try { Post(cfg, "/api/v1/windows-agents/commands/" + commandId + "/result", result, ReadApiKey()); }
                 catch (Exception ex) { Log("Could not report command " + commandId + " result: " + ex.Message); }
             }
+        }
+
+        string RunClamAvScan()
+        {
+            string[] candidates = new string[] { "clamscan.exe", Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "ClamAV", "clamscan.exe"), Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "ClamAV", "clamscan.exe") };
+            string exe = candidates.FirstOrDefault(File.Exists) ?? "clamscan.exe";
+            string logDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "GODSEYE", "Agent"); Directory.CreateDirectory(logDir);
+            ProcessStartInfo psi = new ProcessStartInfo { FileName = exe, Arguments = "--infected --recursive --log=\"" + Path.Combine(logDir, "clamav-scan.log") + "\" \"" + Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) + "\"", UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true, WorkingDirectory = logDir };
+            using (Process p = Process.Start(psi)) { if (p == null) throw new Exception("ClamAV could not be started. Install ClamAV and ensure clamscan.exe is available."); p.WaitForExit(900000); if (!p.HasExited) { try { p.Kill(); } catch { } throw new Exception("ClamAV scan timed out after 15 minutes."); } return p.ExitCode == 0 ? "ClamAV scan completed: no threats found." : (p.ExitCode == 1 ? "ClamAV scan completed: threats were found. Review clamav-scan.log." : "ClamAV scan completed with an error. Review clamav-scan.log."); }
         }
 
         void ProcessRechecks(AgentConfig cfg, Dictionary<string, object> hb)
