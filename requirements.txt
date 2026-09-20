@@ -1,0 +1,8 @@
+fastapi==0.116.1
+uvicorn==0.35.0
+pydantic==2.11.7
+cryptography==45.0.6
+reportlab==4.4.3
+
+pywinrm>=0.5.0,<0.6
+Pillow>=11.0,<13

@@ -1,0 +1,50 @@
+{
+  "format": 1,
+  "restore": {
+    "/workspace/scratch/9db9cbec97da/godseye-v430/windows/agent-x64/installer/msi/GODSEYE.Agent.Installer.wixproj": {}
+  },
+  "projects": {
+    "/workspace/scratch/9db9cbec97da/godseye-v430/windows/agent-x64/installer/msi/GODSEYE.Agent.Installer.wixproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "/workspace/scratch/9db9cbec97da/godseye-v430/windows/agent-x64/installer/msi/GODSEYE.Agent.Installer.wixproj",
+        "projectName": "GODSEYE-Windows-Agent-x64",
+        "projectPath": "/workspace/scratch/9db9cbec97da/godseye-v430/windows/agent-x64/installer/msi/GODSEYE.Agent.Installer.wixproj",
+        "packagesPath": "/root/.nuget/packages/",
+        "outputPath": "/workspace/scratch/9db9cbec97da/godseye-v430/windows/agent-x64/installer/msi/obj/",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "/root/.nuget/NuGet/NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "native"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "native": {
+            "targetAlias": "native",
+            "projectReferences": {}
+          }
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        }
+      },
+      "frameworks": {
+        "native": {
+          "targetAlias": "native",
+          "dependencies": {
+            "WixToolset.Util.wixext": {
+              "target": "Package",
+              "version": "[6.0.2, )"
+            }
+          }
+        }
+      }
+    }
+  }
+}

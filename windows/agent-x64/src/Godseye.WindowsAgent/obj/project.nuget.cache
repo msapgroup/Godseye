@@ -1,0 +1,21 @@
+{
+  "version": 2,
+  "dgSpecHash": "mWlYW45iSvg=",
+  "success": true,
+  "projectFilePath": "/workspace/scratch/9db9cbec97da/godseye-v430/windows/agent-x64/src/Godseye.WindowsAgent/Godseye.WindowsAgent.csproj",
+  "expectedPackageFiles": [
+    "/root/.nuget/packages/microsoft.net.illink.tasks/8.0.31/microsoft.net.illink.tasks.8.0.31.nupkg.sha512",
+    "/root/.nuget/packages/microsoft.win32.systemevents/8.0.0/microsoft.win32.systemevents.8.0.0.nupkg.sha512",
+    "/root/.nuget/packages/system.diagnostics.eventlog/8.0.0/system.diagnostics.eventlog.8.0.0.nupkg.sha512",
+    "/root/.nuget/packages/system.drawing.common/8.0.0/system.drawing.common.8.0.0.nupkg.sha512",
+    "/root/.nuget/packages/system.security.cryptography.protecteddata/8.0.0/system.security.cryptography.protecteddata.8.0.0.nupkg.sha512",
+    "/root/.nuget/packages/system.serviceprocess.servicecontroller/8.0.0/system.serviceprocess.servicecontroller.8.0.0.nupkg.sha512",
+    "/root/.nuget/packages/microsoft.netcore.app.runtime.win-x64/8.0.31/microsoft.netcore.app.runtime.win-x64.8.0.31.nupkg.sha512",
+    "/root/.nuget/packages/microsoft.windowsdesktop.app.ref/8.0.31/microsoft.windowsdesktop.app.ref.8.0.31.nupkg.sha512",
+    "/root/.nuget/packages/microsoft.windowsdesktop.app.runtime.win-x64/8.0.31/microsoft.windowsdesktop.app.runtime.win-x64.8.0.31.nupkg.sha512",
+    "/root/.nuget/packages/microsoft.aspnetcore.app.runtime.win-x64/8.0.31/microsoft.aspnetcore.app.runtime.win-x64.8.0.31.nupkg.sha512",
+    "/root/.nuget/packages/microsoft.netcore.app.crossgen2.linux-x64/8.0.31/microsoft.netcore.app.crossgen2.linux-x64.8.0.31.nupkg.sha512",
+    "/root/.nuget/packages/microsoft.netcore.app.host.win-x64/8.0.31/microsoft.netcore.app.host.win-x64.8.0.31.nupkg.sha512"
+  ],
+  "logs": []
+}

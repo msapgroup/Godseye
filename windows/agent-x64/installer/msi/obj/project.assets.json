@@ -1,0 +1,81 @@
+{
+  "version": 3,
+  "targets": {
+    "native,Version=v0.0": {
+      "WixToolset.Util.wixext/6.0.2": {
+        "type": "package",
+        "build": {
+          "build/WixToolset.Util.wixext.targets": {}
+        }
+      }
+    }
+  },
+  "libraries": {
+    "WixToolset.Util.wixext/6.0.2": {
+      "sha512": "plP64ub/0KjNbtLeaeiibVCPkKfr439WTKZmTwVSoQ4fznLHBZLsE0+wcyk6dA5cQuQsD5hlmnVGTKgPioiusQ==",
+      "type": "package",
+      "path": "wixtoolset.util.wixext/6.0.2",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "OSMFEULA.txt",
+        "README.md",
+        "build/WixToolset.Util.wixext.targets",
+        "icon.png",
+        "wixext6/WixToolset.Util.wixext.dll",
+        "wixtoolset.util.wixext.6.0.2.nupkg.sha512",
+        "wixtoolset.util.wixext.nuspec"
+      ]
+    }
+  },
+  "projectFileDependencyGroups": {
+    "native,Version=v0.0": [
+      "WixToolset.Util.wixext >= 6.0.2"
+    ]
+  },
+  "packageFolders": {
+    "/root/.nuget/packages/": {}
+  },
+  "project": {
+    "version": "1.0.0",
+    "restore": {
+      "projectUniqueName": "/workspace/scratch/9db9cbec97da/godseye-v430/windows/agent-x64/installer/msi/GODSEYE.Agent.Installer.wixproj",
+      "projectName": "GODSEYE-Windows-Agent-x64",
+      "projectPath": "/workspace/scratch/9db9cbec97da/godseye-v430/windows/agent-x64/installer/msi/GODSEYE.Agent.Installer.wixproj",
+      "packagesPath": "/root/.nuget/packages/",
+      "outputPath": "/workspace/scratch/9db9cbec97da/godseye-v430/windows/agent-x64/installer/msi/obj/",
+      "projectStyle": "PackageReference",
+      "configFilePaths": [
+        "/root/.nuget/NuGet/NuGet.Config"
+      ],
+      "originalTargetFrameworks": [
+        "native"
+      ],
+      "sources": {
+        "https://api.nuget.org/v3/index.json": {}
+      },
+      "frameworks": {
+        "native": {
+          "targetAlias": "native",
+          "projectReferences": {}
+        }
+      },
+      "restoreAuditProperties": {
+        "enableAudit": "true",
+        "auditLevel": "low",
+        "auditMode": "direct"
+      }
+    },
+    "frameworks": {
+      "native": {
+        "targetAlias": "native",
+        "dependencies": {
+          "WixToolset.Util.wixext": {
+            "target": "Package",
+            "version": "[6.0.2, )"
+          }
+        }
+      }
+    }
+  }
+}

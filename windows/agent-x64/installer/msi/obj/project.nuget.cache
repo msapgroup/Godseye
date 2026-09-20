@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "dgSpecHash": "uckQHKNCRLM=",
+  "success": true,
+  "projectFilePath": "/workspace/scratch/9db9cbec97da/godseye-v430/windows/agent-x64/installer/msi/GODSEYE.Agent.Installer.wixproj",
+  "expectedPackageFiles": [
+    "/root/.nuget/packages/wixtoolset.util.wixext/6.0.2/wixtoolset.util.wixext.6.0.2.nupkg.sha512"
+  ],
+  "logs": []
+}

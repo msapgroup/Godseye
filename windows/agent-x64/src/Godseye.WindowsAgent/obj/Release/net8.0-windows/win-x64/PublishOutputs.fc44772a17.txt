@@ -1,0 +1,2 @@
+/workspace/scratch/9db9cbec97da/godseye-v430/windows/agent-x64/publish/GODSEYE.Agent.pdb
+/workspace/scratch/9db9cbec97da/godseye-v430/windows/agent-x64/publish/GODSEYE.Agent.exe
