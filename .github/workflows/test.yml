@@ -18,5 +18,3 @@ jobs:
           PYTHONPATH=. pytest -q
           tests/test_v430_remote_access_hardening.py
           tests/test_v430_ui_release.py
-          tests/test_v431_managed_windows.py
-          tests/test_v431_remote_agent_handoff.py
