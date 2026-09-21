@@ -150,7 +150,7 @@ jobs:
 
           git archive --format=zip --output=$archive HEAD
           Expand-Archive -Path $archive -DestinationPath $stage -Force
-          @(
+          # Normalize staged shell scripts so Bash installers never contain CRLF.\n          foreach ($script in @('install.sh','doctor.sh')) {\n            $scriptPath = Join-Path $stage $script\n            if (Test-Path $scriptPath) {\n              $scriptText = [System.IO.File]::ReadAllText($scriptPath) -replace ([char]13+[char]10), ([char]10)\n              [System.IO.File]::WriteAllText($scriptPath, $scriptText, [System.Text.UTF8Encoding]::new($false))\n            }\n          }\n          @(
             'GODSEYE.Agent.exe',
             'GODSEYE-Windows-Agent-x64.msi',
             'GODSEYE-Windows-Agent-x64.msi.sha256',
