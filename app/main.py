@@ -3639,7 +3639,7 @@ def _windows_agent_update_manifest():
         # Release packages are stored as GitHub Release assets rather than in
         # the server repository. Keep managed updates available on fresh
         # server installs even when the optional local MSI is absent.
-        return {"version":"2.4.3","sha256":"43211F9F751E2972614DE39068443E86BAF1D29EB9F23E6E9E6314C78D7A7963","filename":"GODSEYE-Windows-Agent-x64.msi","url":"https://github.com/msapgroup/Godseye/releases/download/v4.31.0-agent-2.4.3/GODSEYE-Windows-Agent-x64.msi"}
+        return {"version":"2.4.4","sha256":"C9C513F5020FDBD1D9309578F7610EBC3D8605E542D700791673AC4CE6E04299","filename":"GODSEYE-Windows-Agent-x64.msi","url":"https://github.com/msapgroup/Godseye/releases/download/v4.31.0-agent-2.4.4/GODSEYE-Windows-Agent-x64.msi"}
 
 
 @app.get(f"{router_prefix}/windows-agents/update-info")
