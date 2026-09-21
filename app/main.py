@@ -6415,6 +6415,7 @@ html[data-theme="dark"] .v430-inventory-panel{overflow:visible!important;margin-
 <button type="button" class="navitem operate-only" data-view="email"><span class="navicon">✉</span><span>Email</span></button>
 <button type="button" class="navitem" data-view="event-findings"><span class="navicon">⚠</span><span>Event Findings</span><span class="badge" id="eventFindingBadge">0</span></button>
 <button type="button" class="navitem admin-only" data-view="remote-access"><span class="navicon">▰</span><span>Remote Access</span></button>
+<button type="button" class="navitem admin-only" onclick="openWindowsAgentModal();event.preventDefault()"><span class="navicon">↻</span><span>Windows Updates</span></button>
 <button type="button" class="navitem admin-only" data-view="antivirus"><span class="navicon">🛡</span><span>Antivirus</span></button>
 <button type="button" class="navitem" data-view="tickets"><span class="navicon">▧</span><span>Ticket Portal</span><span class="badge" id="ticketBadge">0</span></button>
 <div class="navsection">Administration</div>
@@ -6722,7 +6723,7 @@ html[data-theme="dark"] .v430-inventory-panel{overflow:visible!important;margin-
 
 <div id="windowsAgentModal" class="modal" style="display:none" onclick="if(event.target===this)closeWindowsAgentModal()">
  <div class="modal-card windows-agent-dialog" role="dialog" aria-modal="true">
-  <div class="modal-head"><div><h2>Windows Agents</h2><div class="muted">Recommended Event Findings collection for 64-bit Windows computers and Windows Server.</div></div><button class="icon-btn" onclick="closeWindowsAgentModal()">×</button></div>
+  <div class="modal-head"><div><h2>Windows Agents &amp; Updates</h2><div class="muted">Install, check, and remotely apply missing Windows Agent updates on enrolled computers.</div></div><button class="icon-btn" onclick="closeWindowsAgentModal()">×</button></div>
   <div class="windows-agent-body">
     <div class="agent-onboarding">
       <div><b>Agent enrollment</b><div class="muted">Generate a one-time token, download the permanent x64 Windows installer, and run Setup as Administrator. Future agent upgrades preserve enrollment automatically.</div></div>
