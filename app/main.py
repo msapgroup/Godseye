@@ -5683,6 +5683,26 @@ html[data-theme="dark"] #view-monitoring .monitor-summary-card.bad .v{color:#ff6
 html[data-theme="dark"] #view-monitoring .status-badge{font-weight:800}
 
 /* exactly six launcher cards: two rows of three */
+/* Refined security/tool cards */
+.cards>.card{border-radius:12px!important;border:1px solid #d3dfeb!important;box-shadow:0 7px 18px rgba(16,48,82,.06)!important;transition:transform .16s ease,box-shadow .16s ease,border-color .16s ease!important}
+.cards>.card:hover{transform:translateY(-1px);border-color:#8fc4ef!important;box-shadow:0 10px 24px rgba(16,96,164,.12)!important}
+html[data-theme="dark"] .cards>.card{border-color:#29445f!important;box-shadow:0 8px 22px rgba(0,0,0,.16)!important}
+
+.cyber-tool-card-grid{align-items:stretch}
+.cyber-tool-card{position:relative!important;min-height:138px;display:flex!important;flex-direction:column!important;align-items:flex-start!important;gap:8px!important;padding:17px!important;border:1px solid #cbd9e8!important;border-radius:14px!important;background:linear-gradient(145deg,#ffffff,#f5f9fd)!important;box-shadow:0 8px 20px rgba(16,48,82,.07)!important;transition:transform .16s ease,box-shadow .16s ease,border-color .16s ease!important}
+.cyber-tool-card:hover{transform:translateY(-2px);border-color:#6db3ee!important;box-shadow:0 12px 28px rgba(16,96,164,.16)!important}
+.cyber-tool-card-icon{width:34px!important;height:34px!important;display:grid!important;place-items:center!important;border-radius:10px!important;background:#e8f4ff!important;color:#1976c9!important;font-size:13px!important;box-shadow:inset 0 0 0 1px #c7e3fa!important}
+.cyber-tool-card h3{margin:0!important;font-size:13px!important;color:#17324d!important;letter-spacing:-.01em}
+.cyber-tool-card p{margin:0!important;min-height:32px;color:#647a91!important;font-size:10px!important;line-height:1.45}
+.cyber-tool-card .primary,.cyber-tool-card .secondary{margin-top:auto!important;font-size:10px!important;padding:7px 12px!important;border-radius:8px!important}
+.cyber-tool-card button:disabled{opacity:.55;cursor:not-allowed}
+.cyber-tool-status{font-size:9px!important;font-weight:800!important;letter-spacing:.03em;text-transform:uppercase}
+.cyber-tool-status.ready{color:#16865a!important}
+.cyber-tool-status.planned{color:#a16b09!important}
+html[data-theme="dark"] .cyber-tool-card{border-color:#29445f!important;background:linear-gradient(145deg,#142435,#101a27)!important;box-shadow:0 10px 24px rgba(0,0,0,.18)!important}
+html[data-theme="dark"] .cyber-tool-card h3{color:#eef7ff!important}
+html[data-theme="dark"] .cyber-tool-card p{color:#a6b9cc!important}
+html[data-theme="dark"] .cyber-tool-card-icon{background:#123656!important;color:#8bcbff!important;box-shadow:inset 0 0 0 1px #285a82!important}
 #view-tools .tool-grid{
   display:grid!important;
   grid-template-columns:repeat(3,minmax(0,1fr))!important;
