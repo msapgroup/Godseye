@@ -4015,14 +4015,19 @@ def windows_agent_msi_package(agent=Depends(_agent_auth)):
 
 @app.get(f"{router_prefix}/windows-agents/package")
 def windows_agent_package(user=Depends(require_admin)):
-    path=BASE_DIR / "windows" / "agent-x64" / "GODSEYE-Windows-Agent-x64-Setup.exe"
+    version="2.4.3"
+    versioned_name=f"GODSEYE-Windows-Agent-x64-Setup-{version}.exe"
+    path=BASE_DIR / "windows" / "agent-x64" / versioned_name
+    if not path.is_file():
+        path=BASE_DIR / "windows" / "agent-x64" / "GODSEYE-Windows-Agent-x64-Setup.exe"
     if path.is_file():
-        return FileResponse(path,media_type="application/vnd.microsoft.portable-executable",filename="GODSEYE-Windows-Agent-x64-Setup.exe")
+        return FileResponse(path,media_type="application/vnd.microsoft.portable-executable",filename=versioned_name,headers={"Cache-Control":"no-store, no-cache, must-revalidate, max-age=0","Pragma":"no-cache","Expires":"0","X-GODSEYE-Agent-Version":version})
     # Release builds are published as GitHub Release assets because the installer
     # exceeds GitHub's repository file-size limit. Fresh installs use that asset.
     return RedirectResponse(
-        "https://github.com/msapgroup/Godseye/releases/download/v4.31.0-agent-2.4.3/GODSEYE-Windows-Agent-x64-Setup.exe",
+        "https://github.com/msapgroup/Godseye/releases/download/v4.31.0-agent-2.4.3/GODSEYE-Windows-Agent-x64-Setup-2.4.3.exe",
         status_code=302,
+        headers={"Cache-Control":"no-store, no-cache, must-revalidate, max-age=0","Pragma":"no-cache","Expires":"0","X-GODSEYE-Agent-Version":version},
     )
 
 
@@ -7858,9 +7863,9 @@ async function loadWindowsAgentPackageStatus(){
 }
 async function downloadWindowsAgentPackage(){
  try{
-  const response=await fetch('/api/v1/windows-agents/package',{credentials:'same-origin'});
+  const response=await fetch('/api/v1/windows-agents/package?v=2.4.3&fresh='+Date.now(),{credentials:'same-origin',cache:'no-store'});
   if(!response.ok){let message='Windows Agent installer is unavailable.';try{message=(await response.json()).detail||message}catch(_){}throw new Error(message)}
-  const blob=await response.blob(),url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download='GODSEYE-Windows-Agent-x64-Setup.exe';document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
+  const blob=await response.blob(),url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download='GODSEYE-Windows-Agent-x64-Setup-2.4.3.exe';document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
  }catch(e){alert(e.message||'Windows Agent installer is unavailable.');await loadWindowsAgentPackageStatus()}
 }
 async function pullWindowsAgentNow(id){

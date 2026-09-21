@@ -1,6 +1,4 @@
 from pathlib import Path
-import shutil
-
 from fastapi.testclient import TestClient
 
 import app.main as main
@@ -12,7 +10,7 @@ def _login_admin(client: TestClient):
     assert client.post("/api/v1/auth/login", json={"username": "admin", "password": password}).status_code == 200
 
 
-def test_package_status_reports_pending_instead_of_substituting_legacy_binary(tmp_path):
+def test_package_status_uses_the_versioned_release_when_local_installer_is_absent(tmp_path):
     old_db, old_base = main.DB_PATH, main.BASE_DIR
     main.DB_PATH, main.BASE_DIR = tmp_path / "package.db", tmp_path
     try:
@@ -21,9 +19,12 @@ def test_package_status_reports_pending_instead_of_substituting_legacy_binary(tm
             _login_admin(client)
             status = client.get("/api/v1/windows-agents/package-status")
             assert status.status_code == 200
-            assert status.json()["available"] is False
-            assert "legacy installer is not substituted" in status.json()["message"]
-            assert client.get("/api/v1/windows-agents/package").status_code == 404
+            assert status.json()["available"] is True
+            assert status.json()["version"] == "2.4.3"
+            response = client.get("/api/v1/windows-agents/package", follow_redirects=False)
+            assert response.status_code == 302
+            assert response.headers["location"].endswith("GODSEYE-Windows-Agent-x64-Setup-2.4.3.exe")
+            assert response.headers["cache-control"].startswith("no-store")
     finally:
         main.DB_PATH, main.BASE_DIR = old_db, old_base
 
@@ -34,6 +35,8 @@ def test_agent_modal_disables_missing_installer_and_handles_download_errors():
     assert "loadWindowsAgentPackageStatus" in source
     assert "button.disabled=!info.available" in source
     assert "response.ok" in source
+    assert "cache:'no-store'" in source
+    assert "GODSEYE-Windows-Agent-x64-Setup-2.4.3.exe" in source
 
 
 def test_agent_installer_always_explains_enrollment_choice():
@@ -49,8 +52,8 @@ def test_built_agent_installer_is_reported_and_downloaded(tmp_path):
     main.DB_PATH, main.BASE_DIR = tmp_path / "package.db", tmp_path
     package_dir = tmp_path / "windows" / "agent-x64"
     package_dir.mkdir(parents=True)
-    built = Path("windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe")
-    shutil.copy2(built, package_dir / built.name)
+    built = package_dir / "GODSEYE-Windows-Agent-x64-Setup-2.4.3.exe"
+    built.write_bytes(b"MZ" + b"GODSEYE-AGENT-2.4.3" * 64)
     try:
         main.init_db()
         with TestClient(main.app) as client:
@@ -61,6 +64,9 @@ def test_built_agent_installer_is_reported_and_downloaded(tmp_path):
             response = client.get("/api/v1/windows-agents/package")
             assert response.status_code == 200
             assert response.headers["content-type"].startswith("application/vnd.microsoft.portable-executable")
+            assert response.headers["cache-control"].startswith("no-store")
+            assert response.headers["x-godseye-agent-version"] == "2.4.3"
+            assert 'filename="GODSEYE-Windows-Agent-x64-Setup-2.4.3.exe"' in response.headers["content-disposition"]
             assert response.content == built.read_bytes()
     finally:
         main.DB_PATH, main.BASE_DIR = old_db, old_base

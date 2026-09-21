@@ -17,7 +17,7 @@ Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
 OutputDir=output
-OutputBaseFilename=GODSEYE-Windows-Agent-x64-Setup
+OutputBaseFilename=GODSEYE-Windows-Agent-x64-Setup-2.4.3
 SetupLogging=yes
 CloseApplications=no
 RestartApplications=no
@@ -119,6 +119,7 @@ var
   MsiPath: String;
   Params: String;
   ExePath: String;
+  InstalledVersion: String;
 begin
   if CurStep <> ssPostInstall then
     exit;
@@ -158,4 +159,13 @@ begin
 
   if MsiResultCode = 3010 then
     MsgBox('GODSEYE Windows Agent was installed successfully. Windows requested a restart to complete installation.', mbInformation, MB_OK);
+
+  ExePath := AgentExePath();
+  if not GetVersionNumbersString(ExePath, InstalledVersion) then
+    RaiseException('GODSEYE Windows Agent was installed, but its version could not be verified.');
+  if Pos('2.4.3', InstalledVersion) <> 1 then
+    RaiseException('The installer expected GODSEYE Windows Agent 2.4.3, but Windows reports version ' + InstalledVersion + '.');
+
+  if MsiResultCode <> 3010 then
+    MsgBox('GODSEYE Windows Agent 2.4.3 was installed and verified successfully.', mbInformation, MB_OK);
 end;

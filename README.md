@@ -142,7 +142,7 @@ For traffic visibility, choose a source that can actually see the traffic. A nor
 
 ## Windows Agent
 
-For Windows workstations and servers, **GODSEYE Windows Agent 2.4.0** is the intended path. This v4.31 candidate contains the compiled x64 guided Setup EXE, and the authenticated **Download x64 Installer** button serves that file directly. In **Event Findings → Windows Agents**, create a one-time enrollment token, then run the Setup EXE as Administrator on the Windows computer and enter the GODSEYE URL and token. The separate MSI used by agent self-update is still produced by the Windows-native release pipeline and must pass its Windows lifecycle smoke test before the server advertises self-update.
+For Windows workstations and servers, **GODSEYE Windows Agent 2.4.3** is the intended path. This v4.31 candidate contains the compiled x64 guided Setup EXE, and the authenticated **Download x64 Installer** button serves the uniquely named, cache-safe 2.4.3 file directly. In **Event Findings → Windows Agents**, create a one-time enrollment token, then run the Setup EXE as Administrator on the Windows computer and enter the GODSEYE URL and token. The separate MSI used by agent self-update is produced by the Windows-native release pipeline and must pass clean-install, uninstall, and 2.4.2-to-2.4.3 upgrade tests before release.
 
 Agent 2.4.0 is a self-contained x64 .NET 8 service installed under `C:\Program Files\GODSEYE Agent\`. Enrollment identity, the DPAPI-protected API key, Event Log bookmarks, queued events and configuration remain under `C:\ProgramData\GODSEYE\Agent\` so reinstall and upgrade preserve the enrolled computer.
 

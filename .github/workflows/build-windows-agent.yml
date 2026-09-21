@@ -115,6 +115,33 @@ jobs:
           if (-not (Test-Path $sentinel)) { throw 'ProgramData state was removed; enrollment/state must survive upgrade/uninstall.' }
           Remove-Item $sentinel -Force
 
+      - name: Smoke-test upgrade from Agent 2.4.2 to 2.4.3
+        shell: pwsh
+        run: |
+          $oldMsi = Join-Path $env:RUNNER_TEMP 'GODSEYE-Windows-Agent-x64-2.4.2.msi'
+          $newMsi = (Resolve-Path 'windows/agent-x64/GODSEYE-Windows-Agent-x64.msi').Path
+          $oldUrl = 'https://github.com/msapgroup/Godseye/releases/download/v4.31.0-agent-2.4.2/GODSEYE-Windows-Agent-x64.msi'
+          Invoke-WebRequest -Uri $oldUrl -OutFile $oldMsi
+
+          $oldInstall = Start-Process msiexec.exe -ArgumentList @('/i', "`"$oldMsi`"", '/qn', '/norestart') -Wait -PassThru
+          if (($oldInstall.ExitCode -ne 0) -and ($oldInstall.ExitCode -ne 3010)) { throw "Agent 2.4.2 prerequisite install failed with exit code $($oldInstall.ExitCode)." }
+          $installedExe = Join-Path $env:ProgramFiles 'GODSEYE Agent\GODSEYE.Agent.exe'
+          $before = (Get-Item $installedExe).VersionInfo.FileVersion
+          if ($before -notlike '2.4.2*') { throw "Upgrade test expected 2.4.2 before upgrade, found '$before'." }
+
+          $upgrade = Start-Process msiexec.exe -ArgumentList @('/i', "`"$newMsi`"", '/qn', '/norestart') -Wait -PassThru
+          if (($upgrade.ExitCode -ne 0) -and ($upgrade.ExitCode -ne 3010)) { throw "Agent 2.4.3 upgrade failed with exit code $($upgrade.ExitCode)." }
+          $after = (Get-Item $installedExe).VersionInfo.FileVersion
+          if ($after -notlike '2.4.3*') { throw "Agent upgrade left version '$after' installed instead of 2.4.3." }
+
+          $display = Get-ItemProperty 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*' -ErrorAction SilentlyContinue |
+            Where-Object DisplayName -eq 'GODSEYE Windows Agent' |
+            Select-Object -First 1 -ExpandProperty DisplayVersion
+          if ($display -ne '2.4.3') { throw "Windows installed-app version is '$display', expected 2.4.3." }
+
+          $uninstall = Start-Process msiexec.exe -ArgumentList @('/x', "`"$newMsi`"", '/qn', '/norestart') -Wait -PassThru
+          if (($uninstall.ExitCode -ne 0) -and ($uninstall.ExitCode -ne 3010)) { throw "Post-upgrade uninstall failed with exit code $($uninstall.ExitCode)." }
+
       - name: Install Inno Setup
         shell: pwsh
         run: |
@@ -131,12 +158,16 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
           $agent = 'windows/agent-x64/publish/GODSEYE.Agent.exe'
-          $setup = 'windows/agent-x64/installer/output/GODSEYE-Windows-Agent-x64-Setup.exe'
+          $setup = 'windows/agent-x64/installer/output/GODSEYE-Windows-Agent-x64-Setup-2.4.3.exe'
           if (-not (Test-Path $setup)) { throw 'Inno Setup did not create the guided setup EXE.' }
+          $setupVersion = (Get-Item $setup).VersionInfo.ProductVersion
+          if ($setupVersion -notlike '2.4.3*') { throw "Guided Setup version is '$setupVersion', expected 2.4.3." }
           Copy-Item $agent 'windows/agent-x64/GODSEYE.Agent.exe' -Force
+          Copy-Item $setup 'windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup-2.4.3.exe' -Force
           Copy-Item $setup 'windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe' -Force
           $hash = (Get-FileHash 'windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe' -Algorithm SHA256).Hash.ToUpperInvariant()
           Set-Content -Path 'windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe.sha256' -Value $hash -Encoding ascii
+          Set-Content -Path 'windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup-2.4.3.exe.sha256' -Value $hash -Encoding ascii
 
       - name: Build GODSEYE v4.31.0 source + Agent candidate ZIP
         shell: pwsh
@@ -163,6 +194,8 @@ jobs:
             'GODSEYE-Windows-Agent-x64.msi',
             'GODSEYE-Windows-Agent-x64.msi.sha256',
             'update-manifest.json',
+            'GODSEYE-Windows-Agent-x64-Setup-2.4.3.exe',
+            'GODSEYE-Windows-Agent-x64-Setup-2.4.3.exe.sha256',
             'GODSEYE-Windows-Agent-x64-Setup.exe',
             'GODSEYE-Windows-Agent-x64-Setup.exe.sha256'
           ) | ForEach-Object {
@@ -182,6 +215,8 @@ jobs:
             windows/agent-x64/GODSEYE-Windows-Agent-x64.msi
             windows/agent-x64/GODSEYE-Windows-Agent-x64.msi.sha256
             windows/agent-x64/update-manifest.json
+            windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup-2.4.3.exe
+            windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup-2.4.3.exe.sha256
             windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe
             windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe.sha256
 
@@ -210,6 +245,8 @@ jobs:
             windows/agent-x64/GODSEYE.Agent.exe
             windows/agent-x64/GODSEYE-Windows-Agent-x64.msi
             windows/agent-x64/GODSEYE-Windows-Agent-x64.msi.sha256
+            windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup-2.4.3.exe
+            windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup-2.4.3.exe.sha256
             windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe
             windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe.sha256
             windows/agent-x64/update-manifest.json
