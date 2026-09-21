@@ -1,5 +1,5 @@
 #define MyAppName "GODSEYE Windows Agent"
-#define MyAppVersion "2.4.1"
+#define MyAppVersion "2.4.2"
 #define MyAppPublisher "MSAPGROUP LLC"
 #define MyAppExeName "GODSEYE.Agent.exe"
 #define MyMsiName "GODSEYE-Windows-Agent-x64.msi"
@@ -24,7 +24,7 @@ RestartApplications=no
 Uninstallable=no
 
 [Files]
-Source: "..\{#MyMsiName}"; Flags: dontcopy
+Source: "..\\{#MyMsiName}"; Flags: dontcopy
 
 [Code]
 var
@@ -34,17 +34,17 @@ var
 
 function DataDir(): String;
 begin
-  Result := ExpandConstant('{commonappdata}\GODSEYE\Agent');
+  Result := ExpandConstant('{commonappdata}\\GODSEYE\\Agent');
 end;
 
 function ConfigPath(): String;
 begin
-  Result := DataDir() + '\agent.json';
+  Result := DataDir() + '\\agent.json';
 end;
 
 function AgentExePath(): String;
 begin
-  Result := ExpandConstant('{autopf64}\GODSEYE Agent\{#MyAppExeName}');
+  Result := ExpandConstant('{autopf64}\\GODSEYE Agent\\{#MyAppExeName}');
 end;
 
 procedure InitializeWizard;
@@ -124,12 +124,12 @@ begin
     exit;
 
   ExtractTemporaryFile('{#MyMsiName}');
-  MsiPath := ExpandConstant('{tmp}\{#MyMsiName}');
+  MsiPath := ExpandConstant('{tmp}\\{#MyMsiName}');
 
   { The MSI is the sole owner of files, service registration, repair, upgrades,
     and uninstall. This bootstrapper only supplies first-install enrollment UI. }
   Params := '/i "' + MsiPath + '" /qn /norestart';
-  if not Exec(ExpandConstant('{sys}\msiexec.exe'), Params, '', SW_SHOW, ewWaitUntilTerminated, MsiResultCode) or
+  if not Exec(ExpandConstant('{sys}\\msiexec.exe'), Params, '', SW_SHOW, ewWaitUntilTerminated, MsiResultCode) or
      ((MsiResultCode <> 0) and (MsiResultCode <> 3010)) then
     RaiseException('Windows Installer could not install GODSEYE Windows Agent. msiexec exit code: ' + IntToStr(MsiResultCode));
 
@@ -141,7 +141,7 @@ begin
 
     { The MSI starts the service automatically. Stop it while writing the first-time
       enrollment configuration, then restart it so enrollment happens immediately. }
-    Exec(ExpandConstant('{sys}\net.exe'), 'stop GODSEYEWindowsAgent /y', '', SW_HIDE, ewWaitUntilTerminated, ServiceResultCode);
+    Exec(ExpandConstant('{sys}\\net.exe'), 'stop GODSEYEWindowsAgent /y', '', SW_HIDE, ewWaitUntilTerminated, ServiceResultCode);
 
     Params := '--configure --server-url "' + Trim(ConfigPage.Values[0]) + '" --enrollment-token "' + Trim(ConfigPage.Values[1]) + '" --skip-tls-verify ';
     if TlsPage.SelectedValueIndex = 0 then
@@ -152,7 +152,7 @@ begin
     if not Exec(ExePath, Params, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
       RaiseException('The Windows Agent MSI installed successfully, but first-time GODSEYE configuration failed. Agent exit code: ' + IntToStr(ResultCode));
 
-    if not Exec(ExpandConstant('{sys}\net.exe'), 'start GODSEYEWindowsAgent', '', SW_HIDE, ewWaitUntilTerminated, ServiceResultCode) or (ServiceResultCode <> 0) then
+    if not Exec(ExpandConstant('{sys}\\net.exe'), 'start GODSEYEWindowsAgent', '', SW_HIDE, ewWaitUntilTerminated, ServiceResultCode) or (ServiceResultCode <> 0) then
       RaiseException('GODSEYE Windows Agent was configured, but the service could not be restarted. Windows service exit code: ' + IntToStr(ServiceResultCode));
   end;
 
