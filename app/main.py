@@ -6652,13 +6652,13 @@ html[data-theme="dark"] .v430-inventory-panel{overflow:visible!important;margin-
     <label>Calendar name<input class="input" id="calendarIntegrationCalendar" placeholder="Primary / Security Team"></label>
     <label>Remote calendar ID<input class="input" id="calendarIntegrationRemoteId" placeholder="primary"></label>
     <label>Sync every<select class="filter" id="calendarIntegrationInterval"><option value="15">15 minutes</option><option value="30" selected>30 minutes</option><option value="60">1 hour</option><option value="180">3 hours</option></select></label>
-    <label id="calendarClientIdWrap">OAuth client ID<input class="input" id="calendarIntegrationClientId" placeholder="OAuth client ID"></label>
-    <label id="calendarClientSecretWrap">OAuth client secret<input class="input" id="calendarIntegrationClientSecret" type="password" placeholder="OAuth client secret"></label>
+    <input type="hidden" id="calendarIntegrationClientId" value="">
+    <input type="hidden" id="calendarIntegrationClientSecret" value="">
     <label id="calendarBasicUserWrap" style="display:none">Username / email<input class="input" id="calendarIntegrationBasicUser" type="email" placeholder="name@example.com"></label>
     <label id="calendarBasicPasswordWrap" style="display:none">App password<input class="input" id="calendarIntegrationBasicPassword" type="password" placeholder="App password"></label>
     <label class="full" id="calendarIcsWrap" style="display:none">Private ICS subscription URL<input class="input" id="calendarIntegrationIcs" type="url" placeholder="https://.../calendar.ics"></label>
-    <div class="calendar-integration-note full" id="calendarIntegrationModeNote">Two-way OAuth lets GODSEYE create, edit and delete events in the connected calendar. OAuth credentials and refresh tokens are encrypted at rest.</div>
-    <div class="calendar-integration-note full">OAuth redirect URL: <code id="calendarOAuthRedirectHint">this GODSEYE URL + /api/v1/calendar/oauth/provider/callback</code>. If GODSEYE is behind HTTPS/reverse proxy, set <code>GODSEYE_PUBLIC_URL</code> to the externally reachable base URL.</div>
+    <div class="calendar-integration-note full" id="calendarIntegrationModeNote">Two-way OAuth lets GODSEYE create, edit and delete events in the connected calendar. Your app password is encrypted at rest.</div>
+    <div class="calendar-integration-note full">The calendar is linked automatically after Outlook mail setup.</div>
     <div id="calendarIntegrationErr" class="err full"></div>
     <div class="modal-actions full"><button type="button" class="secondary" onclick="closeCalendarIntegrationModal()">Close</button><button type="button" class="primary admin-only" onclick="saveCalendarIntegration()">Save Integration</button></div>
    </div>
@@ -6715,7 +6715,7 @@ html[data-theme="dark"] .v430-inventory-panel{overflow:visible!important;margin-
 
 <div id="emailIntegrationModal" class="modal" style="display:none" onclick="if(event.target===this)closeEmailIntegrationModal()">
  <div class="modal-card email-integration-dialog" role="dialog" aria-modal="true">
-  <div class="modal-head"><div><h2>Mail Accounts</h2><div class="muted">Connect Outlook with automatic account discovery. Your email address and provider app password are used for mailbox setup; OAuth is used when required for calendar access.</div></div><button class="icon-btn" onclick="closeEmailIntegrationModal()">×</button></div>
+  <div class="modal-head"><div><h2>Mail Accounts</h2><div class="muted">Outlook-style automatic setup: enter your email address and provider app password. GODSEYE discovers the mailbox servers automatically.</div></div><button class="icon-btn" onclick="closeEmailIntegrationModal()">×</button></div>
   <div class="email-integration-body">
     <div class="calendar-provider-grid">
       <button type="button" class="calendar-provider active" data-email-provider="microsoft365" onclick="selectEmailProvider('microsoft365')"><span class="calendar-provider-icon">M</span><b>Microsoft Outlook</b><small>Automatic setup · OAuth / app password</small></button>
@@ -6724,8 +6724,8 @@ html[data-theme="dark"] .v430-inventory-panel{overflow:visible!important;margin-
     <div class="email-integration-form">
       <label>Name<input class="input" id="emailIntegrationName" placeholder="Operations Mail"></label>
       <label>Account email<input class="input" id="emailIntegrationAddress" type="email" placeholder="name@example.com"></label>
-      <label>OAuth client ID<input class="input" id="emailIntegrationClientId" placeholder="OAuth client ID"></label>
-      <label>OAuth client secret<input class="input" id="emailIntegrationClientSecret" type="password" placeholder="OAuth client secret"></label>
+      <input type="hidden" id="emailIntegrationClientId" value="">
+      <input type="hidden" id="emailIntegrationClientSecret" value="">
       <label id="emailMailboxPasswordWrap" style="display:none">App password<input class="input" id="emailIntegrationPassword" type="password" placeholder="Use your provider app password"></label>
       <label id="emailImapHostWrap" style="display:none">IMAP server<input class="input" id="emailIntegrationImapHost" placeholder="imap.example.com"></label>
       <label id="emailImapPortWrap" style="display:none">IMAP port<input class="input" id="emailIntegrationImapPort" type="number" value="993"></label>
@@ -7631,15 +7631,17 @@ async function saveEmailDraft(){
  try{const body=await buildEmailComposePayload();await json('/api/v1/email/drafts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});closeEmailCompose();await loadEmailFolders()}catch(err){emailComposeErr.textContent='Could not save draft: '+err.message}
 }
 function selectEmailProvider(provider){
- emailProvider.value=provider;
- document.querySelectorAll('[data-email-provider]').forEach(x=>x.classList.toggle('active',x.dataset.emailProvider===provider));
- const basic=provider==='imap_smtp';['emailMailboxPasswordWrap','emailImapHostWrap','emailImapPortWrap','emailSmtpHostWrap','emailSmtpPortWrap'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display=basic?'flex':'none'});emailIntegrationClientId.parentElement.style.display=basic?'none':'flex';emailIntegrationClientSecret.parentElement.style.display=basic?'none':'flex';if(emailIntegrationModeNote)emailIntegrationModeNote.textContent=basic?'Outlook-style mailbox connection. Use your email address and provider-generated app password; never use your normal account password. IMAP receives mail and SMTP sends it.':'Gmail uses Gmail API OAuth access. Microsoft 365 uses Microsoft Graph with delegated Mail.ReadWrite and Mail.Send. Client secrets and OAuth tokens are encrypted at rest.';
+ emailProvider.value='microsoft365';
+ document.querySelectorAll('[data-email-provider]').forEach(x=>x.classList.toggle('active',x.dataset.emailProvider==='microsoft365'));
+ const basic=true;
+ ['emailMailboxPasswordWrap','emailImapHostWrap','emailImapPortWrap','emailSmtpHostWrap','emailSmtpPortWrap'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='flex'});
+ if(emailIntegrationModeNote)emailIntegrationModeNote.textContent='Outlook-style automatic setup. Enter your email address and provider app password; GODSEYE discovers the Outlook IMAP/SMTP servers automatically.';
 }
 function openEmailIntegrationModal(){emailIntegrationModal.style.display='grid';document.body.style.overflow='hidden';renderEmailIntegrations()}
 function closeEmailIntegrationModal(){emailIntegrationModal.style.display='none';document.body.style.overflow=''}
 async function saveEmailIntegration(){
  emailIntegrationErr.textContent='';
- const basic=emailProvider.value==='imap_smtp';const body={provider:emailProvider.value,name:emailIntegrationName.value.trim(),account_email:emailIntegrationAddress.value.trim(),auth_mode:basic?'password':'oauth',client_id:emailIntegrationClientId.value.trim(),client_secret:emailIntegrationClientSecret.value,username:emailIntegrationAddress.value.trim(),password:document.getElementById('emailIntegrationPassword')?.value||'',imap_host:document.getElementById('emailIntegrationImapHost')?.value.trim()||'',imap_port:Number(document.getElementById('emailIntegrationImapPort')?.value||993),smtp_host:document.getElementById('emailIntegrationSmtpHost')?.value.trim()||'',smtp_port:Number(document.getElementById('emailIntegrationSmtpPort')?.value||587)};
+ const body={provider:'imap_smtp',name:emailIntegrationName.value.trim(),account_email:emailIntegrationAddress.value.trim(),auth_mode:'password',client_id:'',client_secret:'',username:emailIntegrationAddress.value.trim(),password:document.getElementById('emailIntegrationPassword')?.value||'',imap_host:'',imap_port:993,smtp_host:'',smtp_port:587};
  try{
   const result=await json('/api/v1/email/integrations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   emailIntegrationClientSecret.value='';document.getElementById('emailIntegrationPassword').value='';emailIntegrationName.value='';
