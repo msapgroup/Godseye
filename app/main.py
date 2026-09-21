@@ -6768,6 +6768,7 @@ html[data-theme="dark"] .v430-inventory-panel{overflow:visible!important;margin-
       <input type="hidden" id="emailIntegrationClientId" value="">
       <input type="hidden" id="emailIntegrationClientSecret" value="">
       <label id="emailMailboxPasswordWrap" style="display:none">App password<input class="input" id="emailIntegrationPassword" type="password" placeholder="Use your provider app password"></label>
+      <button type="button" class="secondary" id="emailManualSettingsToggle" onclick="toggleEmailManualSettings()" style="display:none">Use manual server settings</button>
       <label id="emailImapHostWrap" style="display:none">IMAP server<input class="input" id="emailIntegrationImapHost" placeholder="imap.example.com"></label>
       <label id="emailImapPortWrap" style="display:none">IMAP port<input class="input" id="emailIntegrationImapPort" type="number" value="993"></label>
       <label id="emailSmtpHostWrap" style="display:none">SMTP server<input class="input" id="emailIntegrationSmtpHost" placeholder="smtp.example.com"></label>
@@ -7692,9 +7693,16 @@ async function saveEmailDraft(){
 function selectEmailProvider(provider){
  emailProvider.value='microsoft365';
  document.querySelectorAll('[data-email-provider]').forEach(x=>x.classList.toggle('active',x.dataset.emailProvider==='microsoft365'));
- const basic=true;
- ['emailMailboxPasswordWrap','emailImapHostWrap','emailImapPortWrap','emailSmtpHostWrap','emailSmtpPortWrap'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='flex'});
- if(emailIntegrationModeNote)emailIntegrationModeNote.textContent='Outlook-style automatic setup. Enter your email address and provider app password; GODSEYE discovers the Outlook IMAP/SMTP servers automatically.';
+ ['emailMailboxPasswordWrap'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='flex'});
+ ['emailImapHostWrap','emailImapPortWrap','emailSmtpHostWrap','emailSmtpPortWrap'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='none'});
+ const toggle=document.getElementById('emailManualSettingsToggle');if(toggle){toggle.style.display='inline-flex';toggle.textContent='Use manual server settings';}
+ if(emailIntegrationModeNote)emailIntegrationModeNote.textContent='Outlook-style setup: enter your email address and app password first. GODSEYE automatically discovers the IMAP/SMTP settings; manual settings are available only if discovery fails.';
+}
+function toggleEmailManualSettings(){
+ const ids=['emailImapHostWrap','emailImapPortWrap','emailSmtpHostWrap','emailSmtpPortWrap'];
+ const show=document.getElementById('emailImapHostWrap')?.style.display!=='flex';
+ ids.forEach(id=>{const el=document.getElementById(id);if(el)el.style.display=show?'flex':'none'});
+ const toggle=document.getElementById('emailManualSettingsToggle');if(toggle)toggle.textContent=show?'Hide manual server settings':'Use manual server settings';
 }
 function openEmailIntegrationModal(){emailIntegrationModal.style.display='grid';document.body.style.overflow='hidden';selectEmailProvider('microsoft365');renderEmailIntegrations()}
 function closeEmailIntegrationModal(){emailIntegrationModal.style.display='none';document.body.style.overflow=''}
