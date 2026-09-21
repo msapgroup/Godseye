@@ -5,11 +5,11 @@ def test_v431_versions_and_installer_keep_token_enrollment():
     assert Path("VERSION").read_text().strip() == "4.31.0"
     project = Path("windows/agent-x64/src/Godseye.WindowsAgent/Godseye.WindowsAgent.csproj").read_text()
     installer = Path("windows/agent-x64/installer/GODSEYE-Agent-x64.iss").read_text()
-    assert "<Version>2.4.3</Version>" in project
-    assert '#define MyAppVersion "2.4.3"' in installer
-    assert 'OutputBaseFilename=GODSEYE-Windows-Agent-x64-Setup-2.4.3' in installer
+    assert "<Version>2.4.4</Version>" in project
+    assert '#define MyAppVersion "2.4.4"' in installer
+    assert 'OutputBaseFilename=GODSEYE-Windows-Agent-x64-Setup-2.4.4' in installer
     assert "GetVersionNumbersString(ExePath, InstalledVersion)" in installer
-    assert "GODSEYE Windows Agent 2.4.3 was installed and verified successfully" in installer
+    assert "GODSEYE Windows Agent 2.4.4 was installed and verified successfully" in installer
     assert "Enrollment token:" in installer
     assert "--enrollment-token" in installer
 
