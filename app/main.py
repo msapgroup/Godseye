@@ -3054,6 +3054,19 @@ def email_integrations(user=Depends(require_permission("operate"))):
                          FROM email_integrations ORDER BY name""").fetchall()
     return [dict(r) for r in rows]
 
+def _email_autodiscover(account_email: str):
+    """Return Outlook/Gmail-compatible IMAP/SMTP defaults for app-password mail.
+
+    Explicit server fields still win; these defaults make the common Outlook
+    setup work from just an email address and provider app password.
+    """
+    domain=account_email.rsplit("@",1)[-1].lower().strip() if "@" in account_email else ""
+    if domain in {"outlook.com","hotmail.com","live.com","msn.com"} or domain.endswith(".onmicrosoft.com"):
+        return ("outlook.office365.com",993,"smtp.office365.com",587)
+    if domain in {"gmail.com","googlemail.com"}:
+        return ("imap.gmail.com",993,"smtp.gmail.com",587)
+    return (f"imap.{domain}",993,f"smtp.{domain}",587) if domain else ("",993,"",587)
+
 @app.post(f"{router_prefix}/email/integrations")
 def email_integration_create(req: EmailIntegrationRequest, request: Request, user=Depends(require_admin)):
     provider=req.provider.strip().lower()
@@ -3065,7 +3078,12 @@ def email_integration_create(req: EmailIntegrationRequest, request: Request, use
         # Standard mailboxes authenticate with the full email address as the
         # username and an app password (never the normal account password).
         mail_username=(req.username.strip() or req.account_email.strip())
-        if "@" not in mail_username or not req.password or not req.imap_host.strip() or not req.smtp_host.strip():
+        discovered_imap,discovered_imap_port,discovered_smtp,discovered_smtp_port=_email_autodiscover(mail_username)
+        imap_host=(req.imap_host.strip() or discovered_imap)
+        smtp_host=(req.smtp_host.strip() or discovered_smtp)
+        imap_port=req.imap_port or discovered_imap_port
+        smtp_port=req.smtp_port or discovered_smtp_port
+        if "@" not in mail_username or not req.password or not imap_host or not smtp_host:
             raise HTTPException(400,"Email username, app password, IMAP server, and SMTP server are required")
         status="connected"
     else:
@@ -3076,7 +3094,7 @@ def email_integration_create(req: EmailIntegrationRequest, request: Request, use
     with db() as c:
         iid=c.execute("""INSERT INTO email_integrations(provider,name,account_email,client_id,client_secret_enc,auth_mode,password_enc,imap_host,imap_port,smtp_host,smtp_port,enabled,last_status,created_at,updated_at)
                          VALUES(?,?,?,?,?,?,?,?,?,?,?,1,?,?,?)""",
-                      (provider,req.name.strip()[:160],(mail_username if provider=="imap_smtp" else req.account_email.strip())[:254],req.client_id.strip()[:500],encrypt_secret(req.client_secret.strip()),mode,encrypt_secret(req.password) if req.password else "",req.imap_host.strip()[:255],max(1,min(req.imap_port,65535)),req.smtp_host.strip()[:255],max(1,min(req.smtp_port,65535)),status,ts,ts)).lastrowid
+                      (provider,req.name.strip()[:160],(mail_username if provider=="imap_smtp" else req.account_email.strip())[:254],req.client_id.strip()[:500],encrypt_secret(req.client_secret.strip()),mode,encrypt_secret(req.password) if req.password else "",(imap_host if provider=="imap_smtp" else req.imap_host.strip())[:255],max(1,min((imap_port if provider=="imap_smtp" else req.imap_port),65535)),(smtp_host if provider=="imap_smtp" else req.smtp_host.strip())[:255],max(1,min((smtp_port if provider=="imap_smtp" else req.smtp_port),65535)),status,ts,ts)).lastrowid
         audit(c,user["username"],"email_integration_created",str(iid),json.dumps({"provider":provider,"name":req.name.strip()}),client_ip(request))
     return {"ok":True,"id":iid,"needs_authorization":status!="connected","auth_mode":mode}
 
