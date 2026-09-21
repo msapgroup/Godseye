@@ -206,7 +206,7 @@ def test_remote_access_rejects_pre_240_agent(tmp_path):
 def test_remote_access_ui_understands_v241_consent_and_requirement():
     source=Path("app/main.py").read_text(encoding="utf-8")
     assert 'd["remote_supported"]=_agent_version_tuple(installed_version) >= (2,4,0)' in source
-    assert 'Upgrade to Agent 2.4.3' in source
+    assert 'Upgrade to Agent 2.4.4' in source
     for state in ("requested","waiting_for_tray","tray_ready","waiting_for_user","approved","capture_started","active","denied","failed","ended"):
         assert state in source
     assert "const pending=['requested','waiting_for_tray','tray_ready','waiting_for_user','approved','capture_started']" in source
