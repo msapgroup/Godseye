@@ -6635,7 +6635,7 @@ html[data-theme="dark"] .v430-inventory-panel{overflow:visible!important;margin-
   <div class="calendar-shell">
     <aside class="calendar-side">
       <div class="calendar-side-block"><div class="calendar-side-title">Calendar Integrations <button type="button" class="link" onclick="openCalendarIntegrationModal()">Manage</button></div>
-        <label class="calendar-filter"><input type="checkbox" checked onchange="toggleCalendarSource('local',this.checked)"><span class="calendar-dot blue"></span>GODSEYE</label>
+        <label data-source="local" class="calendar-filter calendar-switch-row active" onclick="selectCalendarSource('local')"><input type="checkbox" checked onchange="event.stopPropagation();toggleCalendarSource('local',this.checked)"><span class="calendar-dot blue"></span><span>GODSEYE</span></label>
         <div id="calendarExternalFilters"></div>
       </div>
       <div class="calendar-side-block"><div class="calendar-side-title">Upcoming Events</div><div id="calendarUpcoming" class="calendar-upcoming"><div class="empty">No upcoming appointments.</div></div></div>
@@ -7262,6 +7262,7 @@ let CALENDAR_EVENTS=[];
 let CALENDAR_VIEW_MODE='month';
 let CALENDAR_INTEGRATIONS=[];
 let CALENDAR_SOURCE_VISIBILITY={local:true};
+let CALENDAR_ACTIVE_SOURCE='local';
 let CALENDAR_ACTIVE_TICKET_ID=null;
 
 function calendarIsoLocal(d){
@@ -7314,10 +7315,22 @@ function installCalendarDateInteractions(){
    openCalendarEventModal(null,day.dataset.calendarDate);
  });
 }
-function toggleCalendarSource(source,visible){CALENDAR_SOURCE_VISIBILITY[source]=visible;renderCalendar()}
+function selectCalendarSource(source){
+ CALENDAR_ACTIVE_SOURCE=source;
+ CALENDAR_SOURCE_VISIBILITY={local:source==='local'};
+ CALENDAR_INTEGRATIONS.forEach(i=>{CALENDAR_SOURCE_VISIBILITY['calendar:'+i.id]=source==='calendar:'+i.id});
+ renderCalendarFilters();
+ renderCalendar();
+}
+function toggleCalendarSource(source,visible){
+ CALENDAR_SOURCE_VISIBILITY[source]=visible;
+ if(visible)CALENDAR_ACTIVE_SOURCE=source;
+ renderCalendarFilters();
+ renderCalendar();
+}
 function renderCalendarFilters(){
  const root=document.getElementById('calendarExternalFilters');if(!root)return;
- root.innerHTML=CALENDAR_INTEGRATIONS.length?CALENDAR_INTEGRATIONS.map(i=>`<label class="calendar-filter v430-calendar-connection"><input type="checkbox" ${CALENDAR_SOURCE_VISIBILITY['calendar:'+i.id]!==false?'checked':''} onchange="toggleCalendarSource('calendar:${i.id}',this.checked)"><span class="v430-provider-glyph ${i.provider==='google'?'google':'microsoft'}">${i.provider==='google'?'G':'O'}</span><span><b>${esc(i.name)}</b><small>${esc(i.account_email||i.provider)}</small></span><em>${i.enabled?'Connected':'Paused'}</em></label>`).join(''):'<button class="calendar-connection-prompt" onclick="openCalendarIntegrationModal();selectCalendarProvider(\'google\')"><span class="v430-provider-glyph google">G</span>Google Calendar <small>Connect</small></button><button class="calendar-connection-prompt" onclick="openCalendarIntegrationModal();selectCalendarProvider(\'microsoft365\')"><span class="v430-provider-glyph microsoft">O</span>Microsoft 365 <small>Connect</small></button>';
+ root.innerHTML=CALENDAR_INTEGRATIONS.length?CALENDAR_INTEGRATIONS.map(i=>{const source='calendar:'+i.id;return '<label data-source="'+source+'" class="calendar-filter calendar-switch-row v430-calendar-connection '+(CALENDAR_ACTIVE_SOURCE===source?'active':'')+'" onclick="selectCalendarSource(\''+source+'\')"><input type="checkbox" '+(CALENDAR_SOURCE_VISIBILITY[source]!==false?'checked':'')+' onchange="event.stopPropagation();toggleCalendarSource(\''+source+'\',this.checked)"><span class="v430-provider-glyph '+(i.provider==='google'?'google':'microsoft')+'">'+(i.provider==='google'?'G':'O')+'</span><span><b>'+esc(i.name)+'</b><small>'+esc(i.account_email||i.provider)+'</small></span><em>'+(i.enabled?'Connected':'Paused')+'</em></label>'}).join(''):'<button class="calendar-connection-prompt" onclick="openCalendarIntegrationModal();selectCalendarProvider(\'microsoft365\')"><span class="v430-provider-glyph microsoft">O</span>Outlook Calendar <small>Connect</small></button>';
 }
 function renderCalendar(){
  const label=document.getElementById('calendarMonthLabel'),grid=document.getElementById('calendarGrid');if(!label||!grid)return;
