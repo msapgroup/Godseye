@@ -3432,6 +3432,8 @@ class WindowsAgentCommandResult(BaseModel):
     new_findings: int = 0
     details: str = ""
     completed_at: str = ""
+    updates: list[dict] = []
+    installed_update_ids: list[str] = []
 
 class WindowsAgentConfigRequest(BaseModel):
     channels: list[str] = ["System", "Application"]
@@ -3599,7 +3601,7 @@ def windows_agent_command_result(command_id: int, req: WindowsAgentCommandResult
     with db() as c:
         row=c.execute("SELECT * FROM windows_agent_commands WHERE id=? AND agent_id=?",(command_id,agent["id"])).fetchone()
         if not row: raise HTTPException(404,"Windows Agent command not found")
-        result={"ok":bool(req.ok),"events":max(0,int(req.events or 0)),"new_findings":max(0,int(req.new_findings or 0)),"details":req.details[:4000],"completed_at":req.completed_at or ts}
+        result={"ok":bool(req.ok),"events":max(0,int(req.events or 0)),"new_findings":max(0,int(req.new_findings or 0)),"details":req.details[:4000],"completed_at":req.completed_at or ts,"updates":req.updates[:500],"installed_update_ids":req.installed_update_ids[:500]}
         c.execute("UPDATE windows_agent_commands SET status=?,completed_at=?,result_json=? WHERE id=?",('completed' if req.ok else 'failed',ts,json.dumps(result),command_id))
         c.execute("UPDATE windows_agents SET status='online',last_heartbeat_at=?,last_error=?,updated_at=? WHERE id=?",(ts,'' if req.ok else req.details[:1000],ts,agent["id"]))
         audit(c,"windows-agent","windows_agent_command_completed",str(command_id),json.dumps({"agent_id":agent["id"],"command_type":row["command_type"],**result})[:2000],client_ip(request))
@@ -3671,6 +3673,38 @@ def windows_agent_pull_now(agent_id: int, request: Request, user=Depends(require
         cid=cur.lastrowid
         audit(c,user["username"],"windows_agent_pull_requested",str(agent_id),json.dumps({"command_id":cid,"computer_name":agent["computer_name"]}),client_ip(request))
     return {"ok":True,"queued":True,"command_id":cid,"status":"pending","message":"Pull Events Now queued. The agent will receive it on its next heartbeat."}
+
+@app.post(f"{router_prefix}/windows-agents/{{agent_id}}/windows-updates/scan")
+def windows_agent_windows_updates_scan(agent_id: int, request: Request, user=Depends(require_permission("operate"))):
+    ts=now()
+    with db() as c:
+        agent=c.execute("SELECT * FROM windows_agents WHERE id=?",(agent_id,)).fetchone()
+        if not agent or not agent["enabled"] or agent["revoked_at"]: raise HTTPException(404,"Windows Agent not found or disabled")
+        cur=c.execute("INSERT INTO windows_agent_commands(agent_id,command_type,payload_json,status,requested_by,requested_at) VALUES(?,'scan_windows_updates','{}','pending',?,?)",(agent_id,user["username"],ts))
+        cid=cur.lastrowid
+    return {"ok":True,"command_id":cid,"status":"pending","message":"Microsoft Windows Update scan queued."}
+
+@app.post(f"{router_prefix}/windows-agents/{{agent_id}}/windows-updates/install")
+def windows_agent_windows_updates_install(agent_id: int, payload: dict, request: Request, user=Depends(require_permission("operate"))):
+    ids=[str(x)[:300] for x in (payload.get("update_ids") or []) if str(x).strip()][:200]
+    if not ids: raise HTTPException(400,"Select at least one Windows update")
+    ts=now()
+    with db() as c:
+        agent=c.execute("SELECT * FROM windows_agents WHERE id=?",(agent_id,)).fetchone()
+        if not agent or not agent["enabled"] or agent["revoked_at"]: raise HTTPException(404,"Windows Agent not found or disabled")
+        cur=c.execute("INSERT INTO windows_agent_commands(agent_id,command_type,payload_json,status,requested_by,requested_at) VALUES(?,'install_windows_updates',?,'pending',?,?)",(agent_id,json.dumps({"update_ids":ids},separators=(",",":")),user["username"],ts))
+        cid=cur.lastrowid
+    return {"ok":True,"command_id":cid,"status":"pending","message":"Microsoft Windows Update installation queued."}
+
+@app.get(f"{router_prefix}/windows-agents/commands/{{command_id}}")
+def windows_agent_command_status(command_id: int, user=Depends(require_permission("operate"))):
+    with db() as c:
+        row=c.execute("SELECT id,agent_id,command_type,status,result_json,requested_at,completed_at FROM windows_agent_commands WHERE id=?",(command_id,)).fetchone()
+        if not row: raise HTTPException(404,"Windows Agent command not found")
+    out=dict(row)
+    try: out["result"]=json.loads(out.pop("result_json") or "{}")
+    except Exception: out["result"]={}
+    return out
 
 @app.post(f"{router_prefix}/windows-agents/{{agent_id}}/clamav-scan")
 def windows_agent_clamav_scan(agent_id: int, request: Request, user=Depends(require_permission("operate"))):
@@ -6793,6 +6827,7 @@ html[data-theme="dark"] .v430-inventory-panel{overflow:visible!important;margin-
     </div>
     <div class="calendar-connected-title">Enrolled Windows agents</div>
     <div id="windowsAgentList" class="windows-agent-list"><div class="empty">No Windows Agents enrolled.</div></div>
+    <div id="windowsUpdatesPanel" class="calendar-integration-note"><b>Microsoft Windows Update</b><div id="windowsUpdatesResults" class="muted">Select an agent and scan for Microsoft updates.</div></div>
     <div class="calendar-integration-note">WinRM remains available as an agentless fallback. Agent collection does not require inbound TCP 5986 on Windows.</div>
   </div>
  </div>
@@ -7707,9 +7742,27 @@ function renderWindowsAgents(){
      updateBtn=x.upgrade_supported?`<button class="primary admin-only" onclick="upgradeWindowsAgent(${x.id})">↑ Upgrade to ${esc(x.available_version)}</button>`:`<button class="secondary admin-only" onclick="downloadWindowsAgentPackage()" title="Agent 2.0.x needs one manual baseline upgrade; enrollment is preserved.">↓ Manual Update to ${esc(x.available_version)}</button>`;
    }else if(!x.revoked_at&&x.available_version){updateBtn=`<button class="secondary" disabled>✓ Up to date</button>`}
    const updateText=x.available_version?(x.update_available?` · Update available: ${esc(x.available_version)}${x.upgrade_supported?'':' (one manual baseline update required)'}`:` · Latest: ${esc(x.available_version)}`):'';
-   return `<div class="windows-agent-row"><span class="windows-agent-icon">W</span><div><b>${esc(x.computer_name||x.hostname||'Windows Agent')}</b><small><span class="agent-status ${esc(x.status||'enrolled')}"><span class="agent-status-dot"></span>${esc(x.status||'enrolled')}</span> · ${esc(x.ip_address||'no IP')} · ${esc(x.os_version||'Windows')} · Agent ${esc(x.agent_version||'—')} · ${x.open_findings||0} open finding(s)${updateText}</small><small>Last heartbeat: ${x.last_heartbeat_at?esc(new Date(x.last_heartbeat_at).toLocaleString()):'never'} · Channels: ${(x.channels||[]).map(esc).join(', ')} · every ${x.poll_interval_seconds||60}s${pull}${x.last_error?' · '+esc(x.last_error):''}</small></div><div class="actions">${updateBtn}${pullBtn}${x.revoked_at?`<button class="danger admin-only" onclick="purgeWindowsAgent(${x.id})">Remove Permanently</button>`:`<button class="secondary admin-only" onclick="configureWindowsAgent(${x.id})">Configure</button><button class="danger admin-only" onclick="revokeWindowsAgent(${x.id})">Revoke</button>`}</div></div>`
+   return `<div class="windows-agent-row"><span class="windows-agent-icon">W</span><div><b>${esc(x.computer_name||x.hostname||'Windows Agent')}</b><small><span class="agent-status ${esc(x.status||'enrolled')}"><span class="agent-status-dot"></span>${esc(x.status||'enrolled')}</span> · ${esc(x.ip_address||'no IP')} · ${esc(x.os_version||'Windows')} · Agent ${esc(x.agent_version||'—')} · ${x.open_findings||0} open finding(s)${updateText}</small><small>Last heartbeat: ${x.last_heartbeat_at?esc(new Date(x.last_heartbeat_at).toLocaleString()):'never'} · Channels: ${(x.channels||[]).map(esc).join(', ')} · every ${x.poll_interval_seconds||60}s${pull}${x.last_error?' · '+esc(x.last_error):''}</small></div><div class="actions"><button class="secondary operate-only" onclick="scanMicrosoftWindowsUpdates(${x.id})">Scan Microsoft Updates</button>${updateBtn}${pullBtn}${x.revoked_at?`<button class="danger admin-only" onclick="purgeWindowsAgent(${x.id})">Remove Permanently</button>`:`<button class="secondary admin-only" onclick="configureWindowsAgent(${x.id})">Configure</button><button class="danger admin-only" onclick="revokeWindowsAgent(${x.id})">Revoke</button>`}</div></div>`
  }).join(''):'<div class="empty">No Windows Agents enrolled.</div>';
  applyRoleVisibility();
+}
+async function scanMicrosoftWindowsUpdates(id){
+ const box=document.getElementById('windowsUpdatesResults');if(box)box.textContent='Scanning Microsoft Windows Update…';
+ try{const r=await json('/api/v1/windows-agents/'+id+'/windows-updates/scan',{method:'POST'});await pollMicrosoftWindowsUpdateCommand(r.command_id,id)}catch(e){if(box)box.textContent='Windows Update scan failed: '+e.message}
+}
+async function pollMicrosoftWindowsUpdateCommand(commandId,agentId){
+ const box=document.getElementById('windowsUpdatesResults');
+ for(let i=0;i<40;i++){await new Promise(r=>setTimeout(r,1500));const r=await json('/api/v1/windows-agents/commands/'+commandId);
+  if(r.status==='completed'||r.status==='failed'){const updates=r.result?.updates||[];if(r.status==='failed'||r.result?.ok===false){if(box)box.textContent='Windows Update failed: '+(r.result?.details||'agent error');return}
+   if(!updates.length){if(box)box.textContent='Microsoft Windows reports no missing updates.';return}
+   if(box)box.innerHTML=updates.map((u,i)=>'<label style="display:block;margin:6px 0"><input type="checkbox" class="windows-update-choice" data-agent="'+agentId+'" value="'+esc(String(u.id||u.update_id||''))+'"> '+esc(u.title||u.name||u.kb||String(u.id||'Windows update'))+'</label>').join('')+'<button class="primary" type="button" onclick="installSelectedMicrosoftUpdates('+agentId+')">Install Selected Updates</button>';return}
+ }
+ if(box)box.textContent='Windows Update scan is still running. Refresh shortly.';
+}
+async function installSelectedMicrosoftUpdates(agentId){
+ const ids=[...document.querySelectorAll('.windows-update-choice[data-agent="'+agentId+'"]:checked')].map(x=>x.value).filter(Boolean);
+ if(!ids.length){alert('Select at least one Windows update.');return}
+ try{const r=await json('/api/v1/windows-agents/'+agentId+'/windows-updates/install',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({update_ids:ids})});await pollMicrosoftWindowsUpdateCommand(r.command_id,agentId)}catch(e){alert('Windows Update installation failed: '+e.message)}
 }
 async function checkWindowsAgentUpdates(){
  try{
