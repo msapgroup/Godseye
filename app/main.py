@@ -2789,8 +2789,11 @@ def calendar_integration_delete(integration_id: int, request: Request, user=Depe
 # Email client
 # ---------------------------------------------------------------------------
 
-GMAIL_MAIL_SCOPE="https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/gmail.send"
-MICROSOFT_MAIL_SCOPE="offline_access User.Read Mail.ReadWrite Mail.Send"
+# Request calendar access at the same time as mail access.  This keeps the
+# Outlook/Gmail-style one-account setup: once mail OAuth completes, the same
+# delegated grant can be used by the linked calendar integration.
+GMAIL_MAIL_SCOPE="https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/calendar"
+MICROSOFT_MAIL_SCOPE="offline_access User.Read Mail.ReadWrite Mail.Send Calendars.ReadWrite"
 
 class EmailIntegrationRequest(BaseModel):
     provider: str
@@ -3073,6 +3076,37 @@ def email_integration_create(req: EmailIntegrationRequest, request: Request, use
         audit(c,user["username"],"email_integration_created",str(iid),json.dumps({"provider":provider,"name":req.name.strip()}),client_ip(request))
     return {"ok":True,"id":iid,"needs_authorization":status!="connected","auth_mode":mode}
 
+def _ensure_calendar_for_email(c, email_row, username=""):
+    """Create/update the provider calendar that belongs to a connected mailbox.
+
+    Mail and calendar are one account from the operator's perspective. Keep
+    the calendar row separate (the sync worker expects that table), but reuse
+    the OAuth client and delegated tokens so no second setup wizard is needed.
+    """
+    provider=email_row["provider"]
+    if provider not in {"gmail","microsoft365"} or not email_row["refresh_token_enc"]:
+        return None
+    existing=c.execute("SELECT * FROM calendar_integrations WHERE provider=? AND account_email=? ORDER BY id LIMIT 1",
+                       (provider,email_row["account_email"] or "")).fetchone()
+    ts=now()
+    remote="primary" if provider=="gmail" else "default"
+    if existing:
+        c.execute("""UPDATE calendar_integrations SET client_id=?,client_secret_enc=?,access_token_enc=?,
+                     refresh_token_enc=?,token_expires_at=?,auth_mode='oauth',remote_calendar_id=?,
+                     enabled=1,last_status='connected',last_error='',updated_at=? WHERE id=?""",
+                  (email_row["client_id"],email_row["client_secret_enc"],email_row["access_token_enc"],
+                   email_row["refresh_token_enc"],email_row["token_expires_at"],remote,ts,existing["id"]))
+        return existing["id"]
+    name=("Gmail Calendar" if provider=="gmail" else "Microsoft 365 Calendar")
+    cur=c.execute("""INSERT INTO calendar_integrations(provider,name,account_email,calendar_name,auth_mode,
+                 remote_calendar_id,client_id,client_secret_enc,access_token_enc,refresh_token_enc,
+                 token_expires_at,enabled,sync_interval_minutes,last_status,created_at,updated_at)
+                 VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                  (provider,name,email_row["account_email"] or "",name,"oauth",remote,email_row["client_id"],
+                   email_row["client_secret_enc"],email_row["access_token_enc"],email_row["refresh_token_enc"],
+                   email_row["token_expires_at"],1,30,"connected",ts,ts))
+    return cur.lastrowid
+
 @app.post(f"{router_prefix}/email/integrations/{{integration_id}}/oauth/start")
 def email_oauth_start(integration_id: int, request: Request, user=Depends(require_admin)):
     with db() as c:
@@ -3111,9 +3145,11 @@ def email_oauth_callback(provider: str, state: str, code: str | None=None, error
         exp=(dt.datetime.now(dt.timezone.utc)+dt.timedelta(seconds=max(60,int(tok.get("expires_in",3600))))).isoformat()
         c.execute("""UPDATE email_integrations SET access_token_enc=?,refresh_token_enc=?,token_expires_at=?,last_status='connected',last_error='',updated_at=? WHERE id=?""",
                   (encrypt_secret(access),encrypt_secret(refresh),exp,now(),row["id"]))
-        audit(c,saved["created_by"],"email_oauth_connected",str(row["id"]),json.dumps({"provider":provider}),None)
+        connected_row=c.execute("SELECT * FROM email_integrations WHERE id=?",(row["id"],)).fetchone()
+        _ensure_calendar_for_email(c,connected_row,saved["created_by"])
+        audit(c,saved["created_by"],"email_oauth_connected",str(row["id"]),json.dumps({"provider":provider,"calendar_auto_setup":True}),None)
     name="Gmail" if provider=="gmail" else "Microsoft 365"
-    html="<!doctype html><html><body style=\"font-family:system-ui;background:#0b1119;color:#fff;padding:40px\"><h2>"+name+" connected</h2><p>You can close this window and return to GODSEYE.</p><script>if(window.opener)window.opener.postMessage({type:'godseye-email-connected'},window.location.origin);setTimeout(()=>window.close(),900);</script></body></html>"
+    html="<!doctype html><html><body style=\"font-family:system-ui;background:#0b1119;color:#fff;padding:40px\"><h2>"+name+" connected</h2><p>Your calendar was set up automatically. You can close this window and return to GODSEYE.</p><script>if(window.opener)window.opener.postMessage({type:'godseye-email-connected',calendarConnected:true},window.location.origin);setTimeout(()=>window.close(),900);</script></body></html>
     return HTMLResponse(html)
 
 @app.delete(f"{router_prefix}/email/integrations/{{integration_id}}")
