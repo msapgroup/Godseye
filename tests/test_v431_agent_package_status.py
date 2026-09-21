@@ -20,10 +20,10 @@ def test_package_status_uses_the_versioned_release_when_local_installer_is_absen
             status = client.get("/api/v1/windows-agents/package-status")
             assert status.status_code == 200
             assert status.json()["available"] is True
-            assert status.json()["version"] == "2.4.3"
+            assert status.json()["version"] == "2.4.4"
             response = client.get("/api/v1/windows-agents/package", follow_redirects=False)
             assert response.status_code == 302
-            assert response.headers["location"].endswith("GODSEYE-Windows-Agent-x64-Setup-2.4.3.exe")
+            assert response.headers["location"].endswith("GODSEYE-Windows-Agent-x64-Setup-2.4.4.exe")
             assert response.headers["cache-control"].startswith("no-store")
     finally:
         main.DB_PATH, main.BASE_DIR = old_db, old_base
@@ -36,7 +36,7 @@ def test_agent_modal_disables_missing_installer_and_handles_download_errors():
     assert "button.disabled=!info.available" in source
     assert "response.ok" in source
     assert "cache:'no-store'" in source
-    assert "GODSEYE-Windows-Agent-x64-Setup-2.4.3.exe" in source
+    assert "GODSEYE-Windows-Agent-x64-Setup-2.4.4.exe" in source
 
 
 def test_agent_installer_always_explains_enrollment_choice():
@@ -52,8 +52,8 @@ def test_built_agent_installer_is_reported_and_downloaded(tmp_path):
     main.DB_PATH, main.BASE_DIR = tmp_path / "package.db", tmp_path
     package_dir = tmp_path / "windows" / "agent-x64"
     package_dir.mkdir(parents=True)
-    built = package_dir / "GODSEYE-Windows-Agent-x64-Setup-2.4.3.exe"
-    built.write_bytes(b"MZ" + b"GODSEYE-AGENT-2.4.3" * 64)
+    built = package_dir / "GODSEYE-Windows-Agent-x64-Setup-2.4.4.exe"
+    built.write_bytes(b"MZ" + b"GODSEYE-AGENT-2.4.4" * 64)
     try:
         main.init_db()
         with TestClient(main.app) as client:
@@ -65,8 +65,8 @@ def test_built_agent_installer_is_reported_and_downloaded(tmp_path):
             assert response.status_code == 200
             assert response.headers["content-type"].startswith("application/vnd.microsoft.portable-executable")
             assert response.headers["cache-control"].startswith("no-store")
-            assert response.headers["x-godseye-agent-version"] == "2.4.3"
-            assert 'filename="GODSEYE-Windows-Agent-x64-Setup-2.4.3.exe"' in response.headers["content-disposition"]
+            assert response.headers["x-godseye-agent-version"] == "2.4.4"
+            assert 'filename="GODSEYE-Windows-Agent-x64-Setup-2.4.4.exe"' in response.headers["content-disposition"]
             assert response.content == built.read_bytes()
     finally:
         main.DB_PATH, main.BASE_DIR = old_db, old_base
