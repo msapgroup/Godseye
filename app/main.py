@@ -3153,7 +3153,7 @@ def email_oauth_callback(provider: str, state: str, code: str | None=None, error
         _ensure_calendar_for_email(c,connected_row,saved["created_by"])
         audit(c,saved["created_by"],"email_oauth_connected",str(row["id"]),json.dumps({"provider":provider,"calendar_auto_setup":True}),None)
     name="Gmail" if provider=="gmail" else "Microsoft 365"
-    html="<!doctype html><html><body style=\"font-family:system-ui;background:#0b1119;color:#fff;padding:40px\"><h2>"+name+" connected</h2><p>Your calendar was set up automatically. You can close this window and return to GODSEYE.</p><script>if(window.opener)window.opener.postMessage({type:'godseye-email-connected',calendarConnected:true},window.location.origin);setTimeout(()=>window.close(),900);</script></body></html>
+    html="<!doctype html><html><body style=\"font-family:system-ui;background:#0b1119;color:#fff;padding:40px\"><h2>"+name+" connected</h2><p>Your calendar was set up automatically. You can close this window and return to GODSEYE.</p><script>if(window.opener)window.opener.postMessage({type:'godseye-email-connected',calendarConnected:true},window.location.origin);setTimeout(()=>window.close(),900);</script></body></html>"
     return HTMLResponse(html)
 
 @app.delete(f"{router_prefix}/email/integrations/{{integration_id}}")
