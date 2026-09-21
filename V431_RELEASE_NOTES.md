@@ -1,6 +1,13 @@
 # GODSEYE v4.31 Remote Support Candidate
 
-GODSEYE v4.31 retains the v4.30 visual rebuild and introduces Windows Agent 2.4.3 for a more reliable, Quick Assist-style remote-support workflow.
+## Windows Agent 2.4.4 hotfix
+
+- Remote desktop frames now use GODSEYE's configured writable data directory instead of the read-only application directory. This fixes sessions that stalled after the Windows user selected **Share Screen**.
+- Stale remote sessions now fail with a visible diagnostic and a new connection request replaces them instead of reopening an indefinite waiting screen.
+- The Windows tray now includes **Submit Ticket...** with name, department, phone, email, issue notes, and Email, Internet, Phone, Hardware, Software, Security, and Other categories.
+- Tray ticket delivery is authenticated through the enrolled Windows Agent and idempotent, so transient retries cannot create duplicate tickets.
+
+GODSEYE v4.31 retains the v4.30 visual rebuild and introduces Windows Agent 2.4.4 for a more reliable, Quick Assist-style remote-support workflow.
 
 ## Remote connection fix
 
