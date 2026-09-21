@@ -1,6 +1,6 @@
 {
-  "status": "ready",
-  "version": "2.4.3",
+  "status": "pending_build",
+  "version": "2.4.4",
   "filename": "GODSEYE-Windows-Agent-x64.msi",
-  "sha256": "43211F9F751E2972614DE39068443E86BAF1D29EB9F23E6E9E6314C78D7A7963"
+  "sha256": ""
 }
