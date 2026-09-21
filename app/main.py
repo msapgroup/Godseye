@@ -3561,8 +3561,11 @@ def _windows_agent_update_manifest():
     path=BASE_DIR / "windows" / "agent-x64" / "update-manifest.json"
     try:
         return load_update_manifest(path)
-    except (OSError, ValueError, json.JSONDecodeError) as exc:
-        raise HTTPException(503,f"Windows Agent update manifest is unavailable: {exc}")
+    except (OSError, ValueError, json.JSONDecodeError):
+        # Release packages are stored as GitHub Release assets rather than in
+        # the server repository. Keep managed updates available on fresh
+        # server installs even when the optional local MSI is absent.
+        return {"version":"2.4.1","sha256":"914d898344854590c5ee5ed5d2af079b06515a1ccd0dd30801c2b9263727bc73","filename":"GODSEYE-Windows-Agent-x64.msi","url":"https://github.com/msapgroup/Godseye/releases/download/v4.31.0-agent/GODSEYE-Windows-Agent-x64.msi"}
 
 
 @app.get(f"{router_prefix}/windows-agents/update-info")
@@ -3913,7 +3916,8 @@ def windows_agent_purge(agent_id: int, request: Request, user=Depends(require_ad
 def windows_agent_msi_package(agent=Depends(_agent_auth)):
     manifest=_windows_agent_update_manifest()
     path=BASE_DIR / "windows" / "agent-x64" / manifest["filename"]
-    if not path.exists(): raise HTTPException(404,"Windows Agent x64 MSI is not installed")
+    if not path.exists():
+        return RedirectResponse(manifest["url"], status_code=302)
     return FileResponse(path,media_type="application/octet-stream",filename=manifest["filename"],headers={"X-GODSEYE-Agent-Version":manifest["version"],"X-GODSEYE-SHA256":manifest["sha256"]})
 
 
