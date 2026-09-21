@@ -8,7 +8,7 @@ ManifestDPIAware true
 !include "x64.nsh"
 
 !define APP_NAME "GODSEYE Windows Agent"
-!define APP_VERSION "2.4.3"
+!define APP_VERSION "2.4.4"
 !define PUBLISHER "MSAPGROUP LLC"
 !define SERVICE_NAME "GODSEYEWindowsAgent"
 !define PRODUCT_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\GODSEYEWindowsAgent"
@@ -18,12 +18,12 @@ OutFile "..\GODSEYE-Windows-Agent-x64-Setup.exe"
 InstallDir "$PROGRAMFILES64\GODSEYE Agent"
 InstallDirRegKey HKLM "${PRODUCT_KEY}" "InstallLocation"
 BrandingText "Powered By: MSAPGROUP.LLC"
-VIProductVersion "2.4.3.0"
+VIProductVersion "2.4.4.0"
 VIAddVersionKey "ProductName" "${APP_NAME}"
 VIAddVersionKey "ProductVersion" "${APP_VERSION}"
 VIAddVersionKey "CompanyName" "${PUBLISHER}"
 VIAddVersionKey "FileDescription" "GODSEYE Windows Agent x64 Setup"
-VIAddVersionKey "FileVersion" "2.4.3.0"
+VIAddVersionKey "FileVersion" "2.4.4.0"
 
 Var ServerUrl
 Var EnrollmentToken
@@ -43,7 +43,7 @@ Page custom EnrollmentPageCreate EnrollmentPageLeave
 
 Function .onInit
   ${IfNot} ${RunningX64}
-    MessageBox MB_ICONSTOP|MB_OK "GODSEYE Windows Agent 2.4.3 requires 64-bit Windows."
+    MessageBox MB_ICONSTOP|MB_OK "GODSEYE Windows Agent 2.4.4 requires 64-bit Windows."
     Abort
   ${EndIf}
   SetRegView 64
