@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
@@ -21,6 +22,9 @@ namespace Godseye.WindowsAgent
         static volatile bool _sharingStopRequested;
         static Form? _sharingBanner;
         static Thread? _sharingBannerThread;
+        static readonly object TicketLock = new object();
+        static Dictionary<string, object>? _pendingTicket;
+        static NotifyIcon? _notifyIcon;
 
         public static bool SharingStopRequested => _sharingStopRequested;
 
@@ -85,12 +89,58 @@ namespace Godseye.WindowsAgent
 
         public static int Run()
         {
-            using var mutex = new Mutex(true, @"Local\GODSEYE.WindowsAgent.Tray.2.4.3", out bool created);
+            using var mutex = new Mutex(true, @"Local\GODSEYE.WindowsAgent.Tray.2.4.4", out bool created);
             if (!created) return 0;
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
             Application.Run(new GodseyeTrayContext());
             return 0;
+        }
+
+        internal static Dictionary<string, object> PeekPendingTicket()
+        {
+            lock (TicketLock)
+            {
+                if (_pendingTicket == null)
+                    return new Dictionary<string, object>{{"ok",true},{"pending",false}};
+                var result = new Dictionary<string, object>(_pendingTicket, StringComparer.OrdinalIgnoreCase);
+                result["ok"] = true;
+                result["pending"] = true;
+                return result;
+            }
+        }
+
+        internal static void CompletePendingTicket(string requestId, string ticketNumber)
+        {
+            bool completed = false;
+            lock (TicketLock)
+            {
+                if (_pendingTicket != null && String.Equals(Convert.ToString(_pendingTicket["request_id"]), requestId, StringComparison.OrdinalIgnoreCase))
+                {
+                    _pendingTicket = null;
+                    completed = true;
+                }
+            }
+            if (!completed) return;
+            Control? dispatcher = _uiDispatcher;
+            Action notify = () =>
+            {
+                if (_notifyIcon == null) return;
+                _notifyIcon.BalloonTipTitle = "GODSEYE Ticket Submitted";
+                _notifyIcon.BalloonTipText = "Your support ticket " + ticketNumber + " was created successfully.";
+                _notifyIcon.ShowBalloonTip(6000);
+            };
+            if (dispatcher != null && !dispatcher.IsDisposed && dispatcher.InvokeRequired) dispatcher.BeginInvoke(notify); else notify();
+        }
+
+        static bool QueueTicket(Dictionary<string, object> ticket)
+        {
+            lock (TicketLock)
+            {
+                if (_pendingTicket != null) return false;
+                _pendingTicket = ticket;
+                return true;
+            }
         }
 
         public static bool ShowConsentDialog(string requestedBy)
@@ -206,6 +256,7 @@ namespace Godseye.WindowsAgent
                 menu.Items.Add(heading);
                 menu.Items.Add(new ToolStripSeparator());
                 menu.Items.Add("Agent Status...", null, (_, __) => ShowStatus());
+                menu.Items.Add("Submit Ticket...", null, (_, __) => ShowSubmitTicket());
                 menu.Items.Add("Open GODSEYE Portal", null, (_, __) => OpenPortal());
                 menu.Items.Add("Check for Updates", null, (_, __) => OpenPortal("/#windows-agents"));
                 menu.Items.Add(new ToolStripSeparator());
@@ -221,6 +272,7 @@ namespace Godseye.WindowsAgent
                     ContextMenuStrip = menu
                 };
                 notifyIcon.DoubleClick += (_, __) => ShowStatus();
+                _notifyIcon = notifyIcon;
                 notifyIcon.BalloonTipTitle = "GODSEYE Agent";
                 notifyIcon.BalloonTipText = "GODSEYE Windows Agent is running and connected for monitoring and approved remote support.";
 
@@ -259,6 +311,7 @@ namespace Godseye.WindowsAgent
                 remotePipeStop = true;
                 notifyIcon.Visible = false;
                 notifyIcon.Dispose();
+                if (ReferenceEquals(_notifyIcon, notifyIcon)) _notifyIcon = null;
                 if (ReferenceEquals(_uiDispatcher, uiDispatcher)) _uiDispatcher = null;
                 uiDispatcher.Dispose();
                 base.ExitThreadCore();
@@ -324,6 +377,74 @@ namespace Godseye.WindowsAgent
                 var close = new Button { Left = 350, Top = 220, Width = 105, Height = 36, Text = "Close", DialogResult = DialogResult.OK };
                 form.AcceptButton = close;
                 form.Controls.AddRange(new Control[] { logo, status, version, server, checkin, remote, close });
+                form.ShowDialog();
+            }
+
+            static void ShowSubmitTicket()
+            {
+                lock (TicketLock)
+                {
+                    if (_pendingTicket != null)
+                    {
+                        MessageBox.Show("A support ticket is already queued and will be submitted at the next agent check-in.", "GODSEYE Submit Ticket", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        return;
+                    }
+                }
+                using var form = new Form
+                {
+                    Text = "Submit a GODSEYE Support Ticket",
+                    StartPosition = FormStartPosition.CenterScreen,
+                    FormBorderStyle = FormBorderStyle.FixedDialog,
+                    MaximizeBox = false,
+                    MinimizeBox = false,
+                    Width = 650,
+                    Height = 590,
+                    Font = new Font("Segoe UI", 10f)
+                };
+                var title = new Label { Left = 24, Top = 20, Width = 575, Height = 30, Text = "Tell your support team what you need help with.", Font = new Font("Segoe UI Semibold", 12f) };
+                var nameLabel = new Label { Left = 24, Top = 66, Width = 180, Text = "Name *" };
+                var name = new TextBox { Left = 220, Top = 62, Width = 380 };
+                var departmentLabel = new Label { Left = 24, Top = 106, Width = 180, Text = "Department" };
+                var department = new TextBox { Left = 220, Top = 102, Width = 380 };
+                var phoneLabel = new Label { Left = 24, Top = 146, Width = 180, Text = "Phone" };
+                var phone = new TextBox { Left = 220, Top = 142, Width = 380 };
+                var emailLabel = new Label { Left = 24, Top = 186, Width = 180, Text = "Email" };
+                var email = new TextBox { Left = 220, Top = 182, Width = 380 };
+                var categoryLabel = new Label { Left = 24, Top = 226, Width = 180, Text = "Category *" };
+                var category = new ComboBox { Left = 220, Top = 222, Width = 380, DropDownStyle = ComboBoxStyle.DropDownList };
+                category.Items.AddRange(new object[] { "Email", "Internet", "Phone", "Hardware", "Software", "Security", "Other" });
+                category.SelectedItem = "Other";
+                var notesLabel = new Label { Left = 24, Top = 270, Width = 180, Text = "Issue notes *" };
+                var notes = new TextBox { Left = 220, Top = 266, Width = 380, Height = 180, Multiline = true, ScrollBars = ScrollBars.Vertical, AcceptsReturn = true };
+                var submit = new Button { Left = 365, Top = 475, Width = 112, Height = 38, Text = "Submit Ticket", BackColor = Color.FromArgb(20, 137, 239), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+                var cancel = new Button { Left = 488, Top = 475, Width = 112, Height = 38, Text = "Cancel", DialogResult = DialogResult.Cancel };
+                submit.FlatAppearance.BorderSize = 0;
+                submit.Click += (_, __) =>
+                {
+                    if (String.IsNullOrWhiteSpace(name.Text)) { MessageBox.Show("Enter your name.", "GODSEYE Submit Ticket", MessageBoxButtons.OK, MessageBoxIcon.Warning); name.Focus(); return; }
+                    if (String.IsNullOrWhiteSpace(notes.Text)) { MessageBox.Show("Describe the issue you need help with.", "GODSEYE Submit Ticket", MessageBoxButtons.OK, MessageBoxIcon.Warning); notes.Focus(); return; }
+                    var ticket = new Dictionary<string, object>
+                    {
+                        {"request_id", Guid.NewGuid().ToString("D")},
+                        {"requester_name", name.Text.Trim()},
+                        {"requester_department", department.Text.Trim()},
+                        {"requester_phone", phone.Text.Trim()},
+                        {"requester_email", email.Text.Trim()},
+                        {"category", Convert.ToString(category.SelectedItem) ?? "Other"},
+                        {"issue_notes", notes.Text.Trim()}
+                    };
+                    if (!QueueTicket(ticket))
+                    {
+                        MessageBox.Show("A support ticket is already queued.", "GODSEYE Submit Ticket", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        return;
+                    }
+                    form.DialogResult = DialogResult.OK;
+                    form.Close();
+                    MessageBox.Show("Your ticket is queued and will be submitted within a few seconds.", "GODSEYE Submit Ticket", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                };
+                form.AcceptButton = submit;
+                form.CancelButton = cancel;
+                form.Controls.AddRange(new Control[] { title, nameLabel, name, departmentLabel, department, phoneLabel, phone, emailLabel, email, categoryLabel, category, notesLabel, notes, submit, cancel });
                 form.ShowDialog();
             }
         }
