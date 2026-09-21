@@ -1022,8 +1022,20 @@ namespace Godseye.WindowsAgent
         object ComProperty(object instance, string name)
         {
             if (instance == null) return null;
-            PropertyInfo p = instance.GetType().GetProperty(name);
-            return p == null ? null : p.GetValue(instance, null);
+            try { return instance.GetType().InvokeMember(name, BindingFlags.GetProperty | BindingFlags.Public | BindingFlags.Instance, null, instance, null); }
+            catch (MissingMethodException) { return null; }
+        }
+
+        object ComInvoke(object instance, string name, params object[] args)
+        {
+            if (instance == null) throw new Exception("Windows Update COM object is unavailable while calling " + name + ".");
+            return instance.GetType().InvokeMember(name, BindingFlags.InvokeMethod | BindingFlags.Public | BindingFlags.Instance, null, instance, args);
+        }
+
+        void ComSet(object instance, string name, object value)
+        {
+            if (instance == null) throw new Exception("Windows Update COM object is unavailable while setting " + name + ".");
+            instance.GetType().InvokeMember(name, BindingFlags.SetProperty | BindingFlags.Public | BindingFlags.Instance, null, instance, new object[] { value });
         }
 
         string ComString(object instance, string name)
@@ -1032,74 +1044,99 @@ namespace Godseye.WindowsAgent
             return value == null ? "" : Convert.ToString(value);
         }
 
+        object CreateWindowsUpdateSession(Type sessionType)
+        {
+            object session = Activator.CreateInstance(sessionType);
+            if (session == null) throw new Exception("Windows Update session could not be created.");
+            return session;
+        }
+
+        object SearchAvailableWindowsUpdates(object session, out object updates)
+        {
+            object searcher = ComInvoke(session, "CreateUpdateSearcher");
+            if (searcher == null) throw new Exception("Windows Update search service could not be created. Ensure the Windows Update service is running.");
+            object result = ComInvoke(searcher, "Search", "IsInstalled=0 and IsHidden=0");
+            updates = ComProperty(result, "Updates");
+            if (updates == null) throw new Exception("Windows Update returned no update collection.");
+            return result;
+        }
+
+        string WindowsUpdateId(object update)
+        {
+            return ComString(ComProperty(update, "Identity"), "UpdateID");
+        }
+
         List<Dictionary<string, object>> ScanWindowsUpdates()
         {
-            Type sessionType=Type.GetTypeFromProgID("Microsoft.Update.Session");
-            if(sessionType==null) throw new Exception("Windows Update Agent is unavailable on this computer.");
-            object session=Activator.CreateInstance(sessionType);
-            object searcher=sessionType.GetMethod("CreateUpdateSearcher").Invoke(session,null);
-            if(searcher==null) throw new Exception("Windows Update search service could not be created. Ensure the Windows Update service is running.");
-            object result=searcher.GetType().GetMethod("Search").Invoke(searcher,new object[]{"IsInstalled=0 and IsHidden=0"});
-            object updates=ComProperty(result,"Updates");
-            if(updates==null) throw new Exception("Windows Update returned no update collection.");
-            int count=Convert.ToInt32(ComProperty(updates,"Count") ?? 0);
-            var list=new List<Dictionary<string,object>>();
-            for(int i=0;i<count;i++)
+            Type sessionType = Type.GetTypeFromProgID("Microsoft.Update.Session");
+            if (sessionType == null) throw new Exception("Windows Update Agent is unavailable on this computer.");
+            object session = CreateWindowsUpdateSession(sessionType);
+            object updates;
+            SearchAvailableWindowsUpdates(session, out updates);
+            int count = Convert.ToInt32(ComProperty(updates, "Count") ?? 0);
+            var list = new List<Dictionary<string, object>>();
+            for (int i = 0; i < count; i++)
             {
                 try
                 {
-                    object u=updates.GetType().GetMethod("get_Item").Invoke(updates,new object[]{i});
-                    object identity=ComProperty(u,"Identity");
-                    string id=ComString(identity,"UpdateID");
-                    if(String.IsNullOrWhiteSpace(id)) continue;
-                    object kbValue=ComProperty(u,"KBArticleIDs");
-                    string kb=kbValue is IEnumerable values ? String.Join(",", values.Cast<object>().Select(x=>Convert.ToString(x))) : Convert.ToString(kbValue ?? "");
-                    list.Add(new Dictionary<string,object>{{"id",id},{"title",ComString(u,"Title")},{"kb",kb},{"size",ComString(u,"MaxDownloadSize")}});
+                    object update = ComInvoke(updates, "Item", i);
+                    if (update == null) continue;
+                    string id = WindowsUpdateId(update);
+                    if (String.IsNullOrWhiteSpace(id)) continue;
+                    object kbValue = ComProperty(update, "KBArticleIDs");
+                    string kb = kbValue is IEnumerable values ? String.Join(",", values.Cast<object>().Select(x => Convert.ToString(x))) : Convert.ToString(kbValue ?? "");
+                    list.Add(new Dictionary<string, object> {
+                        { "id", id }, { "title", ComString(update, "Title") }, { "kb", kb },
+                        { "size", Convert.ToString(ComProperty(update, "MaxDownloadSize") ?? "") }
+                    });
                 }
-                catch(Exception ex) { Log("Skipping malformed Windows Update item "+i+": "+ex.Message); }
+                catch (Exception ex) { Log("Skipping malformed Windows Update item " + i + ": " + ex.Message); }
             }
             return list;
         }
 
         List<string> InstallWindowsUpdates(Dictionary<string, object> payload)
         {
-            Type sessionType=Type.GetTypeFromProgID("Microsoft.Update.Session");
-            if(sessionType==null) throw new Exception("Windows Update Agent is unavailable on this computer.");
-            object session=Activator.CreateInstance(sessionType);
-            object searcher=sessionType.GetMethod("CreateUpdateSearcher").Invoke(session,null);
-            if(searcher==null) throw new Exception("Windows Update search service could not be created.");
-            object result=searcher.GetType().GetMethod("Search").Invoke(searcher,new object[]{"IsInstalled=0 and IsHidden=0"});
-            object updates=ComProperty(result,"Updates");
-            if(updates==null) throw new Exception("Windows Update returned no update collection.");
-            Type collType=Type.GetTypeFromProgID("Microsoft.Update.UpdateColl");
-            if(collType==null) throw new Exception("Windows Update collection component is unavailable.");
-            object selected=Activator.CreateInstance(collType);
-            object ids=payload!=null&&payload.ContainsKey("update_ids")?payload["update_ids"]:null;
-            if(ids is IEnumerable wanted)
+            Type sessionType = Type.GetTypeFromProgID("Microsoft.Update.Session");
+            if (sessionType == null) throw new Exception("Windows Update Agent is unavailable on this computer.");
+            object session = CreateWindowsUpdateSession(sessionType);
+            object updates;
+            SearchAvailableWindowsUpdates(session, out updates);
+            Type collectionType = Type.GetTypeFromProgID("Microsoft.Update.UpdateColl");
+            if (collectionType == null) throw new Exception("Windows Update collection component is unavailable.");
+            object selected = Activator.CreateInstance(collectionType);
+            if (selected == null) throw new Exception("Windows Update selection collection could not be created.");
+            object ids = payload != null && payload.ContainsKey("update_ids") ? payload["update_ids"] : null;
+            var requested = new List<string>();
+            if (ids is IEnumerable wanted)
             {
-                int count=Convert.ToInt32(ComProperty(updates,"Count") ?? 0);
-                foreach(var wantedId in wanted)
+                int count = Convert.ToInt32(ComProperty(updates, "Count") ?? 0);
+                foreach (object requestedId in wanted)
                 {
-                    string target=Convert.ToString(wantedId);
-                    for(int i=0;i<count;i++)
+                    string target = Convert.ToString(requestedId);
+                    if (String.IsNullOrWhiteSpace(target)) continue;
+                    requested.Add(target);
+                    for (int i = 0; i < count; i++)
                     {
-                        object u=updates.GetType().GetMethod("get_Item").Invoke(updates,new object[]{i});
-                        string id=ComString(ComProperty(u,"Identity"),"UpdateID");
-                        if(String.Equals(id,target,StringComparison.OrdinalIgnoreCase)) selected.GetType().GetMethod("Add").Invoke(selected,new[]{u});
+                        object update = ComInvoke(updates, "Item", i);
+                        if (String.Equals(WindowsUpdateId(update), target, StringComparison.OrdinalIgnoreCase))
+                            ComInvoke(selected, "Add", update);
                     }
                 }
             }
-            int selectedCount=Convert.ToInt32(ComProperty(selected,"Count") ?? 0);
-            if(selectedCount==0) throw new Exception("No matching Windows Updates were selected.");
-            object downloader=sessionType.GetMethod("CreateUpdateDownloader").Invoke(session,null);
-            downloader.GetType().GetProperty("Updates").SetValue(downloader,selected,null);
-            downloader.GetType().GetMethod("Download").Invoke(downloader,null);
-            object installer=sessionType.GetMethod("CreateUpdateInstaller").Invoke(session,null);
-            installer.GetType().GetProperty("Updates").SetValue(installer,selected,null);
-            installer.GetType().GetMethod("Install").Invoke(installer,null);
-            var installed=new List<string>();
-            if(ids is IEnumerable installedIds) foreach(var wantedId in installedIds) installed.Add(Convert.ToString(wantedId));
-            return installed;
+            int selectedCount = Convert.ToInt32(ComProperty(selected, "Count") ?? 0);
+            if (selectedCount == 0) throw new Exception("No matching Windows Updates were selected.");
+            object downloader = ComInvoke(session, "CreateUpdateDownloader");
+            ComSet(downloader, "Updates", selected);
+            object downloadResult = ComInvoke(downloader, "Download");
+            int downloadCode = Convert.ToInt32(ComProperty(downloadResult, "ResultCode") ?? -1);
+            if (downloadCode >= 3) throw new Exception("Windows Update download failed with result code " + downloadCode + ".");
+            object installer = ComInvoke(session, "CreateUpdateInstaller");
+            ComSet(installer, "Updates", selected);
+            object installResult = ComInvoke(installer, "Install");
+            int installCode = Convert.ToInt32(ComProperty(installResult, "ResultCode") ?? -1);
+            if (installCode >= 3) throw new Exception("Windows Update installation failed with result code " + installCode + ".");
+            return requested;
         }
 
         void ProcessRechecks(AgentConfig cfg, Dictionary<string, object> hb)
