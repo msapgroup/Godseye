@@ -18,7 +18,7 @@ on:
       - 'install.sh'
       - 'doctor.sh'
 
-# This workflow only builds and validates artifacts. It never commits generated
+# This workflow builds the latest Windows Agent artifacts after source changes. It never commits generated
 # binaries back to the repository; the release owner can download/test/upload them.
 permissions:
   contents: write
