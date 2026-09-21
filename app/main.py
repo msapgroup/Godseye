@@ -6637,10 +6637,9 @@ html[data-theme="dark"] .v430-inventory-panel{overflow:visible!important;margin-
   <div class="modal-head"><div><h2>Calendar Integrations</h2><div class="muted">Connect Google Calendar or Microsoft 365 for full two-way editing, or keep ICS as a read-only fallback.</div></div><button class="icon-btn" onclick="closeCalendarIntegrationModal()">×</button></div>
   <div class="calendar-integration-body">
    <div class="calendar-provider-grid">
-    <button type="button" class="calendar-provider active" data-provider="google" onclick="selectCalendarProvider('google')"><span class="calendar-provider-icon">G</span><b>Google Calendar</b><small>OAuth · two-way</small></button>
-    <button type="button" class="calendar-provider" data-provider="microsoft365" onclick="selectCalendarProvider('microsoft365')"><span class="calendar-provider-icon">M</span><b>Microsoft 365</b><small>OAuth · two-way</small></button>
+    <button type="button" class="calendar-provider active" data-provider="microsoft365" onclick="selectCalendarProvider('microsoft365')"><span class="calendar-provider-icon">O</span><b>Outlook Calendar</b><small>Automatic setup from Outlook mail</small></button>
    </div>
-   <input type="hidden" id="calendarProvider" value="google">
+   <input type="hidden" id="calendarProvider" value="microsoft365">
    <div class="calendar-mode-tabs">
     <button type="button" class="calendar-mode-tab active" data-mode="oauth" onclick="selectCalendarAuthMode('oauth')">Two-way OAuth</button>
     <button type="button" class="calendar-mode-tab" data-mode="basic" onclick="selectCalendarAuthMode('basic')">App-password ICS</button>
@@ -6672,7 +6671,7 @@ html[data-theme="dark"] .v430-inventory-panel{overflow:visible!important;margin-
 <div class="view" id="view-email" style="display:none">
 <div class="email-page">
   <div class="email-hero">
-    <div class="email-hero-copy"><div class="email-hero-icon"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 7 8 6 8-6"/></svg></div><div><h1>Email</h1><div class="muted">Gmail and Microsoft 365 mail inside GODSEYE for operational communication, alerts, and report delivery.</div></div></div>
+    <div class="email-hero-copy"><div class="email-hero-icon"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 7 8 6 8-6"/></svg></div><div><h1>Email</h1><div class="muted">Microsoft Outlook mail inside GODSEYE for operational communication, alerts, and report delivery.</div></div></div>
     <div class="email-hero-actions"><button class="secondary admin-only" onclick="openEmailIntegrationModal()">⚙ Mail Accounts</button><button class="primary operate-only" onclick="openEmailCompose()">＋ Compose</button></div>
   </div>
   <div id="emailAccountCards" class="v430-email-account-cards"><button class="v430-email-account-card" onclick="openEmailIntegrationModal()"><span class="v430-mail-logo">G</span><div><b>Gmail</b><small>Connect a mailbox</small></div><em>＋</em></button><button class="v430-email-account-card" onclick="openEmailIntegrationModal()"><span class="v430-mail-logo ms">O</span><div><b>Microsoft 365</b><small>Connect a mailbox</small></div><em>＋</em></button><button class="v430-email-account-card relay" onclick="openCardPage('integrations')"><span class="v430-mail-logo">✉</span><div><b>SMTP Relay</b><small>Alert delivery</small></div><em>›</em></button><button class="v430-email-account-card relay" onclick="openEmailIntegrationModal()"><span class="v430-mail-logo">⚙</span><div><b>Mail Accounts</b><small>OAuth connections</small></div><em>›</em></button></div>
@@ -6716,14 +6715,12 @@ html[data-theme="dark"] .v430-inventory-panel{overflow:visible!important;margin-
 
 <div id="emailIntegrationModal" class="modal" style="display:none" onclick="if(event.target===this)closeEmailIntegrationModal()">
  <div class="modal-card email-integration-dialog" role="dialog" aria-modal="true">
-  <div class="modal-head"><div><h2>Mail Accounts</h2><div class="muted">Connect Gmail or Microsoft 365 with OAuth. Passwords are never stored.</div></div><button class="icon-btn" onclick="closeEmailIntegrationModal()">×</button></div>
+  <div class="modal-head"><div><h2>Mail Accounts</h2><div class="muted">Connect Outlook with automatic account discovery. Your email address and provider app password are used for mailbox setup; OAuth is used when required for calendar access.</div></div><button class="icon-btn" onclick="closeEmailIntegrationModal()">×</button></div>
   <div class="email-integration-body">
     <div class="calendar-provider-grid">
-      <button type="button" class="calendar-provider active" data-email-provider="gmail" onclick="selectEmailProvider('gmail')"><span class="calendar-provider-icon">G</span><b>Gmail</b><small>Gmail API · OAuth</small></button>
-      <button type="button" class="calendar-provider" data-email-provider="microsoft365" onclick="selectEmailProvider('microsoft365')"><span class="calendar-provider-icon">M</span><b>Microsoft 365</b><small>Microsoft Graph · OAuth</small></button>
-      <button type="button" class="calendar-provider" data-email-provider="imap_smtp" onclick="selectEmailProvider('imap_smtp')"><span class="calendar-provider-icon">✉</span><b>Standard mailbox</b><small>IMAP / SMTP · App password</small></button>
+      <button type="button" class="calendar-provider active" data-email-provider="microsoft365" onclick="selectEmailProvider('microsoft365')"><span class="calendar-provider-icon">M</span><b>Microsoft Outlook</b><small>Automatic setup · OAuth / app password</small></button>
     </div>
-    <input type="hidden" id="emailProvider" value="gmail">
+    <input type="hidden" id="emailProvider" value="microsoft365">
     <div class="email-integration-form">
       <label>Name<input class="input" id="emailIntegrationName" placeholder="Operations Mail"></label>
       <label>Account email<input class="input" id="emailIntegrationAddress" type="email" placeholder="name@example.com"></label>
@@ -6734,7 +6731,7 @@ html[data-theme="dark"] .v430-inventory-panel{overflow:visible!important;margin-
       <label id="emailImapPortWrap" style="display:none">IMAP port<input class="input" id="emailIntegrationImapPort" type="number" value="993"></label>
       <label id="emailSmtpHostWrap" style="display:none">SMTP server<input class="input" id="emailIntegrationSmtpHost" placeholder="smtp.example.com"></label>
       <label id="emailSmtpPortWrap" style="display:none">SMTP port<input class="input" id="emailIntegrationSmtpPort" type="number" value="587"></label>
-      <div class="calendar-integration-note full" id="emailIntegrationModeNote">Gmail uses Gmail API OAuth access. Microsoft 365 uses Microsoft Graph with delegated Mail.ReadWrite and Mail.Send. Client secrets and OAuth tokens are encrypted at rest.</div>
+      <div class="calendar-integration-note full" id="emailIntegrationModeNote">Microsoft Outlook uses automatic discovery and Microsoft Graph when delegated calendar access is enabled. Client secrets and OAuth tokens are encrypted at rest.</div>
       <div class="calendar-integration-note full">Redirect URL: this GODSEYE URL + <code>/api/v1/email/oauth/provider/callback</code>. Set <code>GODSEYE_PUBLIC_URL</code> when the appliance is behind HTTPS or a reverse proxy.</div>
       <div id="emailIntegrationErr" class="err full"></div>
       <div class="modal-actions full"><button type="button" class="secondary" onclick="closeEmailIntegrationModal()">Close</button><button type="button" class="primary admin-only" onclick="saveEmailIntegration()">Save &amp; Connect</button></div>
