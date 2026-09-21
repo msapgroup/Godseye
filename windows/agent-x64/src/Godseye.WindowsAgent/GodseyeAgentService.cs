@@ -92,7 +92,7 @@ namespace Godseye.WindowsAgent
 
     public class GodseyeAgentService : ServiceBase
     {
-        static readonly string AgentVersion = typeof(GodseyeAgentService).Assembly.GetName().Version?.ToString(3) ?? "2.4.3";
+        static readonly string AgentVersion = typeof(GodseyeAgentService).Assembly.GetName().Version?.ToString(3) ?? "2.4.4";
         static readonly JsonCompat Json = new JsonCompat();
         readonly string BaseDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "GODSEYE", "Agent");
         Thread worker;
@@ -235,6 +235,7 @@ namespace Godseye.WindowsAgent
                     ApplyServerConfig(cfg, hb);
                     ProcessCommands(cfg, hb);
                     ProcessRechecks(cfg, hb);
+                    ProcessTrayTicketQueue(cfg);
                     if (DateTime.UtcNow >= nextScheduledCollectUtc)
                     {
                         FlushOrCollect(cfg);
@@ -636,6 +637,14 @@ namespace Godseye.WindowsAgent
         {
             string kind = request != null && request.ContainsKey("kind") ? Convert.ToString(request["kind"]) : "";
             if (String.Equals(kind,"ping",StringComparison.OrdinalIgnoreCase)) return new Dictionary<string,object>{{"ok",true},{"ready",true}};
+            if (String.Equals(kind,"ticket-peek",StringComparison.OrdinalIgnoreCase)) return TrayApp.PeekPendingTicket();
+            if (String.Equals(kind,"ticket-result",StringComparison.OrdinalIgnoreCase))
+            {
+                string requestId=request!=null&&request.ContainsKey("request_id")?Convert.ToString(request["request_id"]):"";
+                string ticketNumber=request!=null&&request.ContainsKey("ticket_number")?Convert.ToString(request["ticket_number"]):"ticket";
+                TrayApp.CompletePendingTicket(requestId,ticketNumber);
+                return new Dictionary<string,object>{{"ok",true}};
+            }
             if (String.Equals(kind,"consent",StringComparison.OrdinalIgnoreCase))
             {
                 string requestedBy = request != null && request.ContainsKey("requested_by") ? Convert.ToString(request["requested_by"]) : "administrator";
@@ -1220,6 +1229,35 @@ namespace Godseye.WindowsAgent
                 result["seen_again"] = seenAgain; result["details"] = details; result["checked_at"] = DateTime.UtcNow.ToString("o");
                 Post(cfg, "/api/v1/windows-agents/rechecks/" + recheckId + "/result", result, ReadApiKey());
             }
+        }
+
+        void ProcessTrayTicketQueue(AgentConfig cfg)
+        {
+            uint sessionId=GetActiveInteractiveSessionId();
+            if(sessionId==INVALID_SESSION_ID)return;
+            string pipeName="GODSEYE-Tray-"+sessionId;
+            Dictionary<string,object> pending;
+            try
+            {
+                pending=RemoteHelperRequest(pipeName,new Dictionary<string,object>{{"kind","ticket-peek"}},750);
+            }
+            catch { return; }
+            if(pending==null||!pending.ContainsKey("pending")||!Convert.ToBoolean(pending["pending"]))return;
+            string requestId=Convert.ToString(pending["request_id"]);
+            var body=new Dictionary<string,object>
+            {
+                {"request_id",requestId},
+                {"requester_name",Convert.ToString(pending["requester_name"])},
+                {"requester_department",Convert.ToString(pending["requester_department"])},
+                {"requester_phone",Convert.ToString(pending["requester_phone"])},
+                {"requester_email",Convert.ToString(pending["requester_email"])},
+                {"category",Convert.ToString(pending["category"])},
+                {"issue_notes",Convert.ToString(pending["issue_notes"])}
+            };
+            Dictionary<string,object> result=Post(cfg,"/api/v1/windows-agents/tickets",body,ReadApiKey());
+            string ticketNumber=result.ContainsKey("ticket_number")?Convert.ToString(result["ticket_number"]):"ticket";
+            RemoteHelperRequest(pipeName,new Dictionary<string,object>{{"kind","ticket-result"},{"request_id",requestId},{"ticket_number",ticketNumber}},1000);
+            Log("Submitted support ticket "+ticketNumber+" from the signed-in Windows user.");
         }
 
         Dictionary<string, object> Get(AgentConfig cfg, string path, string bearer)
