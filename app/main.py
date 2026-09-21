@@ -7683,7 +7683,7 @@ function selectEmailProvider(provider){
  ['emailMailboxPasswordWrap','emailImapHostWrap','emailImapPortWrap','emailSmtpHostWrap','emailSmtpPortWrap'].forEach(id=>{const el=document.getElementById(id);if(el)el.style.display='flex'});
  if(emailIntegrationModeNote)emailIntegrationModeNote.textContent='Outlook-style automatic setup. Enter your email address and provider app password; GODSEYE discovers the Outlook IMAP/SMTP servers automatically.';
 }
-function openEmailIntegrationModal(){emailIntegrationModal.style.display='grid';document.body.style.overflow='hidden';renderEmailIntegrations()}
+function openEmailIntegrationModal(){emailIntegrationModal.style.display='grid';document.body.style.overflow='hidden';selectEmailProvider('microsoft365');renderEmailIntegrations()}
 function closeEmailIntegrationModal(){emailIntegrationModal.style.display='none';document.body.style.overflow=''}
 async function saveEmailIntegration(){
  emailIntegrationErr.textContent='';
