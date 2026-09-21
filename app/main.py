@@ -3625,7 +3625,7 @@ def _windows_agent_update_manifest():
         # Release packages are stored as GitHub Release assets rather than in
         # the server repository. Keep managed updates available on fresh
         # server installs even when the optional local MSI is absent.
-        return {"version":"2.4.1","sha256":"914d898344854590c5ee5ed5d2af079b06515a1ccd0dd30801c2b9263727bc73","filename":"GODSEYE-Windows-Agent-x64.msi","url":"https://github.com/msapgroup/Godseye/releases/download/v4.31.0-agent/GODSEYE-Windows-Agent-x64.msi"}
+        return {"version":"2.4.2","sha256":"40F20224634E4ACB0D416F12BCBE63DBDAA4DBEC432FF1DD08365511DB59E191","filename":"GODSEYE-Windows-Agent-x64.msi","url":"https://github.com/msapgroup/Godseye/releases/download/v4.31.0-agent-2.4.2/GODSEYE-Windows-Agent-x64.msi"}
 
 
 @app.get(f"{router_prefix}/windows-agents/update-info")
@@ -4021,7 +4021,7 @@ def windows_agent_package(user=Depends(require_admin)):
     # Release builds are published as GitHub Release assets because the installer
     # exceeds GitHub's repository file-size limit. Fresh installs use that asset.
     return RedirectResponse(
-        "https://github.com/msapgroup/Godseye/releases/download/v4.31.0-agent/GODSEYE-Windows-Agent-x64-Setup.exe",
+        "https://github.com/msapgroup/Godseye/releases/download/v4.31.0-agent-2.4.2/GODSEYE-Windows-Agent-x64-Setup.exe",
         status_code=302,
     )
 
@@ -4030,7 +4030,7 @@ def windows_agent_package(user=Depends(require_admin)):
 def windows_agent_package_status(user=Depends(require_admin)):
     setup=BASE_DIR / "windows" / "agent-x64" / "GODSEYE-Windows-Agent-x64-Setup.exe"
     msi=BASE_DIR / "windows" / "agent-x64" / "GODSEYE-Windows-Agent-x64.msi"
-    manifest={"version":"2.4.1","status":"ready"}
+    manifest={"version":"2.4.2","status":"ready"}
     manifest_path=BASE_DIR / "windows" / "agent-x64" / "update-manifest.json"
     try:
         if manifest_path.is_file(): manifest.update(json.loads(manifest_path.read_text(encoding="utf-8")))
@@ -4038,9 +4038,9 @@ def windows_agent_package_status(user=Depends(require_admin)):
     return {
         "available":True,
         "msi_available":msi.is_file(),
-        "version":manifest.get("version","2.4.1"),
+        "version":manifest.get("version","2.4.2"),
         "status":manifest.get("status","ready"),
-        "message":"Windows Agent 2.4.1 installer is ready from the local package or GitHub Release."
+        "message":"Windows Agent 2.4.2 installer is ready from the local package or GitHub Release."
     }
 
 
