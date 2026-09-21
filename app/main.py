@@ -3062,7 +3062,11 @@ def email_integration_create(req: EmailIntegrationRequest, request: Request, use
     if not req.name.strip(): raise HTTPException(400,"Mailbox name is required")
     if provider=="imap_smtp" or mode=="password":
         provider="imap_smtp";mode="password"
-        if not req.account_email.strip() or not req.password or not req.imap_host.strip() or not req.smtp_host.strip(): raise HTTPException(400,"Email, app password, IMAP server, and SMTP server are required")
+        # Standard mailboxes authenticate with the full email address as the
+        # username and an app password (never the normal account password).
+        mail_username=(req.username.strip() or req.account_email.strip())
+        if "@" not in mail_username or not req.password or not req.imap_host.strip() or not req.smtp_host.strip():
+            raise HTTPException(400,"Email username, app password, IMAP server, and SMTP server are required")
         status="connected"
     else:
         mode="oauth"
@@ -3072,7 +3076,7 @@ def email_integration_create(req: EmailIntegrationRequest, request: Request, use
     with db() as c:
         iid=c.execute("""INSERT INTO email_integrations(provider,name,account_email,client_id,client_secret_enc,auth_mode,password_enc,imap_host,imap_port,smtp_host,smtp_port,enabled,last_status,created_at,updated_at)
                          VALUES(?,?,?,?,?,?,?,?,?,?,?,1,?,?,?)""",
-                      (provider,req.name.strip()[:160],req.account_email.strip()[:254],req.client_id.strip()[:500],encrypt_secret(req.client_secret.strip()),mode,encrypt_secret(req.password) if req.password else "",req.imap_host.strip()[:255],max(1,min(req.imap_port,65535)),req.smtp_host.strip()[:255],max(1,min(req.smtp_port,65535)),status,ts,ts)).lastrowid
+                      (provider,req.name.strip()[:160],(mail_username if provider=="imap_smtp" else req.account_email.strip())[:254],req.client_id.strip()[:500],encrypt_secret(req.client_secret.strip()),mode,encrypt_secret(req.password) if req.password else "",req.imap_host.strip()[:255],max(1,min(req.imap_port,65535)),req.smtp_host.strip()[:255],max(1,min(req.smtp_port,65535)),status,ts,ts)).lastrowid
         audit(c,user["username"],"email_integration_created",str(iid),json.dumps({"provider":provider,"name":req.name.strip()}),client_ip(request))
     return {"ok":True,"id":iid,"needs_authorization":status!="connected","auth_mode":mode}
 
