@@ -462,6 +462,7 @@ def init_db():
             status TEXT NOT NULL DEFAULT 'connecting',
             requested_by TEXT NOT NULL,
             requested_at TEXT NOT NULL,
+            last_state_at TEXT,
             connected_at TEXT,
             ended_at TEXT,
             last_frame_at TEXT,
@@ -667,6 +668,8 @@ def init_db():
         _add_column_if_missing(c, "tickets", "requester_department", "requester_department TEXT DEFAULT ''")
         _add_column_if_missing(c, "tickets", "requester_phone", "requester_phone TEXT DEFAULT ''")
         _add_column_if_missing(c, "tickets", "requester_email", "requester_email TEXT DEFAULT ''")
+        _add_column_if_missing(c, "tickets", "agent_request_id", "agent_request_id TEXT DEFAULT ''")
+        c.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_tickets_agent_request ON tickets(agent_request_id) WHERE agent_request_id <> ''")
         _add_column_if_missing(c, "email_integrations", "auth_mode", "auth_mode TEXT NOT NULL DEFAULT 'oauth'")
         _add_column_if_missing(c, "email_integrations", "password_enc", "password_enc TEXT DEFAULT ''")
         _add_column_if_missing(c, "email_integrations", "imap_host", "imap_host TEXT DEFAULT ''")
@@ -679,6 +682,8 @@ def init_db():
         _add_column_if_missing(c, "windows_remote_sessions", "control_status", "control_status TEXT NOT NULL DEFAULT 'view_only'")
         _add_column_if_missing(c, "windows_remote_sessions", "control_requested_at", "control_requested_at TEXT")
         _add_column_if_missing(c, "windows_remote_sessions", "control_decided_at", "control_decided_at TEXT")
+        _add_column_if_missing(c, "windows_remote_sessions", "last_state_at", "last_state_at TEXT")
+        c.execute("UPDATE windows_remote_sessions SET last_state_at=COALESCE(last_state_at,last_frame_at,connected_at,requested_at)")
         # Backfill so enabling GODSEYE_PASSWORD_MAX_AGE_DAYS after upgrading doesn't
         # instantly treat every existing account as already expired.
         c.execute("UPDATE users SET password_changed_at=? WHERE password_changed_at IS NULL", (now(),))
@@ -3468,6 +3473,15 @@ class WindowsRemoteStateRequest(BaseModel):
 class WindowsRemoteControlDecisionRequest(BaseModel):
     approved: bool = False
 
+class WindowsAgentTicketRequest(BaseModel):
+    request_id: str
+    requester_name: str
+    requester_department: str = ""
+    requester_phone: str = ""
+    requester_email: str = ""
+    category: str = "Other"
+    issue_notes: str
+
 
 def _agent_auth(request: Request):
     from .windows_agent import token_hash
@@ -3755,7 +3769,9 @@ def windows_agent_list(user=Depends(get_current_user)):
 
 
 def _remote_frame_path(session_id: int):
-    root=BASE_DIR / "data" / "remote-frames"
+    # Production installs keep application files read-only. The database parent
+    # is the configured writable GODSEYE data directory (normally /var/lib/godseye).
+    root=DB_PATH.parent / "remote-frames"
     root.mkdir(parents=True,exist_ok=True)
     return root / f"session-{int(session_id)}.jpg"
 
@@ -3765,6 +3781,37 @@ def _remote_session_public(row):
     d=dict(row)
     d["frame_url"]=f"{router_prefix}/remote-access/sessions/{d['id']}/frame"
     return d
+
+
+def _expire_stale_remote_session(c, row):
+    if not row or row["status"] in {"ended","failed","denied"}:
+        return row
+    current=dt.datetime.now(dt.timezone.utc)
+    try:
+        stamp=row["last_frame_at"] if row["status"]=="active" else (row["last_state_at"] or row["requested_at"])
+        changed=dt.datetime.fromisoformat(stamp)
+        if changed.tzinfo is None: changed=changed.replace(tzinfo=dt.timezone.utc)
+        age=(current-changed).total_seconds()
+    except Exception:
+        age=0
+    limits={"waiting_for_user":300,"approved":90,"capture_started":45,"active":30}
+    limit=limits.get(row["status"],120)
+    if age <= limit:
+        return row
+    if row["status"]=="active":
+        error="Remote screen frames stopped arriving. Start a new remote session."
+    elif row["status"] in {"approved","capture_started"}:
+        error="Remote screen capture did not start after approval. Start a new session; Agent 2.4.4 fixes writable frame storage."
+    else:
+        error=f"Remote session timed out while {row['status'].replace('_',' ')}. Start a new remote session."
+    ts=now()
+    c.execute("UPDATE windows_remote_sessions SET status='failed',ended_at=?,last_state_at=?,last_error=? WHERE id=?",(ts,ts,error,row["id"]))
+    for command in c.execute("SELECT id,payload_json FROM windows_agent_commands WHERE agent_id=? AND command_type='remote_session_start' AND status IN ('pending','delivered')",(row["agent_id"],)).fetchall():
+        try: command_session_id=int(json.loads(command["payload_json"] or "{}").get("session_id") or 0)
+        except (TypeError,ValueError,json.JSONDecodeError): command_session_id=0
+        if command_session_id==int(row["id"]):
+            c.execute("UPDATE windows_agent_commands SET status='failed',completed_at=?,result_json=? WHERE id=?",(ts,json.dumps({"ok":False,"details":error}),command["id"]))
+    return c.execute("SELECT * FROM windows_remote_sessions WHERE id=?",(row["id"],)).fetchone()
 
 
 @app.post(f"{router_prefix}/remote-access/sessions")
@@ -3783,8 +3830,9 @@ def windows_remote_start(req: WindowsRemoteStartRequest, request: Request, user=
         except HTTPException: raise
         except Exception: raise HTTPException(409,"Windows Agent heartbeat is invalid")
         existing=c.execute("SELECT * FROM windows_remote_sessions WHERE agent_id=? AND status IN ('requested','waiting_for_tray','tray_ready','waiting_for_user','approved','capture_started','active') ORDER BY id DESC LIMIT 1",(req.agent_id,)).fetchone()
-        if existing: return {"ok":True,"session":_remote_session_public(existing),"message":"A remote support session is already open for this computer."}
-        cur=c.execute("INSERT INTO windows_remote_sessions(agent_id,status,requested_by,requested_at) VALUES(?,'requested',?,?)",(req.agent_id,user["username"],ts))
+        existing=_expire_stale_remote_session(c,existing)
+        if existing and existing["status"] not in {"ended","failed","denied"}: return {"ok":True,"session":_remote_session_public(existing),"message":"A remote support session is already open for this computer."}
+        cur=c.execute("INSERT INTO windows_remote_sessions(agent_id,status,requested_by,requested_at,last_state_at) VALUES(?,'requested',?,?,?)",(req.agent_id,user["username"],ts,ts))
         sid=cur.lastrowid
         payload=json.dumps({"session_id":sid,"requested_by":user["username"]},separators=(",",":"))
         c.execute("INSERT INTO windows_agent_commands(agent_id,command_type,payload_json,status,requested_by,requested_at) VALUES(?,'remote_session_start',?,'pending',?,?)",(req.agent_id,payload,user["username"],ts))
@@ -3796,6 +3844,8 @@ def windows_remote_start(req: WindowsRemoteStartRequest, request: Request, user=
 @app.get(f"{router_prefix}/remote-access/sessions/{{session_id}}")
 def windows_remote_session(session_id: int, user=Depends(get_current_user)):
     with db() as c:
+        session=c.execute("SELECT * FROM windows_remote_sessions WHERE id=?",(session_id,)).fetchone()
+        _expire_stale_remote_session(c,session)
         row=c.execute("SELECT s.*,a.computer_name,a.hostname,a.ip_address,a.os_version,a.agent_version FROM windows_remote_sessions s JOIN windows_agents a ON a.id=s.agent_id WHERE s.id=?",(session_id,)).fetchone()
     if not row: raise HTTPException(404,"Remote support session not found")
     return _remote_session_public(row)
@@ -3808,7 +3858,7 @@ def windows_remote_stop(session_id: int, request: Request, user=Depends(require_
         row=c.execute("SELECT * FROM windows_remote_sessions WHERE id=?",(session_id,)).fetchone()
         if not row: raise HTTPException(404,"Remote support session not found")
         if row["status"] not in ("ended","failed","denied"):
-            c.execute("UPDATE windows_remote_sessions SET status='ended',ended_at=? WHERE id=?",(ts,session_id))
+            c.execute("UPDATE windows_remote_sessions SET status='ended',ended_at=?,last_state_at=? WHERE id=?",(ts,ts,session_id))
             c.execute("INSERT INTO windows_agent_commands(agent_id,command_type,payload_json,status,requested_by,requested_at) VALUES(?,'remote_session_stop',?,'pending',?,?)",(row["agent_id"],json.dumps({"session_id":session_id}),user["username"],ts))
             audit(c,user["username"],"windows_remote_session_stopped",str(session_id),"",client_ip(request))
     return {"ok":True}
@@ -3888,7 +3938,7 @@ def windows_remote_agent_frame(session_id: int, req: WindowsRemoteFrameRequest, 
             raise HTTPException(400,"Remote JPEG dimensions are invalid")
         path=_remote_frame_path(session_id);tmp=path.with_suffix('.tmp');tmp.write_bytes(raw);tmp.replace(path)
         ts=now();connected=row["connected_at"] or ts;new_seq=int(row["frame_seq"] or 0)+1
-        c.execute("UPDATE windows_remote_sessions SET status='active',connected_at=?,last_frame_at=?,last_width=?,last_height=?,frame_seq=?,last_error='' WHERE id=?",(connected,ts,actual_width,actual_height,new_seq,session_id))
+        c.execute("UPDATE windows_remote_sessions SET status='active',connected_at=?,last_frame_at=?,last_state_at=?,last_width=?,last_height=?,frame_seq=?,last_error='' WHERE id=?",(connected,ts,ts,actual_width,actual_height,new_seq,session_id))
     return {"ok":True,"status":"active","width":actual_width,"height":actual_height,"sequence":new_seq}
 
 
@@ -3950,10 +4000,39 @@ def windows_remote_agent_state(session_id: int, req: WindowsRemoteStateRequest, 
         if status!=current and status not in transitions.get(current,set()):
             raise HTTPException(409,f"Invalid remote support transition: {current} -> {status}")
         if status in {"denied","failed","ended"}:
-            c.execute("UPDATE windows_remote_sessions SET status=?,ended_at=?,last_error=? WHERE id=?",(status,ts,req.error[:1000],session_id))
+            c.execute("UPDATE windows_remote_sessions SET status=?,ended_at=?,last_state_at=?,last_error=? WHERE id=?",(status,ts,ts,req.error[:1000],session_id))
         else:
-            c.execute("UPDATE windows_remote_sessions SET status=?,last_error=? WHERE id=?",(status,req.error[:1000],session_id))
+            c.execute("UPDATE windows_remote_sessions SET status=?,last_state_at=?,last_error=? WHERE id=?",(status,ts,req.error[:1000],session_id))
     return {"ok":True,"status":status}
+
+
+@app.post(f"{router_prefix}/windows-agents/tickets")
+def windows_agent_submit_ticket(req: WindowsAgentTicketRequest, agent=Depends(_agent_auth)):
+    request_id=(req.request_id or "").strip()
+    name=(req.requester_name or "").strip()
+    notes=(req.issue_notes or "").strip()
+    categories={x.lower():x for x in ("Email","Internet","Phone","Hardware","Software","Security","Other")}
+    category=categories.get((req.category or "").strip().lower())
+    if not request_id or len(request_id)>100: raise HTTPException(400,"A valid ticket request ID is required")
+    if not name: raise HTTPException(400,"Requester name is required")
+    if not notes: raise HTTPException(400,"Issue notes are required")
+    if not category: raise HTTPException(400,"Invalid ticket category")
+    email=(req.requester_email or "").strip()
+    if email and ("@" not in email or len(email)>254): raise HTTPException(400,"Invalid requester email")
+    ts=now()
+    with db() as c:
+        existing=c.execute("SELECT * FROM tickets WHERE agent_request_id=?",(request_id,)).fetchone()
+        if existing: return {"ok":True,"ticket_id":existing["id"],"ticket_number":existing["ticket_number"],"duplicate":True}
+        computer=(agent["computer_name"] or agent["hostname"] or f"Agent {agent['id']}").strip()
+        title=f"{category} support request — {computer}"
+        priority="high" if category=="Security" else "medium"
+        cur=c.execute("""INSERT INTO tickets(title,description,status,priority,assignee,linked_type,linked_id,device_name,requester_name,requester_department,requester_phone,requester_email,agent_request_id,created_by,created_at,updated_at)
+                         VALUES(?,?,'open',?,'','windows_agent',?,?,?,?,?,?,?,?,?,?)""",
+                      (title[:240],notes[:8000],priority,agent["id"],computer[:255],name[:160],(req.requester_department or "").strip()[:160],(req.requester_phone or "").strip()[:60],email,request_id,f"windows-agent:{computer}"[:160],ts,ts))
+        ticket_id=cur.lastrowid; ticket_number=f"TKT-{ticket_id:05d}"
+        c.execute("UPDATE tickets SET ticket_number=? WHERE id=?",(ticket_number,ticket_id))
+        audit(c,f"windows-agent:{computer}","ticket_created_from_windows_agent",ticket_number,json.dumps({"agent_id":agent["id"],"category":category}))
+    return {"ok":True,"ticket_id":ticket_id,"ticket_number":ticket_number,"duplicate":False}
 
 
 @app.put(f"{router_prefix}/windows-agents/{{agent_id}}")
@@ -4015,7 +4094,7 @@ def windows_agent_msi_package(agent=Depends(_agent_auth)):
 
 @app.get(f"{router_prefix}/windows-agents/package")
 def windows_agent_package(user=Depends(require_admin)):
-    version="2.4.3"
+    version="2.4.4"
     versioned_name=f"GODSEYE-Windows-Agent-x64-Setup-{version}.exe"
     path=BASE_DIR / "windows" / "agent-x64" / versioned_name
     if not path.is_file():
@@ -4025,7 +4104,7 @@ def windows_agent_package(user=Depends(require_admin)):
     # Release builds are published as GitHub Release assets because the installer
     # exceeds GitHub's repository file-size limit. Fresh installs use that asset.
     return RedirectResponse(
-        "https://github.com/msapgroup/Godseye/releases/download/v4.31.0-agent-2.4.3/GODSEYE-Windows-Agent-x64-Setup-2.4.3.exe",
+        "https://github.com/msapgroup/Godseye/releases/download/v4.31.0-agent-2.4.4/GODSEYE-Windows-Agent-x64-Setup-2.4.4.exe",
         status_code=302,
         headers={"Cache-Control":"no-store, no-cache, must-revalidate, max-age=0","Pragma":"no-cache","Expires":"0","X-GODSEYE-Agent-Version":version},
     )
@@ -4035,7 +4114,7 @@ def windows_agent_package(user=Depends(require_admin)):
 def windows_agent_package_status(user=Depends(require_admin)):
     setup=BASE_DIR / "windows" / "agent-x64" / "GODSEYE-Windows-Agent-x64-Setup.exe"
     msi=BASE_DIR / "windows" / "agent-x64" / "GODSEYE-Windows-Agent-x64.msi"
-    manifest={"version":"2.4.3","status":"pending_build"}
+    manifest={"version":"2.4.4","status":"pending_build"}
     manifest_path=BASE_DIR / "windows" / "agent-x64" / "update-manifest.json"
     try:
         if manifest_path.is_file(): manifest.update(json.loads(manifest_path.read_text(encoding="utf-8")))
@@ -4043,9 +4122,9 @@ def windows_agent_package_status(user=Depends(require_admin)):
     return {
         "available":True,
         "msi_available":msi.is_file(),
-        "version":manifest.get("version","2.4.3"),
+        "version":manifest.get("version","2.4.4"),
         "status":manifest.get("status","ready"),
-        "message":"Windows Agent 2.4.3 installer is ready from the local package or GitHub Release."
+        "message":"Windows Agent 2.4.4 installer is ready from the local package or GitHub Release."
     }
 
 
@@ -6863,7 +6942,7 @@ html[data-theme="dark"] .v430-inventory-panel{overflow:visible!important;margin-
       <div><b>Agent enrollment</b><div class="muted">Generate a one-time token, download the permanent x64 Windows installer, and run Setup as Administrator. Future agent upgrades preserve enrollment automatically.</div></div>
       <div class="actions"><button class="secondary" type="button" onclick="checkWindowsAgentUpdates()">↻ Check for Updates</button><button class="primary operate-only" type="button" onclick="pullAllWindowsAgentsNow()">⟳ Pull All Online</button><button id="windowsAgentDownloadBtn" class="secondary admin-only" type="button" onclick="downloadWindowsAgentPackage()">↓ Download x64 Installer</button><button class="primary admin-only" type="button" onclick="createWindowsAgentEnrollment()">＋ Create Enrollment Token</button></div>
     </div>
-    <div id="windowsAgentPackageStatus" class="calendar-integration-note">Checking Agent 2.4.3 installer availability…</div>
+    <div id="windowsAgentPackageStatus" class="calendar-integration-note">Checking Agent 2.4.4 installer availability…</div>
     <div id="windowsAgentEnrollment" class="agent-enrollment-result" style="display:none">
       <div class="agent-token-head"><b>One-time enrollment token</b><span id="windowsAgentEnrollmentExpiry" class="muted"></span></div>
       <div class="agent-token-row"><code id="windowsAgentEnrollmentToken"></code><button class="secondary" onclick="copyAgentEnrollmentToken()">Copy Token</button></div>
@@ -7042,7 +7121,7 @@ html[data-theme="dark"] .v430-inventory-panel{overflow:visible!important;margin-
 
 
 <div class="view" id="view-remote-access" style="display:none">
-<div class="hero remote-hero"><div><h1>Remote Access</h1><div class="muted">Quick Assist-style support for GODSEYE Windows Agent 2.4.3. Screen sharing and remote control require separate approval.</div></div><div class="remote-stats"><span><b id="remoteOnlineCount">0</b> Online</span><span><b id="remoteOfflineCount">0</b> Offline</span><span><b id="remoteTotalCount">0</b> Agents</span></div></div>
+<div class="hero remote-hero"><div><h1>Remote Access</h1><div class="muted">Quick Assist-style support for GODSEYE Windows Agent 2.4.4. Screen sharing and remote control require separate approval.</div></div><div class="remote-stats"><span><b id="remoteOnlineCount">0</b> Online</span><span><b id="remoteOfflineCount">0</b> Offline</span><span><b id="remoteTotalCount">0</b> Agents</span></div></div>
 <div class="remote-layout">
 <section class="panel remote-computers"><div class="table-head"><h2>Agent Computers</h2><button class="secondary" type="button" onclick="loadRemoteAccess()">↻ Refresh</button></div><div class="remote-filter"><input id="remoteSearch" class="input" placeholder="Search computers…" oninput="renderRemoteAgents()"></div><div id="remoteAgentList" class="remote-agent-list"><div class="empty">Loading Windows Agents…</div></div></section>
 <section class="panel remote-session-panel">
@@ -7863,9 +7942,9 @@ async function loadWindowsAgentPackageStatus(){
 }
 async function downloadWindowsAgentPackage(){
  try{
-  const response=await fetch('/api/v1/windows-agents/package?v=2.4.3&fresh='+Date.now(),{credentials:'same-origin',cache:'no-store'});
+  const response=await fetch('/api/v1/windows-agents/package?v=2.4.4&fresh='+Date.now(),{credentials:'same-origin',cache:'no-store'});
   if(!response.ok){let message='Windows Agent installer is unavailable.';try{message=(await response.json()).detail||message}catch(_){}throw new Error(message)}
-  const blob=await response.blob(),url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download='GODSEYE-Windows-Agent-x64-Setup-2.4.3.exe';document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
+  const blob=await response.blob(),url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download='GODSEYE-Windows-Agent-x64-Setup-2.4.4.exe';document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
  }catch(e){alert(e.message||'Windows Agent installer is unavailable.');await loadWindowsAgentPackageStatus()}
 }
 async function pullWindowsAgentNow(id){
@@ -9063,7 +9142,7 @@ function renderRemoteAgents(){
  const rows=REMOTE_AGENTS.filter(a=>!q||String(a.computer_name||'').toLowerCase().includes(q)||String(a.hostname||'').toLowerCase().includes(q)||String(a.ip_address||'').toLowerCase().includes(q));
  const online=REMOTE_AGENTS.filter(a=>a.status==='online').length;
  const set=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v};set('remoteOnlineCount',online);set('remoteOfflineCount',Math.max(0,REMOTE_AGENTS.length-online));set('remoteTotalCount',REMOTE_AGENTS.length);
- root.innerHTML=rows.length?rows.map(a=>{const on=a.status==='online';const supported=!!a.remote_supported;let action='';if(on&&supported)action=`<button class="primary remote-connect" type="button" onclick="startRemoteSession(${a.id})">Connect</button>`;else if(!supported)action=`<button class="secondary remote-connect" type="button" disabled title="Upgrade to Agent 2.4.3">Upgrade Agent</button>`;else action=`<button class="secondary remote-connect" type="button" disabled>Offline</button>`;if(a.revoked_at||a.status==='revoked')action=`<button class="danger admin-only" type="button" onclick="purgeWindowsAgent(${a.id})">Remove</button>`;return `<div class="remote-agent-row"><div class="remote-agent-main"><div class="remote-agent-name"><span class="remote-dot ${on?'online':'offline'}"></span>${esc(a.computer_name||a.hostname||('Agent '+a.id))}</div><div class="remote-agent-sub">${esc(a.ip_address||'No IP')} · Agent ${esc(a.agent_version||'unknown')} · ${esc(a.os_version||'Windows')}</div></div>${action}</div>`}).join(''):`<div class="empty">No matching Windows Agents.</div>`;
+ root.innerHTML=rows.length?rows.map(a=>{const on=a.status==='online';const supported=!!a.remote_supported;let action='';if(on&&supported)action=`<button class="primary remote-connect" type="button" onclick="startRemoteSession(${a.id})">Connect</button>`;else if(!supported)action=`<button class="secondary remote-connect" type="button" disabled title="Upgrade to Agent 2.4.4">Upgrade Agent</button>`;else action=`<button class="secondary remote-connect" type="button" disabled>Offline</button>`;if(a.revoked_at||a.status==='revoked')action=`<button class="danger admin-only" type="button" onclick="purgeWindowsAgent(${a.id})">Remove</button>`;return `<div class="remote-agent-row"><div class="remote-agent-main"><div class="remote-agent-name"><span class="remote-dot ${on?'online':'offline'}"></span>${esc(a.computer_name||a.hostname||('Agent '+a.id))}</div><div class="remote-agent-sub">${esc(a.ip_address||'No IP')} · Agent ${esc(a.agent_version||'unknown')} · ${esc(a.os_version||'Windows')}</div></div>${action}</div>`}).join(''):`<div class="empty">No matching Windows Agents.</div>`;
 }
 async function startRemoteSession(agentId){
  try{
