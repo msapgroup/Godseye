@@ -92,7 +92,7 @@ namespace Godseye.WindowsAgent
 
     public class GodseyeAgentService : ServiceBase
     {
-        static readonly string AgentVersion = typeof(GodseyeAgentService).Assembly.GetName().Version?.ToString(3) ?? "2.4.0";
+        static readonly string AgentVersion = typeof(GodseyeAgentService).Assembly.GetName().Version?.ToString(3) ?? "2.4.3";
         static readonly JsonCompat Json = new JsonCompat();
         readonly string BaseDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "GODSEYE", "Agent");
         Thread worker;
@@ -477,7 +477,7 @@ namespace Godseye.WindowsAgent
         {
             try
             {
-                uint sessionId = WTSGetActiveConsoleSessionId();
+                uint sessionId = GetActiveInteractiveSessionId();
                 if (sessionId == INVALID_SESSION_ID) return;
                 if (trayHelperProcessId > 0)
                 {
@@ -540,7 +540,12 @@ namespace Godseye.WindowsAgent
         struct STARTUPINFO { public int cb; public string lpReserved; public string lpDesktop; public string lpTitle; public int dwX; public int dwY; public int dwXSize; public int dwYSize; public int dwXCountChars; public int dwYCountChars; public int dwFillAttribute; public int dwFlags; public short wShowWindow; public short cbReserved2; public IntPtr lpReserved2; public IntPtr hStdInput; public IntPtr hStdOutput; public IntPtr hStdError; }
         [StructLayout(LayoutKind.Sequential)]
         struct PROCESS_INFORMATION { public IntPtr hProcess; public IntPtr hThread; public uint dwProcessId; public uint dwThreadId; }
+        enum WTS_CONNECTSTATE_CLASS { WTSActive, WTSConnected, WTSConnectQuery, WTSShadow, WTSDisconnected, WTSIdle, WTSListen, WTSReset, WTSDown, WTSInit }
+        [StructLayout(LayoutKind.Sequential)]
+        struct WTS_SESSION_INFO { public int SessionID; public IntPtr pWinStationName; public WTS_CONNECTSTATE_CLASS State; }
         [DllImport("kernel32.dll")] static extern uint WTSGetActiveConsoleSessionId();
+        [DllImport("Wtsapi32.dll", CharSet=CharSet.Unicode, SetLastError=true)] static extern bool WTSEnumerateSessions(IntPtr hServer, int Reserved, int Version, out IntPtr ppSessionInfo, out int pCount);
+        [DllImport("Wtsapi32.dll")] static extern void WTSFreeMemory(IntPtr pMemory);
         [DllImport("Wtsapi32.dll", SetLastError=true)] static extern bool WTSQueryUserToken(uint SessionId, out IntPtr phToken);
         [DllImport("Wtsapi32.dll", CharSet=CharSet.Unicode, SetLastError=true)] static extern bool WTSSendMessage(IntPtr hServer, int SessionId, string pTitle, int TitleLength, string pMessage, int MessageLength, int Style, int Timeout, out int pResponse, bool bWait);
         [DllImport("userenv.dll", SetLastError=true)] static extern bool CreateEnvironmentBlock(out IntPtr lpEnvironment, IntPtr hToken, bool bInherit);
@@ -552,6 +557,34 @@ namespace Godseye.WindowsAgent
         [DllImport("user32.dll")] static extern bool SetCursorPos(int X, int Y);
         [DllImport("user32.dll")] static extern void mouse_event(uint dwFlags, uint dx, uint dy, int dwData, UIntPtr dwExtraInfo);
         [DllImport("user32.dll")] static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
+
+        static uint GetActiveInteractiveSessionId()
+        {
+            uint consoleSessionId=WTSGetActiveConsoleSessionId();
+            uint activeConsoleSessionId=INVALID_SESSION_ID;
+            IntPtr sessions=IntPtr.Zero;
+            int count=0;
+            try
+            {
+                if(WTSEnumerateSessions(IntPtr.Zero,0,1,out sessions,out count)&&sessions!=IntPtr.Zero)
+                {
+                    int size=Marshal.SizeOf(typeof(WTS_SESSION_INFO));
+                    for(int i=0;i<count;i++)
+                    {
+                        IntPtr current=IntPtr.Add(sessions,i*size);
+                        WTS_SESSION_INFO info=(WTS_SESSION_INFO)Marshal.PtrToStructure(current,typeof(WTS_SESSION_INFO));
+                        if(info.State!=WTS_CONNECTSTATE_CLASS.WTSActive||info.SessionID<0)continue;
+                        uint candidate=unchecked((uint)info.SessionID);
+                        // Prefer the active signed-in RDP/interactive desktop over a
+                        // stale physical-console id. Fall back to the active console.
+                        if(candidate!=consoleSessionId)return candidate;
+                        activeConsoleSessionId=candidate;
+                    }
+                }
+            }
+            finally { if(sessions!=IntPtr.Zero)WTSFreeMemory(sessions); }
+            return activeConsoleSessionId!=INVALID_SESSION_ID?activeConsoleSessionId:consoleSessionId;
+        }
 
         static int RemoteHelperMain(string[] args)
         {
@@ -617,6 +650,7 @@ namespace Godseye.WindowsAgent
             }
             if (String.Equals(kind,"capture",StringComparison.OrdinalIgnoreCase))
             {
+                if(TrayApp.SharingStopRequested)return new Dictionary<string,object>{{"ok",false},{"sharing_stopped",true},{"error","The signed-in Windows user stopped screen sharing."}};
                 Rectangle bounds=SystemInformation.VirtualScreen;
                 int width=Math.Max(1,bounds.Width), height=Math.Max(1,bounds.Height);
                 using (Bitmap bmp=new Bitmap(width,height))
@@ -643,6 +677,17 @@ namespace Godseye.WindowsAgent
                 int vk=Convert.ToInt32(request["vk"]); if(vk<8||vk>255)throw new Exception("Invalid virtual key"); string action=Convert.ToString(request["action"]); keybd_event((byte)vk,0,action=="up"?KEYEVENTF_KEYUP:0,UIntPtr.Zero); return new Dictionary<string,object>{{"ok",true}};
             }
             if (String.Equals(kind,"wheel",StringComparison.OrdinalIgnoreCase)) { mouse_event(MOUSEEVENTF_WHEEL,0,0,Convert.ToInt32(request["delta"]),UIntPtr.Zero); return new Dictionary<string,object>{{"ok",true}}; }
+            if (String.Equals(kind,"sharing-start",StringComparison.OrdinalIgnoreCase))
+            {
+                string requestedBy=request!=null&&request.ContainsKey("requested_by")?Convert.ToString(request["requested_by"]):"administrator";
+                TrayApp.StartSharingBanner(String.IsNullOrWhiteSpace(requestedBy)?"administrator":requestedBy);
+                return new Dictionary<string,object>{{"ok",true}};
+            }
+            if (String.Equals(kind,"sharing-stop",StringComparison.OrdinalIgnoreCase))
+            {
+                TrayApp.StopSharingBanner();
+                return new Dictionary<string,object>{{"ok",true}};
+            }
             return new Dictionary<string,object>{{"ok",false},{"error","Unsupported remote helper request"}};
         }
 
@@ -739,7 +784,7 @@ namespace Godseye.WindowsAgent
         void StartRemoteSession(AgentConfig cfg, long sessionId, string requestedBy)
         {
             StopRemoteSession();
-            uint windowsSessionId = WTSGetActiveConsoleSessionId();
+            uint windowsSessionId = GetActiveInteractiveSessionId();
             if (windowsSessionId == INVALID_SESSION_ID) throw new Exception("No interactive Windows session is signed in.");
             Log("Remote support request " + sessionId + " targeting Windows session " + windowsSessionId + ".");
             remoteStop=false; remoteSessionId=sessionId; remoteHelperProcessId=0;
@@ -769,15 +814,13 @@ namespace Godseye.WindowsAgent
                 Post(cfg,"/api/v1/windows-agents/remote/sessions/"+sessionId+"/state",new Dictionary<string,object>{{"status","approved"}},ReadApiKey());
                 Log("Remote support request "+sessionId+" approved by the signed-in Windows user through the GODSEYE tray.");
 
-                // Hand the approved session to a dedicated process in the user's
-                // interactive desktop. The persistent tray owns consent/status only;
-                // it must never be blocked by capture or input traffic.
-                string sessionPipe="GODSEYE-Remote-"+sessionId+"-"+Guid.NewGuid().ToString("N");
-                LaunchRemoteHelper(sessionPipe,requestedBy,windowsSessionId);
-                WaitForRemoteHelperReady(sessionPipe,20000);
-                remotePipeName=sessionPipe;
+                // Keep consent, capture, and input in the already-verified tray
+                // process. A second CreateProcessAsUser handoff could approve the
+                // session successfully and then strand it before the first frame.
+                RemoteHelperRequest(remotePipeName,new Dictionary<string,object>{{"kind","sharing-start"},{"requested_by",String.IsNullOrWhiteSpace(requestedBy)?"administrator":requestedBy}},3000);
                 Post(cfg,"/api/v1/windows-agents/remote/sessions/"+sessionId+"/state",new Dictionary<string,object>{{"status","capture_started"}},ReadApiKey());
-                remoteWorker=new Thread(()=>RemoteSessionLoop(cfg,sessionId,sessionPipe,requestedBy)){IsBackground=true,Name="GODSEYE Remote Support"}; remoteWorker.Start();
+                string trayPipe=remotePipeName;
+                remoteWorker=new Thread(()=>RemoteSessionLoop(cfg,sessionId,trayPipe,requestedBy)){IsBackground=true,Name="GODSEYE Remote Support"}; remoteWorker.Start();
             }
             catch(Exception ex)
             {
@@ -794,7 +837,7 @@ namespace Godseye.WindowsAgent
         void StopRemoteSession()
         {
             remoteStop=true;
-            if(!String.IsNullOrWhiteSpace(remotePipeName) && remotePipeName.StartsWith("GODSEYE-Remote-", StringComparison.OrdinalIgnoreCase)){try{RemoteHelperRequest(remotePipeName,new Dictionary<string,object>{{"kind","terminate"}},500);}catch{}}
+            if(!String.IsNullOrWhiteSpace(remotePipeName)){try{RemoteHelperRequest(remotePipeName,new Dictionary<string,object>{{"kind","sharing-stop"}},1000);}catch{}}
             if(remoteHelperProcessId>0){try{Process p=Process.GetProcessById(remoteHelperProcessId);if(!p.HasExited)p.Kill();}catch{} remoteHelperProcessId=0;}
             if(remoteWorker!=null&&remoteWorker!=Thread.CurrentThread)try{remoteWorker.Join(3000);}catch{} remoteWorker=null; remoteSessionId=0;remotePipeName=null;
         }
@@ -807,6 +850,7 @@ namespace Godseye.WindowsAgent
                 while(!remoteStop&&!stopping)
                 {
                     Dictionary<string,object> frame=RemoteHelperRequest(pipeName,new Dictionary<string,object>{{"kind","capture"}},2500);
+                    if(frame!=null&&frame.ContainsKey("sharing_stopped")&&Convert.ToBoolean(frame["sharing_stopped"]))break;
                     if(frame==null||!frame.ContainsKey("image_base64"))throw new Exception("Remote desktop capture failed.");
                     Dictionary<string,object> accepted=Post(cfg,"/api/v1/windows-agents/remote/sessions/"+sessionId+"/frame",new Dictionary<string,object>{{"image_base64",frame["image_base64"]},{"width",frame["width"]},{"height",frame["height"]}},ReadApiKey());
                     frameDelivered=true;
@@ -831,7 +875,7 @@ namespace Godseye.WindowsAgent
             finally
             {
                 remoteStop=true;
-                try{RemoteHelperRequest(pipeName,new Dictionary<string,object>{{"kind","terminate"}},500);}catch{}
+                try{RemoteHelperRequest(pipeName,new Dictionary<string,object>{{"kind","sharing-stop"}},1000);}catch{}
                 if(remoteHelperProcessId>0){try{using(Process p=Process.GetProcessById(remoteHelperProcessId)){if(!p.HasExited)p.Kill();}}catch{}}
                 if(remoteSessionId==sessionId){remoteHelperProcessId=0;remoteSessionId=0;remotePipeName=null;}
             }
@@ -1211,4 +1255,3 @@ namespace Godseye.WindowsAgent
         }
     }
 }
-

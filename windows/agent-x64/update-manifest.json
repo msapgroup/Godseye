@@ -1,7 +1,6 @@
 {
-  "status": "ready",
-  "version": "2.4.2",
+  "status": "pending_build",
+  "version": "2.4.3",
   "filename": "GODSEYE-Windows-Agent-x64.msi",
-  "sha256": "40F20224634E4ACB0D416F12BCBE63DBDAA4DBEC432FF1DD08365511DB59E191",
-  "url": "https://github.com/msapgroup/Godseye/releases/download/v4.31.0-agent-2.4.2/GODSEYE-Windows-Agent-x64.msi"
+  "sha256": ""
 }

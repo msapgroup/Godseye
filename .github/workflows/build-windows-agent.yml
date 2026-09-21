@@ -18,8 +18,8 @@ on:
       - 'install.sh'
       - 'doctor.sh'
 
-# This workflow builds the latest Windows Agent artifacts after source changes. It never commits generated
-# binaries back to the repository; the release owner can download/test/upload them.
+# This workflow builds and validates the latest Windows Agent artifacts after
+# source changes, then publishes the verified packages as release assets.
 permissions:
   contents: write
 
@@ -39,7 +39,7 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      - name: Publish self-contained x64 Agent 2.4.2
+      - name: Publish self-contained x64 Agent 2.4.3
         shell: pwsh
         run: |
           $project = 'windows/agent-x64/src/Godseye.WindowsAgent/Godseye.WindowsAgent.csproj'
@@ -50,7 +50,7 @@ jobs:
           $agent = Join-Path $publish 'GODSEYE.Agent.exe'
           if (-not (Test-Path $agent)) { throw 'Published GODSEYE.Agent.exe was not created.' }
           $fileVersion = (Get-Item $agent).VersionInfo.FileVersion
-          if ($fileVersion -notlike '2.4.2*') { throw "Unexpected Agent file version: $fileVersion" }
+          if ($fileVersion -notlike '2.4.3*') { throw "Unexpected Agent file version: $fileVersion" }
 
       - name: Build x64 MSI package
         shell: pwsh
@@ -68,7 +68,7 @@ jobs:
 
           [xml]$projectXml = Get-Content 'windows/agent-x64/src/Godseye.WindowsAgent/Godseye.WindowsAgent.csproj'
           $agentVersion = [string]$projectXml.Project.PropertyGroup.Version
-          if ($agentVersion -ne '2.4.2') { throw "Expected Agent 2.4.2, found '$agentVersion'." }
+          if ($agentVersion -ne '2.4.3') { throw "Expected Agent 2.4.3, found '$agentVersion'." }
           $manifest = [ordered]@{
             status = 'ready'
             version = $agentVersion
@@ -172,10 +172,10 @@ jobs:
           $zipHash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToUpperInvariant()
           Set-Content -Path "$zip.sha256" -Value $zipHash -Encoding ascii
 
-      - name: Upload Windows Agent 2.4.2 packages
+      - name: Upload Windows Agent 2.4.3 packages
         uses: actions/upload-artifact@v4
         with:
-          name: GODSEYE-Windows-Agent-x64-2.4.2
+          name: GODSEYE-Windows-Agent-x64-2.4.3
           path: |
             windows/agent-x64/GODSEYE.Agent.exe
             windows/agent-x64/publish/GODSEYE.Agent.exe
@@ -197,10 +197,10 @@ jobs:
         if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v4.31.0-agent-2.4.2
-          name: GODSEYE v4.31.0 Windows Agent 2.4.2
+          tag_name: v4.31.0-agent-2.4.3
+          name: GODSEYE v4.31.0 Windows Agent 2.4.3
           body: |
-            GODSEYE v4.31.0 server source with Windows Agent 2.4.2.
+            GODSEYE v4.31.0 server source with Windows Agent 2.4.3.
 
             Includes the guided Windows installer, MSI, agent executable, checksums, and full source candidate ZIP.
           draft: false
@@ -215,4 +215,3 @@ jobs:
             windows/agent-x64/update-manifest.json
             GODSEYE-v4.31.0-with-agent.zip
             GODSEYE-v4.31.0-with-agent.zip.sha256
-

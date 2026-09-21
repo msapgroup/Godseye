@@ -44,10 +44,10 @@ def test_guided_agent_setup_restarts_service_after_first_time_configuration():
 def test_windows_agent_workflow_builds_230_without_writing_back_to_github():
     workflow = (ROOT / ".github" / "workflows" / "build-windows-agent.yml").read_text(encoding="utf-8")
     assert "GODSEYE.Agent.exe" in workflow
-    assert "GODSEYE-Windows-Agent-x64-2.4.0" in workflow
+    assert "GODSEYE-Windows-Agent-x64-2.4.3" in workflow
     assert "GODSEYE-v4.31.0-with-agent.zip" in workflow
     assert "status = 'ready'" in workflow
-    assert "contents: read" in workflow
+    assert "contents: write" in workflow
     assert "git push" not in workflow
     assert "Build GODSEYE v4.23" not in workflow
     assert "2.2.0" not in workflow

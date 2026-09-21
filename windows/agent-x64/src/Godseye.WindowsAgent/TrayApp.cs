@@ -20,11 +20,13 @@ namespace Godseye.WindowsAgent
         static Control? _uiDispatcher;
         static volatile bool _sharingStopRequested;
         static Form? _sharingBanner;
+        static Thread? _sharingBannerThread;
 
         public static bool SharingStopRequested => _sharingStopRequested;
 
         public static Thread StartSharingBanner(string requestedBy)
         {
+            StopSharingBanner();
             _sharingStopRequested = false;
             var thread = new Thread(() =>
             {
@@ -51,10 +53,12 @@ namespace Godseye.WindowsAgent
                 _sharingBanner = form;
                 Application.Run(form);
                 _sharingBanner = null;
+                _sharingBannerThread = null;
             });
             thread.IsBackground = true;
             thread.SetApartmentState(ApartmentState.STA);
             thread.Name = "GODSEYE Screen Sharing Banner";
+            _sharingBannerThread = thread;
             thread.Start();
             return thread;
         }
@@ -68,9 +72,20 @@ namespace Godseye.WindowsAgent
             }
         }
 
+        public static void StopSharingBanner()
+        {
+            _sharingStopRequested = true;
+            CloseSharingBanner();
+            Thread? thread = _sharingBannerThread;
+            if (thread != null && thread != Thread.CurrentThread)
+            {
+                try { thread.Join(1500); } catch { }
+            }
+        }
+
         public static int Run()
         {
-            using var mutex = new Mutex(true, @"Local\GODSEYE.WindowsAgent.Tray.2.4.0", out bool created);
+            using var mutex = new Mutex(true, @"Local\GODSEYE.WindowsAgent.Tray.2.4.3", out bool created);
             if (!created) return 0;
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);

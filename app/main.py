@@ -4021,7 +4021,7 @@ def windows_agent_package(user=Depends(require_admin)):
     # Release builds are published as GitHub Release assets because the installer
     # exceeds GitHub's repository file-size limit. Fresh installs use that asset.
     return RedirectResponse(
-        "https://github.com/msapgroup/Godseye/releases/download/v4.31.0-agent-2.4.2/GODSEYE-Windows-Agent-x64-Setup.exe",
+        "https://github.com/msapgroup/Godseye/releases/download/v4.31.0-agent-2.4.3/GODSEYE-Windows-Agent-x64-Setup.exe",
         status_code=302,
     )
 
@@ -4030,7 +4030,7 @@ def windows_agent_package(user=Depends(require_admin)):
 def windows_agent_package_status(user=Depends(require_admin)):
     setup=BASE_DIR / "windows" / "agent-x64" / "GODSEYE-Windows-Agent-x64-Setup.exe"
     msi=BASE_DIR / "windows" / "agent-x64" / "GODSEYE-Windows-Agent-x64.msi"
-    manifest={"version":"2.4.2","status":"ready"}
+    manifest={"version":"2.4.3","status":"pending_build"}
     manifest_path=BASE_DIR / "windows" / "agent-x64" / "update-manifest.json"
     try:
         if manifest_path.is_file(): manifest.update(json.loads(manifest_path.read_text(encoding="utf-8")))
@@ -4038,9 +4038,9 @@ def windows_agent_package_status(user=Depends(require_admin)):
     return {
         "available":True,
         "msi_available":msi.is_file(),
-        "version":manifest.get("version","2.4.2"),
+        "version":manifest.get("version","2.4.3"),
         "status":manifest.get("status","ready"),
-        "message":"Windows Agent 2.4.2 installer is ready from the local package or GitHub Release."
+        "message":"Windows Agent 2.4.3 installer is ready from the local package or GitHub Release."
     }
 
 
@@ -6858,7 +6858,7 @@ html[data-theme="dark"] .v430-inventory-panel{overflow:visible!important;margin-
       <div><b>Agent enrollment</b><div class="muted">Generate a one-time token, download the permanent x64 Windows installer, and run Setup as Administrator. Future agent upgrades preserve enrollment automatically.</div></div>
       <div class="actions"><button class="secondary" type="button" onclick="checkWindowsAgentUpdates()">↻ Check for Updates</button><button class="primary operate-only" type="button" onclick="pullAllWindowsAgentsNow()">⟳ Pull All Online</button><button id="windowsAgentDownloadBtn" class="secondary admin-only" type="button" onclick="downloadWindowsAgentPackage()">↓ Download x64 Installer</button><button class="primary admin-only" type="button" onclick="createWindowsAgentEnrollment()">＋ Create Enrollment Token</button></div>
     </div>
-    <div id="windowsAgentPackageStatus" class="calendar-integration-note">Checking Agent 2.4.1 installer availability…</div>
+    <div id="windowsAgentPackageStatus" class="calendar-integration-note">Checking Agent 2.4.3 installer availability…</div>
     <div id="windowsAgentEnrollment" class="agent-enrollment-result" style="display:none">
       <div class="agent-token-head"><b>One-time enrollment token</b><span id="windowsAgentEnrollmentExpiry" class="muted"></span></div>
       <div class="agent-token-row"><code id="windowsAgentEnrollmentToken"></code><button class="secondary" onclick="copyAgentEnrollmentToken()">Copy Token</button></div>
@@ -7037,7 +7037,7 @@ html[data-theme="dark"] .v430-inventory-panel{overflow:visible!important;margin-
 
 
 <div class="view" id="view-remote-access" style="display:none">
-<div class="hero remote-hero"><div><h1>Remote Access</h1><div class="muted">Quick Assist-style support for GODSEYE Windows Agent 2.4.1 or newer. Screen sharing and remote control require separate approval.</div></div><div class="remote-stats"><span><b id="remoteOnlineCount">0</b> Online</span><span><b id="remoteOfflineCount">0</b> Offline</span><span><b id="remoteTotalCount">0</b> Agents</span></div></div>
+<div class="hero remote-hero"><div><h1>Remote Access</h1><div class="muted">Quick Assist-style support for GODSEYE Windows Agent 2.4.3. Screen sharing and remote control require separate approval.</div></div><div class="remote-stats"><span><b id="remoteOnlineCount">0</b> Online</span><span><b id="remoteOfflineCount">0</b> Offline</span><span><b id="remoteTotalCount">0</b> Agents</span></div></div>
 <div class="remote-layout">
 <section class="panel remote-computers"><div class="table-head"><h2>Agent Computers</h2><button class="secondary" type="button" onclick="loadRemoteAccess()">↻ Refresh</button></div><div class="remote-filter"><input id="remoteSearch" class="input" placeholder="Search computers…" oninput="renderRemoteAgents()"></div><div id="remoteAgentList" class="remote-agent-list"><div class="empty">Loading Windows Agents…</div></div></section>
 <section class="panel remote-session-panel">
@@ -9058,7 +9058,7 @@ function renderRemoteAgents(){
  const rows=REMOTE_AGENTS.filter(a=>!q||String(a.computer_name||'').toLowerCase().includes(q)||String(a.hostname||'').toLowerCase().includes(q)||String(a.ip_address||'').toLowerCase().includes(q));
  const online=REMOTE_AGENTS.filter(a=>a.status==='online').length;
  const set=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v};set('remoteOnlineCount',online);set('remoteOfflineCount',Math.max(0,REMOTE_AGENTS.length-online));set('remoteTotalCount',REMOTE_AGENTS.length);
- root.innerHTML=rows.length?rows.map(a=>{const on=a.status==='online';const supported=!!a.remote_supported;let action='';if(on&&supported)action=`<button class="primary remote-connect" type="button" onclick="startRemoteSession(${a.id})">Connect</button>`;else if(!supported)action=`<button class="secondary remote-connect" type="button" disabled title="Upgrade to Agent 2.4.1 or newer">Upgrade Agent</button>`;else action=`<button class="secondary remote-connect" type="button" disabled>Offline</button>`;if(a.revoked_at||a.status==='revoked')action=`<button class="danger admin-only" type="button" onclick="purgeWindowsAgent(${a.id})">Remove</button>`;return `<div class="remote-agent-row"><div class="remote-agent-main"><div class="remote-agent-name"><span class="remote-dot ${on?'online':'offline'}"></span>${esc(a.computer_name||a.hostname||('Agent '+a.id))}</div><div class="remote-agent-sub">${esc(a.ip_address||'No IP')} · Agent ${esc(a.agent_version||'unknown')} · ${esc(a.os_version||'Windows')}</div></div>${action}</div>`}).join(''):`<div class="empty">No matching Windows Agents.</div>`;
+ root.innerHTML=rows.length?rows.map(a=>{const on=a.status==='online';const supported=!!a.remote_supported;let action='';if(on&&supported)action=`<button class="primary remote-connect" type="button" onclick="startRemoteSession(${a.id})">Connect</button>`;else if(!supported)action=`<button class="secondary remote-connect" type="button" disabled title="Upgrade to Agent 2.4.3">Upgrade Agent</button>`;else action=`<button class="secondary remote-connect" type="button" disabled>Offline</button>`;if(a.revoked_at||a.status==='revoked')action=`<button class="danger admin-only" type="button" onclick="purgeWindowsAgent(${a.id})">Remove</button>`;return `<div class="remote-agent-row"><div class="remote-agent-main"><div class="remote-agent-name"><span class="remote-dot ${on?'online':'offline'}"></span>${esc(a.computer_name||a.hostname||('Agent '+a.id))}</div><div class="remote-agent-sub">${esc(a.ip_address||'No IP')} · Agent ${esc(a.agent_version||'unknown')} · ${esc(a.os_version||'Windows')}</div></div>${action}</div>`}).join(''):`<div class="empty">No matching Windows Agents.</div>`;
 }
 async function startRemoteSession(agentId){
  try{

@@ -1,12 +1,12 @@
 # GODSEYE v4.31 Remote Support Candidate
 
-GODSEYE v4.31 retains the v4.30 visual rebuild and introduces Windows Agent 2.4.0 for a more reliable, Quick Assist-style remote-support workflow.
+GODSEYE v4.31 retains the v4.30 visual rebuild and introduces Windows Agent 2.4.3 for a more reliable, Quick Assist-style remote-support workflow.
 
 ## Remote connection fix
 
-- The persistent Windows tray application now owns consent and status only.
-- After the signed-in user selects **Share Screen**, the service starts a unique per-session helper inside that same interactive Windows desktop.
-- The service waits up to 20 seconds for a verified helper readiness response before entering capture state.
+- The persistent Windows tray application owns consent, screen capture, the sharing banner, and approved input.
+- After the signed-in user selects **Share Screen**, capture stays in that already-verified tray process instead of handing the session to a second process.
+- The agent selects the active interactive/RDP session rather than assuming the physical console is the signed-in desktop.
 - The server marks a session active only after validating the first complete JPEG frame.
 - Active-console changes restart the tray in the correct Windows session instead of retaining a stale tray process from a previous sign-in.
 - The session helper displays a topmost sharing banner with **Stop Sharing** so the local user can end access immediately.

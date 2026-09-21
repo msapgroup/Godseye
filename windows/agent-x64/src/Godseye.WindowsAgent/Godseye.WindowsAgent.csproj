@@ -13,9 +13,9 @@
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <AssemblyName>GODSEYE.Agent</AssemblyName>
     <RootNamespace>Godseye.WindowsAgent</RootNamespace>
-    <Version>2.4.2</Version>
-    <FileVersion>2.4.2.0</FileVersion>
-    <AssemblyVersion>2.4.2.0</AssemblyVersion>
+    <Version>2.4.3</Version>
+    <FileVersion>2.4.3.0</FileVersion>
+    <AssemblyVersion>2.4.3.0</AssemblyVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
     <NoWarn>SYSLIB0014</NoWarn>
@@ -27,4 +27,3 @@
     <PackageReference Include="System.ServiceProcess.ServiceController" Version="8.0.0" />
   </ItemGroup>
 </Project>
-

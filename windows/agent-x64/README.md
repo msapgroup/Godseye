@@ -1,4 +1,4 @@
-# GODSEYE Windows Agent x64 v2.4.0
+# GODSEYE Windows Agent x64 v2.4.3
 
 GODSEYE Windows Agent 2.x is a standalone x64 Windows service with its own installer lifecycle and versioning. It is designed to remain compatible with future GODSEYE server releases through the stable Windows Agent API rather than being rebuilt for every server release.
 
@@ -71,13 +71,13 @@ The MSI and Setup EXE are not yet Authenticode-signed by this build pipeline. Pr
 
 ## Agent updates
 
-Version 2.4.0 is the v4.31 remote-support baseline. Agents on 2.1.x and newer remain eligible for authenticated self-update once a signed/validated 2.4.0 MSI is installed on the GODSEYE server. GODSEYE exposes the current agent version and SHA-256 manifest in the Windows Agents view. An administrator can use **Check for Updates** and, for agents already on 2.1.0 or newer, **Upgrade Agent**. The service downloads only the fixed authenticated GODSEYE MSI endpoint, verifies the published SHA-256, and starts Windows Installer silently. The update payload cannot supply an arbitrary URL, executable, shell, or command.
+Version 2.4.3 is the current v4.31 remote-support release. Agents on 2.1.x and newer remain eligible for authenticated self-update once a signed/validated 2.4.3 MSI is installed on the GODSEYE server. GODSEYE exposes the current agent version and SHA-256 manifest in the Windows Agents view. An administrator can use **Check for Updates** and, for agents already on 2.1.0 or newer, **Upgrade Agent**. The service downloads only the fixed authenticated GODSEYE MSI endpoint, verifies the published SHA-256, and starts Windows Installer silently. The update payload cannot supply an arbitrary URL, executable, shell, or command.
 
 Agents on 2.0.x require one manual upgrade to 2.1.0 using the current x64 Setup/MSI. That baseline upgrade preserves `%ProgramData%\GODSEYE\Agent`, including enrollment, DPAPI-protected API key, bookmarks, pending queue, logs, and configuration. After that baseline, future agent releases can be upgraded from GODSEYE without another enrollment token.
 
 
-## Remote support in 2.4.0
+## Remote support in 2.4.3
 
-Remote support consent is owned by the persistent tray application in the signed-in Windows user's interactive session. The Windows service cannot approve a session on the user's behalf. After screen-sharing approval, the tray hands the connection to a dedicated per-session helper in the same interactive desktop; this fixes the 2.3.0 path that attempted to stream through the persistent consent pipe. The server tracks `requested -> waiting_for_tray -> tray_ready -> waiting_for_user -> approved -> capture_started`, and only changes the session to `active` after it receives and validates the first real JPEG frame. Sessions begin view-only. Mouse and keyboard input is accepted only after the operator requests control and the Windows user separately approves it.
+Remote support consent, capture, and approved input are owned by the persistent tray application in the signed-in Windows user's active interactive session. The Windows service cannot approve a session on the user's behalf. Agent 2.4.3 removes the unreliable second-process handoff that could leave the browser waiting after the user selected **Share Screen**. The server tracks `requested -> waiting_for_tray -> tray_ready -> waiting_for_user -> approved -> capture_started`, and only changes the session to `active` after it receives and validates the first real JPEG frame. Sessions begin view-only. Mouse and keyboard input is accepted only after the operator requests control and the Windows user separately approves it.
 
-The source tree may contain archived pre-2.4 build artifacts for reference. They are not release payloads and must not be advertised or served as Windows Agent 2.4.0. A 2.4.0 update manifest is valid only when its canonical `GODSEYE-Windows-Agent-x64.msi` exists and its SHA-256 matches the manifest.
+The source tree may contain archived pre-2.4.3 build artifacts for reference. They are not release payloads and must not be advertised or served as Windows Agent 2.4.3. A 2.4.3 update manifest is valid only when its canonical `GODSEYE-Windows-Agent-x64.msi` exists and its SHA-256 matches the manifest.
