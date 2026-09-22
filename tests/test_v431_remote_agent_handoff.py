@@ -71,3 +71,6 @@ def test_v431_dashboard_uses_fahrenheit_temperature_and_coalesces_remote_input()
     assert "const frameSeq=Number(s.frame_seq||0)" in source
     assert "if(n-REMOTE_MOVE_AT<150)return;" in source
     assert 'pending_event.get("action")=="move"' in source
+
+    assert "function v430HealthDetail(check)" in source
+    assert "toFixed(1)+' °F'" in source
