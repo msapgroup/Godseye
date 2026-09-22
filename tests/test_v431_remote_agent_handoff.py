@@ -51,3 +51,13 @@ def test_v431_remote_viewer_fits_full_frame_and_keeps_pointer_coordinates_aligne
     assert "max-width:100%!important;max-height:100%!important;object-fit:contain!important" in source
     assert "const frameWidth=Number(s.last_width||0),frameHeight=Number(s.last_height||0)" in source
     assert "ev.clientX<r.left||ev.clientX>r.right||ev.clientY<r.top||ev.clientY>r.bottom" in source
+
+
+def test_v431_dashboard_regressions_restore_ticket_close_monitoring_status_and_cpu_metric():
+    source = Path("app/main.py").read_text(encoding="utf-8")
+    save_start = source.split("async function saveTicket()", 1)[1].split("async function scheduleCurrentTicket()", 1)[0]
+    assert "closeTicketEditor();await loadTickets();" in save_start
+    assert "['up','ok','healthy','online','running','success'].includes(state)" in source
+    assert "function v430CpuPercent(check)" in source
+    assert "v430SetMeter('v430Cpu',v430CpuPercent(find(['cpu','load'])))" in source
+    assert "const cpu=v430CpuPercent(find(['cpu','load']))" in source
