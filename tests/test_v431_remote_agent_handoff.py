@@ -61,3 +61,13 @@ def test_v431_dashboard_regressions_restore_ticket_close_monitoring_status_and_c
     assert "function v430CpuPercent(check)" in source
     assert "v430SetMeter('v430Cpu',v430CpuPercent(find(['cpu','load'])))" in source
     assert "const cpu=v430CpuPercent(find(['cpu','load']))" in source
+
+
+def test_v431_dashboard_uses_fahrenheit_temperature_and_coalesces_remote_input():
+    source = Path("app/main.py").read_text(encoding="utf-8")
+    assert "((tv*9/5)+32).toFixed(0)+'°F'" in source
+    assert "Math.round(tp*9/5+32)+'°F'" in source
+    assert "let REMOTE_FRAME_SEQ=0;" in source
+    assert "const frameSeq=Number(s.frame_seq||0)" in source
+    assert "if(n-REMOTE_MOVE_AT<150)return;" in source
+    assert 'pending_event.get("action")=="move"' in source
