@@ -43,3 +43,11 @@ def test_v431_windows_user_can_stop_sharing_and_control_is_separate():
     assert "control_status TEXT NOT NULL DEFAULT 'view_only'" in server
     assert "/control/request" in server
     assert "The signed-in Windows user has not approved remote control" in server
+
+
+def test_v431_remote_viewer_fits_full_frame_and_keeps_pointer_coordinates_aligned():
+    source = Path("app/main.py").read_text(encoding="utf-8")
+    assert ".remote-screen{width:auto!important;height:auto!important" in source
+    assert "max-width:100%!important;max-height:100%!important;object-fit:contain!important" in source
+    assert "const frameWidth=Number(s.last_width||0),frameHeight=Number(s.last_height||0)" in source
+    assert "ev.clientX<r.left||ev.clientX>r.right||ev.clientY<r.top||ev.clientY>r.bottom" in source
