@@ -20,3 +20,4 @@ jobs:
           tests/test_v430_ui_release.py
           tests/test_v431_remote_agent_handoff.py
           tests/test_v431_agent_ticket_and_remote_storage.py
+          tests/test_cyber_tools_v431.py

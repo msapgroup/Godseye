@@ -44,7 +44,7 @@ case "${1:-}" in
     ls -l "$DATA_DIR/godseye.db" 2>/dev/null || true
     cat "$ENV_FILE" 2>/dev/null || true
     echo "--- tool availability ---"
-    for bin in arp-scan nmap ip ping dig avahi-browse nbtscan snmpget snmpwalk traceroute sqlite3 wakeonlan mosquitto_pub curl jq; do
+    for bin in arp-scan nmap ip ping dig avahi-browse nbtscan snmpget snmpwalk traceroute sqlite3 wakeonlan mosquitto_pub curl jq clamscan yara lynis tcpdump; do
       if command -v "$bin" >/dev/null 2>&1; then echo "OK   $bin -> $(command -v "$bin")"; else echo "MISS $bin"; fi
     done
     systemctl --no-pager --full status godseye-web.service 2>/dev/null || true
@@ -83,7 +83,8 @@ apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get install -y \
   python3 python3-venv python3-pip ca-certificates \
   iproute2 iputils-ping nmap arp-scan dnsutils avahi-utils avahi-daemon nbtscan \
-  snmp wakeonlan traceroute curl jq sqlite3 net-tools ethtool iw wireless-tools mosquitto-clients nginx openssl certbot python3-certbot-nginx rsync unzip sudo
+  snmp wakeonlan traceroute curl jq sqlite3 net-tools ethtool iw wireless-tools mosquitto-clients nginx openssl certbot python3-certbot-nginx rsync unzip sudo \
+  clamav yara lynis tcpdump
 
 for bin in python3 ip ping nmap arp-scan dig traceroute avahi-browse nbtscan snmpget snmpwalk sqlite3 rsync; do
   command -v "$bin" >/dev/null 2>&1 || { echo "Required program missing after install: $bin"; exit 1; }
@@ -170,13 +171,15 @@ install -m 0644 "$INSTALL_DIR/godseye-scanner.service" /etc/systemd/system/godse
 install -m 0755 "$INSTALL_DIR/godseye-apply-update" /usr/local/sbin/godseye-apply-update
 install -m 0755 "$INSTALL_DIR/godseye-https-setup" /usr/local/sbin/godseye-https-setup
 install -m 0755 "$INSTALL_DIR/godseye-release-audit" /usr/local/sbin/godseye-release-audit
+install -m 0755 "$INSTALL_DIR/godseye-evidence-capture" /usr/local/sbin/godseye-evidence-capture
 cat >/etc/sudoers.d/godseye-production <<'EOF2'
 godseye ALL=(root) NOPASSWD: /usr/local/sbin/godseye-apply-update *
+godseye ALL=(root) NOPASSWD: /usr/local/sbin/godseye-evidence-capture *
 EOF2
 chmod 0440 /etc/sudoers.d/godseye-production
-mkdir -p "$DATA_DIR/updates" "$DATA_DIR/config-exports" "$DATA_DIR/tls" "$BACKUP_DIR"
-chown -R "$APP_USER:$APP_GROUP" "$DATA_DIR/updates" "$DATA_DIR/config-exports" "$BACKUP_DIR"
-chmod 0750 "$DATA_DIR/updates" "$DATA_DIR/config-exports" "$BACKUP_DIR"
+mkdir -p "$DATA_DIR/updates" "$DATA_DIR/config-exports" "$DATA_DIR/tls" "$DATA_DIR/cyber-evidence" "$DATA_DIR/cyber-scan-temp" "$BACKUP_DIR"
+chown -R "$APP_USER:$APP_GROUP" "$DATA_DIR/updates" "$DATA_DIR/config-exports" "$DATA_DIR/cyber-evidence" "$DATA_DIR/cyber-scan-temp" "$BACKUP_DIR"
+chmod 0750 "$DATA_DIR/updates" "$DATA_DIR/config-exports" "$DATA_DIR/cyber-evidence" "$DATA_DIR/cyber-scan-temp" "$BACKUP_DIR"
 chmod 0700 "$DATA_DIR/tls"
 
 systemctl daemon-reload
@@ -202,4 +205,3 @@ echo "Database: $DATA_DIR/godseye.db"
 if [[ $EXISTING -eq 1 ]]; then echo "Pre-upgrade backups: $BACKUP_DIR"; fi
 echo "Web: http://$(hostname -I | awk '{print $1}'):8080"
 if [[ $EXISTING -eq 0 ]]; then echo "First login: admin — create your password on the setup screen."; fi
-

@@ -1,8 +1,16 @@
-# GODSEYE v4.30 Screenshots
+# GODSEYE v4.31 Screenshots
 
 These screenshots are captured from the actual GODSEYE v4.30 web application using a disposable demonstration database. The demonstration records are used only while capturing documentation images and are **not** included in a GODSEYE installation. Email has no connected mailbox and Remote Access has no enrolled Agent in this capture; those pages show their real setup states.
 
 The five user-approved visual targets are separately stored under `design-reference/` as `dashboard-target.png`, `devices-target.png`, `calendar-target.png`, `email-target.png`, and `system-health-target.png`. Those are design references, not photographs of the running application.
+
+## Cyber Tools operations console
+
+The Cyber Tools screens below are current v4.31 UI previews generated from the finalized card layout. The first shows all eight independent tools; the second shows a completed Endpoint Security Posture result and the Finding, Ticket, Export, schedule, and history workflow. Tool availability badges are populated dynamically on the installed appliance.
+
+![GODSEYE v4.31 Cyber Tools card overview](screenshots/v431-cyber-tools-overview.png)
+
+![GODSEYE v4.31 Cyber Tools working result](screenshots/v431-cyber-tools-working.png)
 
 ## Dashboard
 

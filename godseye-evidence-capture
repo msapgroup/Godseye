@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+iface="${1:-}";count="${2:-}";seconds="${3:-}";output="${4:-}";host_filter="${5:--}"
+[[ "$iface" =~ ^[A-Za-z0-9_.:-]{1,32}$ && -d "/sys/class/net/$iface" ]] || { echo "Invalid interface" >&2; exit 2; }
+[[ "$count" =~ ^[0-9]+$ && "$count" -ge 1 && "$count" -le 500 ]] || { echo "Invalid packet limit" >&2; exit 2; }
+[[ "$seconds" =~ ^[0-9]+$ && "$seconds" -ge 1 && "$seconds" -le 15 ]] || { echo "Invalid duration" >&2; exit 2; }
+[[ "$output" =~ ^/var/lib/godseye/cyber-evidence/capture-[A-Za-z0-9TZ-]+\.pcap$ ]] || { echo "Invalid output path" >&2; exit 2; }
+[[ "$host_filter" == "-" ]] || python3 -c 'import ipaddress,sys;ipaddress.ip_address(sys.argv[1])' "$host_filter"
+install -d -o godseye -g godseye -m 0750 /var/lib/godseye/cyber-evidence
+args=(/usr/bin/tcpdump -U -n -i "$iface" -c "$count" -w "$output");[[ "$host_filter" == "-" ]] || args+=(host "$host_filter")
+set +e;/usr/bin/timeout --signal=INT "${seconds}s" "${args[@]}";status=$?;set -e
+chown godseye:godseye "$output" 2>/dev/null || true;chmod 0640 "$output" 2>/dev/null || true
+[[ "$status" -eq 0 || "$status" -eq 124 ]]
