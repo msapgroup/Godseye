@@ -90,6 +90,10 @@ GODSEYE is intended for trusted LAN or VPN access. Do not expose the application
 
 GODSEYE v4.31 is installed directly on Raspberry Pi OS, Debian, or Ubuntu-style Linux with `systemd`; Docker is not required. The release ZIP contains the application and installer.
 
+### Storage recommendation
+
+GODSEYE runs best when the appliance boots from an SSD or NVMe drive. Faster, lower-latency storage improves database activity, dashboard response, log processing, report generation, updates, backups, and packet/evidence capture—especially as monitoring history grows. HDD and SD-card installations remain supported, but for continuous monitoring use, place the operating system and `/var/lib/godseye` data directory on SSD-class storage when possible.
+
 ### Fresh install from the release ZIP
 
 ```bash
