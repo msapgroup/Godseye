@@ -33,6 +33,7 @@ jobs:
       - name: Start clean GODSEYE instance
         env:
           GODSEYE_DB: /tmp/godseye-ui-capture.db
+          GODSEYE_DATA_DIR: /tmp/godseye-ui-master-data
           GODSEYE_COOKIE_SECURE: 'false'
           PORT: '8080'
         run: |
