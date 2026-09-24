@@ -1,4 +1,4 @@
-name: GODSEYE live UI capture
+name: Capture GODSEYE UI
 
 on:
   workflow_dispatch:
@@ -7,65 +7,67 @@ on:
       - ui/approved-godseye-redesign
     paths:
       - 'app/**'
-      - 'scripts/seed_screenshot_data.py'
-      - 'scripts/capture_live_ui.py'
+      - 'scripts/capture_ui.py'
       - '.github/workflows/ui-capture.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   capture:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    env:
-      GODSEYE_DB: /tmp/godseye-ui-capture.db
-      GODSEYE_COOKIE_SECURE: 'false'
-      GODSEYE_CAPTURE_URL: http://127.0.0.1:8080
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-
+          python-version: '3.12'
       - name: Install GODSEYE and browser dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt playwright
+          pip install -r requirements.txt
+          pip install playwright
           python -m playwright install --with-deps chromium
-
-      - name: Seed temporary capture data
-        run: PYTHONPATH=. python scripts/seed_screenshot_data.py
-
-      - name: Start GODSEYE
+      - name: Start clean GODSEYE instance
+        env:
+          GODSEYE_DB: /tmp/godseye-ui-capture.db
+          GODSEYE_COOKIE_SECURE: 'false'
+          PORT: '8080'
         run: |
-          PYTHONPATH=. uvicorn app.main:app --host 127.0.0.1 --port 8080 >/tmp/godseye-ui.log 2>&1 &
-          echo $! >/tmp/godseye-ui.pid
-          for i in $(seq 1 45); do
-            if curl -fsS http://127.0.0.1:8080/api/v1/auth/setup/status >/dev/null; then
-              exit 0
-            fi
+          rm -f /tmp/godseye-ui-capture.db
+          python -m app > /tmp/godseye-ui.log 2>&1 &
+          echo $! > /tmp/godseye-ui.pid
+          for i in {1..40}; do
+            if curl -fsS http://127.0.0.1:8080/ >/dev/null; then break; fi
             sleep 1
           done
-          cat /tmp/godseye-ui.log
-          exit 1
-
-      - name: Capture live GODSEYE screens
-        run: PYTHONPATH=. python scripts/capture_live_ui.py
-
-      - name: Upload live UI screenshots
-        uses: actions/upload-artifact@v4
+          curl -fsS http://127.0.0.1:8080/ >/dev/null
+      - name: Capture real running app screens
+        run: python scripts/capture_ui.py
+      - name: Verify screenshot files
+        run: |
+          test -s docs/screenshots/v431-dashboard-map-logo.png
+          test -s docs/screenshots/v431-devices-guide.png
+          test -s docs/screenshots/v431-cyber-tools-overview.png
+          test -s docs/screenshots/v431-system-health-guide.png
+          test -s docs/screenshots/godseye-about.png
+      - name: Commit refreshed screenshots
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/screenshots/
+          if git diff --cached --quiet; then
+            echo "Screenshots already current."
+          else
+            git commit -m "Refresh screenshots from redesigned running app [skip ci]"
+            git push
+          fi
+      - name: Build downloadable source ZIP
+        run: |
+          git archive --format=zip --output=GODSEYE-redesigned.zip HEAD
+      - uses: actions/upload-artifact@v4
         with:
-          name: godseye-live-ui-captures
-          path: artifacts/ui-captures/*.png
-          if-no-files-found: error
-          retention-days: 14
-
-      - name: Upload app log on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: godseye-live-ui-log
-          path: /tmp/godseye-ui.log
-          if-no-files-found: ignore
+          name: GODSEYE-redesigned
+          path: GODSEYE-redesigned.zip
+          retention-days: 30
