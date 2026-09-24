@@ -31,10 +31,9 @@
 - Ticket actions are audited.
 
 ## Screenshots
-- Adds `docs/screenshots/dark-event-findings.png`.
-- Adds `docs/screenshots/dark-ticket-portal.png`.
-- Refreshes `docs/screenshots/dark-calendar.png` with the linked-ticket workflow.
 - Refreshes the dark-mode overview montage.
 
 ## Security / validation note
 Real Windows hosts and WinRM hardware/network conditions are not available in the build container. Automated tests validate filtering, bookmarks, event classification, finding deduplication, ticket/calendar workflow, encryption plumbing, API/UI integration, and regression behavior. A first live Windows pull should be validated on the target Raspberry Pi and trusted Windows LAN.
+
+Historical screenshots from this release were retired during the v4.31 branding refresh. See `docs/SCREENSHOTS.md` for the current image gallery.

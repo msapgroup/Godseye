@@ -15,9 +15,10 @@
 - Existing databases are migrated with a nullable-equivalent empty display name default; no account recreation is required.
 
 ## UI / screenshots
-- Adds `docs/screenshots/dark-ticket-assignee-picker.png`.
 - Keeps the dark screenshot documentation synchronized.
 
 ## Security
 - The ticket assignee directory exposes only user ID, username, display name, and role.
 - User-management permissions remain unchanged.
+
+Historical screenshots from this release were retired during the v4.31 branding refresh. See `docs/SCREENSHOTS.md` for the current image gallery.

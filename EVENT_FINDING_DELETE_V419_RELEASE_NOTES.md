@@ -15,4 +15,5 @@
 Deletion is **administrator-only**. Operators can continue to Recheck, Create Ticket, and Resolve according to existing permissions, but cannot delete findings.
 
 ## Screenshot
-`docs/screenshots/dark-event-findings.png` is refreshed to show the new selection and delete controls.
+
+Historical screenshots from this release were retired during the v4.31 branding refresh. See `docs/SCREENSHOTS.md` for the current image gallery.

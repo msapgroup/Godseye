@@ -20,10 +20,10 @@
 - `GODSEYE_PUBLIC_URL` is supported for OAuth callback URL generation behind HTTPS/reverse proxy.
 
 ## Screenshots
-- Adds `docs/screenshots/dark-email.png`.
-- Refreshes `docs/screenshots/dark-reports.png` to show report deletion and Email Report.
 - Refreshes the dark-mode overview montage.
 
 ## Validation
 - Automated tests cover schema, OAuth/security plumbing, Report History deletion, Gmail/Microsoft endpoints, dark UI, and report-email attachment generation.
 - Live Gmail and Microsoft 365 account authorization is not performed in the build container.
+
+Historical screenshots from this release were retired during the v4.31 branding refresh. See `docs/SCREENSHOTS.md` for the current image gallery.

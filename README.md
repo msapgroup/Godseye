@@ -4,45 +4,36 @@
 
 GODSEYE v4.31 keeps the v4.30 interface and adds a redesigned Quick Assist-style Remote Access handshake. The Windows Agent retains token enrollment and Event Findings collection while handing approved screen sharing to a dedicated interactive-session helper. Remote sessions begin view-only and require a separate local-user approval before mouse or keyboard control is enabled.
 
-![GODSEYE v4.30 Dashboard](docs/screenshots/v430-dashboard.png)
+![GODSEYE v4.31 Dashboard with the approved G logo](docs/screenshots/v431-dashboard-map-logo.png)
 
 ## v4.31 interface
 
-The v4.30 interface uses the dark GODSEYE visual system across the real application. The five approved visual references are kept in `docs/design-reference/`; the images embedded here were captured from the running application with demonstration data. The shared masthead, navigation, summary cards, tools, reports, calendar, email, traffic, and health workspaces use a consistent outlined icon set. Page layouts are constrained to the viewport so normal desktop use does not require a page-level horizontal scrollbar.
+The dark GODSEYE interface uses the approved angular G logo and shows the current build number. Navigation, summaries, network map, tools, reporting, calendar, email, and system health share the same visual system. Authentication screens include **Powered By: MSAPGROUP.LLC**. The dashboard image above is a running-app capture with disposable demonstration data; it is not included in the installation database.
 
-The application and authentication screens use the angular GODSEYE “G” mark with the current build number. Every authentication screen carries the footer attribution **Powered By: MSAPGROUP.LLC**.
+The Dashboard Network Map Overview displays the world view, site markers, and live Sites, Devices, Offline, and Active Alerts totals. Choose **Topology** or **World** in its map switch, or open the full Network Map page. Devices supports inventory filtering and details; Calendar and Email require their respective integrations for external accounts; Remote Access requires an enrolled Windows Agent and explicit approval on the endpoint.
 
-The Dashboard Network Map Overview matches the geographic reference card and defaults to a detailed world silhouette with recognizable coastlines, route lines, colored site markers, and live Sites, Devices, Offline, and Active Alerts totals. The map sits left while the compact statistics and full-map action occupy the right column. Use the subtle **Topology / World** switch inside the map to change views; GODSEYE remembers the selection.
+### Cyber Tools
 
-### Devices and inventory
+![GODSEYE v4.31 Cyber Tools cards with the approved G logo](docs/screenshots/v431-cyber-tools-overview.png)
 
-![GODSEYE v4.30 Devices](docs/screenshots/v430-devices.png)
+Open **Cyber Tools** from the Operations sidebar. Each of the eight cards has its own inputs, availability badge, run button, and result. Enter only a target you administer, choose a profile where offered, and run the check. Engine availability reflects what is installed and configured on the appliance.
 
-Discover, identify, classify, rename, and investigate devices while preserving the original GODSEYE inventory and discovery behavior. Filter by status, type, and classification; select a row to see its live device details.
+| Card | How to use it |
+| --- | --- |
+| Network Exposure Scan | Enter a private host or network, choose Quick, Standard, or Deep, then run a bounded Nmap scan. |
+| Endpoint Security Posture | Enroll a Windows Agent, then review endpoint reachability, version, updates, errors, and malware scan state. |
+| Web & TLS Audit | Enter a website URL and profile to check HTTPS, certificate, redirects, and response headers. |
+| Malware & IOC Scan | Enter a hash, IP, or domain; optionally choose a file up to 10 MB for ClamAV and YARA analysis. |
+| DNS & Email Security | Enter a domain and optional DKIM selector to inspect address, MX, SPF, DMARC, DKIM, CAA, and DNSSEC records. |
+| Linux Security Audit | Choose an audit profile and run the read-only Lynis check on the GODSEYE appliance. |
+| Network Threat Detection | Choose how many alerts to review from a configured Suricata EVE feed. |
+| Evidence Capture | Choose a validated interface, optional host IP, duration up to 15 seconds, and packet limit up to 500; capture a PCAP. |
 
-### Calendar and maintenance planning
+After a completed run, use the card actions to create a Finding or Ticket, export the stored JSON result, or schedule supported checks. Review past runs in **Scan history**. File uploads and packet capture cannot be scheduled. See [Cyber Tools configuration](docs/TOOLS.md) for engine setup and limits.
 
-![GODSEYE v4.30 Calendar](docs/screenshots/v430-calendar.png)
+![Illustrative v4.31 Cyber Tools result and workflow preview](docs/screenshots/v431-cyber-tools-working.png)
 
-Plan maintenance, tickets, reviews, and operational work from the built-in calendar, with Google Calendar and Microsoft 365 integrations available when configured.
-
-### Email workspace
-
-![GODSEYE v4.30 Email](docs/screenshots/v430-email.png)
-
-Connect Gmail or Microsoft 365 and work with operational mail, attachments, replies, drafts, and generated GODSEYE reports without leaving the appliance UI.
-
-### System Health
-
-![GODSEYE v4.30 System Health](docs/screenshots/v430-system-health.png)
-
-System Health brings appliance status, resource usage, diagnostics, backups, retention, updates, HTTPS, metrics security, and remediation controls into the same v4.30 interface.
-
-### Remote Access
-
-![GODSEYE v4.30 Remote Access](docs/screenshots/v430-remote-access.png)
-
-Remote Access is rebuilt around explicit local user approval. A session moves through request, approval, tray/capture readiness, and validated JPEG delivery before GODSEYE marks it active. The browser remote console includes the defined pointer, keyboard, wheel, screenshot, and disconnect controls without exposing an arbitrary remote shell.
+The Cyber Tools images are UI previews of the finalized card layout. The completed result in the second image is illustrative; scan findings depend on your appliance and targets. Other historical screenshots with the retired logo are no longer included in this release.
 
 ## Movable dashboard cards
 
@@ -182,7 +173,7 @@ Hardware-dependent behavior should also be validated on the target Raspberry Pi,
 
 ## Screenshots
 
-The screenshots shown above are captured from the actual v4.30 application using a disposable demonstration database. The current captures are under `docs/screenshots/` and the approved visual targets are under `docs/design-reference/`. Demonstration records are illustrative and are not installed with GODSEYE. Email shows the honest unconnected state until you configure a mailbox; Remote Access shows the honest empty state until an Agent is enrolled. See `docs/SCREENSHOTS.md` for the gallery and capture notes.
+The current branded Dashboard capture and Cyber Tools UI previews are under `docs/screenshots/`. See [the screenshot gallery](docs/SCREENSHOTS.md) for provenance. No demonstration inventory, scan result, or ticket shown in documentation is installed with GODSEYE.
 
 ## Documentation
 

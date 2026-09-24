@@ -3,21 +3,19 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_readme_uses_actual_v430_screenshot_gallery():
+def test_readme_uses_current_branded_screenshot_gallery():
     readme = (ROOT / 'README.md').read_text(encoding='utf-8')
     shots = [
-        'v430-dashboard.png',
-        'v430-devices.png',
-        'v430-calendar.png',
-        'v430-email.png',
-        'v430-system-health.png',
-        'v430-remote-access.png',
+        'v431-dashboard-map-logo.png',
+        'v431-cyber-tools-overview.png',
+        'v431-cyber-tools-working.png',
     ]
     for shot in shots:
         assert f'docs/screenshots/{shot}' in readme
         path = ROOT / 'docs' / 'screenshots' / shot
         assert path.exists() and path.stat().st_size > 20_000
-    assert 'captured from the actual v4.30 application' in readme
+    assert 'running-app capture' in readme
+    assert 'UI previews' in readme
 
 
 def test_readme_release_zip_install_and_first_run_admin_are_current():
