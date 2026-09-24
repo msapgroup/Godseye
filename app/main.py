@@ -890,6 +890,21 @@ def login_background():
 def dashboard_map_reference():
     return FileResponse(BASE_DIR / "app" / "assets" / "dashboard-map-reference.png", media_type="image/png", headers={"Cache-Control":"public, max-age=86400"})
 
+
+@app.get("/assets/godseye-mark.svg", include_in_schema=False)
+def godseye_mark_asset():
+    return FileResponse(BASE_DIR / "app" / "assets" / "godseye-mark.svg", media_type="image/svg+xml", headers={"Cache-Control":"public, max-age=86400"})
+
+
+@app.get("/assets/godseye-wordmark.svg", include_in_schema=False)
+def godseye_wordmark_asset():
+    return FileResponse(BASE_DIR / "app" / "assets" / "godseye-wordmark.svg", media_type="image/svg+xml", headers={"Cache-Control":"public, max-age=86400"})
+
+
+@app.get("/assets/godseye-lockup.svg", include_in_schema=False)
+def godseye_lockup_asset():
+    return FileResponse(BASE_DIR / "app" / "assets" / "godseye-lockup.svg", media_type="image/svg+xml", headers={"Cache-Control":"public, max-age=86400"})
+
 @app.get("/assets/device-icons/{icon_name}.svg", include_in_schema=False)
 def device_icon_asset(icon_name: str):
     if icon_name not in VALID_DEVICE_ICONS - {"auto"}:
@@ -6764,6 +6779,19 @@ html[data-theme="dark"] .badge{box-shadow:none!important}
 .v430-brand-copy small{color:#5f8ba8!important}
 
 .godseye-wordmark{display:block;width:124px;height:auto}.login-wordmark{width:210px!important}.v430-brand-copy{display:flex!important;flex-direction:column!important;justify-content:center!important;gap:1px!important}.v430-brand-copy small{margin-top:-2px!important}.login-brand-row{align-items:center!important}
+
+/* About GODSEYE */
+#view-about{max-width:1180px;margin:0 auto}
+.about-hero{text-align:center;padding:34px 34px 28px!important;background:radial-gradient(circle at 50% 0,rgba(19,122,192,.18),transparent 42%),linear-gradient(150deg,#0e2436,#091722)!important}
+.about-brand-lockup{display:flex;align-items:center;justify-content:center;gap:18px;margin-bottom:8px}
+.about-mark{width:92px;height:92px;filter:drop-shadow(0 0 14px rgba(40,190,255,.3))}
+.about-wordmark{width:260px;height:auto}
+.about-tagline{font-size:12px;letter-spacing:.08em;color:#7fcfff;margin-bottom:14px}
+.about-hero p{max-width:820px;margin:0 auto 20px;color:#9bb4c6!important;line-height:1.7;font-size:12px}
+.about-actions{display:flex;justify-content:center;gap:9px;flex-wrap:wrap}.about-button{display:inline-flex;align-items:center;justify-content:center;min-height:36px;padding:0 16px;border-radius:7px;text-decoration:none;font-size:10px;font-weight:750}
+.about-feature-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:12px}.about-feature{padding:18px!important;min-height:190px!important;text-align:center}.about-feature-icon{width:45px;height:45px;margin:0 auto 12px;border-radius:11px;display:grid;place-items:center;background:#102f49;color:#4fc7ff;font-size:22px;border:1px solid #23506c}.about-feature h3{font-size:12px!important;margin:0 0 8px}.about-feature p{font-size:9px!important;line-height:1.6;color:#829fb3!important;margin:0}
+.about-info-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}.about-info{min-height:190px}.about-info-body{padding:17px}.about-info-body p{font-size:10px!important;line-height:1.6}.about-principles{display:grid;grid-template-columns:1fr 1fr;gap:12px;color:#b7d2e3}.about-principles span{font-size:9px;padding:9px 10px;background:#081824;border:1px solid #193b52;border-radius:7px}.about-footer{text-align:center;padding:18px 0 4px;font-size:9px!important}
+@media(max-width:1000px){.about-feature-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.about-info-grid{grid-template-columns:1fr}}@media(max-width:620px){.about-feature-grid{grid-template-columns:1fr}.about-brand-lockup{flex-direction:column}.about-wordmark{width:210px}.about-principles{grid-template-columns:1fr}}
 </style></head>
 <body>
 <div id="authOverlay" class="overlay" style="display:none">
@@ -6783,7 +6811,7 @@ html[data-theme="dark"] .badge{box-shadow:none!important}
 </div>
 <div id="setupOverlay" class="overlay" style="display:none">
   <div class="authcard">
-    <div class="brand setup-brand" style="margin-bottom:18px"><div class="eye">__EYE_LOGO__</div><div><b><span class="brand-gods">GODS</span><span class="brand-eye">EYE</span></b><small class="login-build">MSP SECURITY OPERATIONS</small><div class="muted">NETWORK INTELLIGENCE &amp; SECURITY</div></div></div>
+    <div class="brand setup-brand" style="margin-bottom:18px"><div class="eye">__EYE_LOGO__</div><div><img class="godseye-wordmark" src="/assets/godseye-wordmark.svg" alt="GODSEYE"><small class="login-build">MSP SECURITY OPERATIONS</small><div class="muted">NETWORK INTELLIGENCE &amp; SECURITY</div></div></div>
     <h2>Create your administrator password</h2>
     <div class="muted">Fresh installation complete. Choose a password for the <b>admin</b> account.</div>
     <form id="setupForm" onsubmit="return doInitialSetup(event)">
@@ -6851,6 +6879,7 @@ html[data-theme="dark"] .badge{box-shadow:none!important}
 <button type="button" class="navitem" id="navUsers" data-view="users"><span class="navicon"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="4"/><path d="M2 21a7 7 0 0 1 14 0M16 7a4 4 0 0 1 0 7M18 16a6 6 0 0 1 4 5"/></svg></span><span>Users</span></button>
 <button type="button" class="navitem" id="navAudit" data-view="audit"><span class="navicon"><svg viewBox="0 0 24 24"><path d="M6 3h12v18H6Z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg></span><span>Audit Log</span></button>
 <button type="button" class="navitem" data-view="security"><span class="navicon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.5-2.5 1A7 7 0 0 0 15 6l-.4-2.7h-4L10 6a7 7 0 0 0-1.4.8l-2.5-1-2 3.5L6.2 11a7 7 0 0 0 0 2l-2 1.5 2 3.5 2.5-1A7 7 0 0 0 10 18l.5 2.7h4L15 18a7 7 0 0 0 1.4-.8l2.5 1 2-3.5-2-1.5c.1-.4.1-.8.1-1.2Z"/></svg></span><span>Settings</span></button>
+<button type="button" class="navitem" data-view="about"><span class="navicon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 10v7M12 7h.01"/></svg></span><span>About</span></button>
 </div>
 <div class="sidebar-footer">
 <div class="sidebar-customize-controls"><button type="button" class="sidebar-page-arrange" onclick="toggleLayoutEditing(event)"><span class="layout-arrange-label">Reorder Page</span></button><button type="button" class="sidebar-nav-arrange" onclick="toggleSidebarEditing(event)"><span class="sidebar-arrange-label">Reorder Sidebar</span></button><button type="button" onclick="resetPageLayout(event)">Reset Page</button><button type="button" onclick="resetSidebarLayout(event)">Reset Sidebar</button></div>
@@ -7407,6 +7436,46 @@ sudo godseye-https-setup godseye.example.com letsencrypt</pre></div></section>
 
 <div class="view" id="view-security" style="display:none">
 <section class="panel"><h2>Two-Factor Authentication</h2><div id="mfaStatus" style="padding:16px 18px"></div></section>
+</div>
+
+<div class="view" id="view-about" style="display:none">
+  <div class="about-hero panel">
+    <div class="about-brand-lockup">
+      <img class="about-mark" src="/assets/godseye-mark.svg" alt="GODSEYE shield G cyber eye logo">
+      <img class="about-wordmark" src="/assets/godseye-wordmark.svg" alt="GODSEYE">
+    </div>
+    <div class="about-tagline">Network Intelligence · Security Operations · Remote Support</div>
+    <p>GODSEYE is a self-hosted operations platform built for small and mid-sized MSPs that want strong visibility, practical security tools, and direct control without an oversized enterprise stack.</p>
+    <div class="about-actions">
+      <a class="primary about-button" href="https://github.com/msapgroup/Godseye" target="_blank" rel="noopener">GitHub Repository</a>
+      <a class="secondary about-button" href="https://github.com/msapgroup/Godseye/wiki" target="_blank" rel="noopener">Documentation</a>
+    </div>
+  </div>
+
+  <div class="about-feature-grid">
+    <section class="panel about-feature"><span class="about-feature-icon">⌁</span><h3>Network Intelligence</h3><p>Discover devices, inspect identity and activity, map relationships, and understand changes across the environment.</p></section>
+    <section class="panel about-feature"><span class="about-feature-icon">◆</span><h3>Security Operations</h3><p>Investigate findings, run authorized Cyber Tools, review Windows events, and turn issues into actionable work.</p></section>
+    <section class="panel about-feature"><span class="about-feature-icon">▣</span><h3>MSP Workflow</h3><p>Bring monitoring, tickets, reports, calendar, email, Windows management, and remote support into one workspace.</p></section>
+    <section class="panel about-feature"><span class="about-feature-icon">◇</span><h3>Self-Hosted Control</h3><p>Keep the platform and operational data under your control while avoiding unnecessary enterprise licensing overhead.</p></section>
+  </div>
+
+  <div class="about-info-grid">
+    <section class="panel about-info">
+      <div class="table-head"><h2>Built for MSPs</h2></div>
+      <div class="about-info-body">
+        <p><b>Powerful MSP tools without the enterprise price tag.</b></p>
+        <p class="muted">GODSEYE is designed to give growing service providers a practical daily operations console that is easy to host, understand, and maintain.</p>
+      </div>
+    </section>
+    <section class="panel about-info">
+      <div class="table-head"><h2>Core Principles</h2></div>
+      <div class="about-info-body about-principles">
+        <span>✓ Self-hosted</span><span>✓ Practical workflows</span><span>✓ Security-focused</span><span>✓ Budget-conscious</span><span>✓ Consent-based remote support</span><span>✓ Built to grow with your MSP</span>
+      </div>
+    </section>
+  </div>
+
+  <div class="about-footer muted">GODSEYE · Built by MSAPGROUP LLC</div>
 </div>
 
 <div class="view" id="view-rules" style="display:none">
@@ -8634,7 +8703,7 @@ function showView(name,updateHash=true){
   document.querySelectorAll('.navitem[data-view]').forEach(b=>{b.classList.remove('active');b.removeAttribute('aria-current')});
   const btn=document.querySelector('.navitem[data-view="'+name+'"]');
   if(btn){btn.classList.add('active');btn.setAttribute('aria-current','page')}
-  const pageTitles={overview:'Dashboard',devices:'Devices',network:'Network Map',monitoring:'Monitoring',findings:'Findings',tools:'Tools','cyber-tools':'Cyber Tools','windows-updates':'Microsoft Windows Updates',integrations:'Integrations',reports:'Reports',calendar:'Calendar',email:'Email','event-findings':'Event Findings','remote-access':'Remote Access',antivirus:'Antivirus',tickets:'Ticket Portal',health:'System Health',security:'Settings',rules:'Alert Rules',users:'Users',audit:'Audit Log',activity:'Activity'};const pageTitle=document.getElementById('v430PageTitle');if(pageTitle)pageTitle.textContent=pageTitles[name]||'GODSEYE';
+  const pageTitles={overview:'Dashboard',devices:'Devices',network:'Network Map',monitoring:'Monitoring',findings:'Findings',tools:'Tools','cyber-tools':'Cyber Tools','windows-updates':'Microsoft Windows Updates',integrations:'Integrations',reports:'Reports',calendar:'Calendar',email:'Email','event-findings':'Event Findings','remote-access':'Remote Access',antivirus:'Antivirus',tickets:'Ticket Portal',health:'System Health',security:'Settings',about:'About GODSEYE',rules:'Alert Rules',users:'Users',audit:'Audit Log',activity:'Activity'};const pageTitle=document.getElementById('v430PageTitle');if(pageTitle)pageTitle.textContent=pageTitles[name]||'GODSEYE';
   if(updateHash && location.hash!=='#'+name){history.replaceState(null,'','#'+name)}
   if(updateHash)window.scrollTo(0,0);
   const loader=VIEW_LOADERS[name];
