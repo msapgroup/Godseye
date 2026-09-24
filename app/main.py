@@ -122,31 +122,7 @@ MFA_BACKUP_CODE_COUNT = 10
 # policy decision, not something a project can supply on your behalf.
 LOGIN_BANNER = os.environ.get("GODSEYE_LOGIN_BANNER", "")
 
-EYE_LOGO = """<svg class="eye-logo godseye-shield-g-eye" viewBox="0 0 104 104" role="img" aria-label="GODSEYE shield G cyber eye logo">
-<defs>
-  <linearGradient id="goShield" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#12d9ff"/><stop offset=".2" stop-color="#168ee8"/><stop offset=".56" stop-color="#07396d"/><stop offset=".82" stop-color="#0aaee7"/><stop offset="1" stop-color="#0a59b6"/></linearGradient>
-  <linearGradient id="goInner" x1=".1" y1="0" x2=".9" y2="1"><stop stop-color="#0f4677"/><stop offset=".48" stop-color="#071b35"/><stop offset="1" stop-color="#0a4e82"/></linearGradient>
-  <linearGradient id="goMetal" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#ffffff"/><stop offset=".18" stop-color="#dff4ff"/><stop offset=".42" stop-color="#8cccf2"/><stop offset=".68" stop-color="#f7fdff"/><stop offset=".88" stop-color="#58b8ee"/><stop offset="1" stop-color="#d7f2ff"/></linearGradient>
-  <radialGradient id="goIris"><stop stop-color="#f3feff"/><stop offset=".12" stop-color="#53e3ff"/><stop offset=".38" stop-color="#0e9fe6"/><stop offset=".68" stop-color="#0758a6"/><stop offset="1" stop-color="#021b39"/></radialGradient>
-  <filter id="goGlow" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="2.4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-</defs>
-<path d="M52 3 93 18v31c0 25-16 43-41 53C27 92 11 74 11 49V18Z" fill="url(#goShield)"/>
-<path d="M52 9 86 21v27c0 21-13 36-34 46C31 84 18 69 18 48V21Z" fill="#061729"/>
-<path d="M52 13 81 23v24c0 18-10 31-29 40-19-9-29-22-29-40V23Z" fill="url(#goInner)" stroke="#33cfff" stroke-width="1.7"/>
-<g fill="none" stroke="#32caff" stroke-width="1.2" opacity=".9">
-  <path d="M26 31h8v7M78 31h-8v7M25 66h9v-7M79 66h-9v-7"/>
-  <path d="M23 41h9M81 41h-9M23 56h9M81 56h-9"/>
-  <circle cx="23" cy="41" r="2" fill="#a7f5ff"/><circle cx="81" cy="41" r="2" fill="#a7f5ff"/>
-  <circle cx="23" cy="56" r="2" fill="#a7f5ff"/><circle cx="81" cy="56" r="2" fill="#a7f5ff"/>
-</g>
-<path d="M74 28H48C31 28 20 38 20 51s11 23 28 23h27V57H53" fill="none" stroke="#04101f" stroke-width="19" stroke-linejoin="miter" stroke-linecap="square" opacity=".78"/>
-<path d="M73 26H47C30 26 19 38 19 51s11 25 28 25h28V56H52" fill="none" stroke="url(#goMetal)" stroke-width="13" stroke-linejoin="miter" stroke-linecap="square"/>
-<path d="M27 51c6-9 15-14 25-14s19 5 25 14c-6 9-15 14-25 14S33 60 27 51Z" fill="#041526" stroke="#c8f0ff" stroke-width="2.7"/>
-<path d="M31 51c5-6.8 12-10.5 21-10.5S68 44.2 73 51c-5 6.8-12 10.5-21 10.5S36 57.8 31 51Z" fill="#0a4b7e" stroke="#22ccff" stroke-width="1.3"/>
-<circle cx="52" cy="51" r="11.7" fill="url(#goIris)" stroke="#77ecff" stroke-width="1.5" filter="url(#goGlow)"/>
-<g fill="none" stroke="#a8f7ff" stroke-width=".78" opacity=".82"><circle cx="52" cy="51" r="8.1"/><path d="M40.4 51h23.2M52 39.4v23.2M45 45c4.4 1.8 9.6 1.8 14 0M45 57c4.4-1.8 9.6-1.8 14 0"/></g>
-<circle cx="52" cy="51" r="3.5" fill="#f4feff"/><circle cx="53.5" cy="49.5" r="1.15" fill="#25c8ff"/>
-</svg>"""
+EYE_LOGO = '<img class="eye-logo godseye-shield-g-eye" src="/assets/godseye-mark.svg" alt="GODSEYE shield G cyber eye logo">'
 
 # Only used to seed the very first admin account on a fresh install. Change
 # these via env vars before first boot if you don't want the well-known
@@ -6786,11 +6762,13 @@ html[data-theme="dark"] .badge{box-shadow:none!important}
 .brand-eye{background:linear-gradient(180deg,#55d8ff 0%,#159cff 54%,#0a73cc 100%);-webkit-background-clip:text;background-clip:text;color:transparent!important}
 .v430-brand-copy b{font-size:21px!important}.login-brand-row b{font-size:29px!important}
 .v430-brand-copy small{color:#5f8ba8!important}
+
+.godseye-wordmark{display:block;width:124px;height:auto}.login-wordmark{width:210px!important}.v430-brand-copy{display:flex!important;flex-direction:column!important;justify-content:center!important;gap:1px!important}.v430-brand-copy small{margin-top:-2px!important}.login-brand-row{align-items:center!important}
 </style></head>
 <body>
 <div id="authOverlay" class="overlay" style="display:none">
   <div class="authcard">
-    <div class="login-brand"><div class="login-brand-row">__EYE_LOGO__<b><span class="brand-gods">GODS</span><span class="brand-eye">EYE</span></b></div><small class="login-build">MSP SECURITY OPERATIONS</small><div class="muted">Network Intelligence · Device Correlation · Smart Alerts</div></div>
+    <div class="login-brand"><div class="login-brand-row">__EYE_LOGO__<img class="godseye-wordmark login-wordmark" src="/assets/godseye-wordmark.svg" alt="GODSEYE"></div><small class="login-build">MSP SECURITY OPERATIONS</small><div class="muted">Network Intelligence · Device Correlation · Smart Alerts</div></div>
     <div id="loginBanner" class="muted" style="white-space:pre-wrap;margin-bottom:14px;__LOGIN_BANNER_DISPLAY__">__LOGIN_BANNER__</div>
     <h2>Welcome Back</h2>
     <div class="muted">Sign in to your GODSEYE account</div>
@@ -6845,7 +6823,7 @@ html[data-theme="dark"] .badge{box-shadow:none!important}
 <div class="healthbar" id="pwReminderBar" style="display:none;color:#f7c948;cursor:pointer" onclick="openChangePassword()"></div>
 <div class="shell">
 <nav class="sidebar">
-<div class="brand v430-brand"><div class="eye">__EYE_LOGO__</div><div class="v430-brand-copy"><b><span class="brand-gods">GODS</span><span class="brand-eye">EYE</span></b><small>SECURITY OPERATIONS</small></div></div>
+<div class="brand v430-brand"><div class="eye">__EYE_LOGO__</div><div class="v430-brand-copy"><img class="godseye-wordmark" src="/assets/godseye-wordmark.svg" alt="GODSEYE"><small>SECURITY OPERATIONS</small></div></div>
 <div class="sidebar-arrange-bar"><b>Arrange sidebar</b>Drag items to reorder them or move them into another section.<span class="sidebar-save-state" id="sidebarSaveState">Changes save automatically.</span><div class="sidebar-arrange-actions"><button type="button" class="primary" onclick="toggleSidebarEditing(event)">Done</button><button type="button" class="secondary" onclick="resetSidebarLayout(event)">Reset</button></div></div>
 <div class="navlist">
 <button type="button" class="navitem active" data-view="overview"><span class="navicon"><svg viewBox="0 0 24 24"><path d="M3 11.5 12 4l9 7.5V21H3Z"/><path d="M9 21v-6h6v6"/></svg></span><span>Dashboard</span></button>
