@@ -7,6 +7,12 @@ def test_readme_uses_current_branded_screenshot_gallery():
     readme = (ROOT / 'README.md').read_text(encoding='utf-8')
     shots = [
         'v431-dashboard-map-logo.png',
+        'v431-devices-guide.png',
+        'v431-network-map-card.png',
+        'v431-calendar-guide.png',
+        'v431-email-guide.png',
+        'v431-system-health-guide.png',
+        'v431-remote-access-guide.png',
         'v431-cyber-tools-overview.png',
         'v431-cyber-tools-working.png',
     ]
