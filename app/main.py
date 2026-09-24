@@ -6792,6 +6792,8 @@ html[data-theme="dark"] .badge{box-shadow:none!important}
 .about-feature-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:12px}.about-feature{padding:18px!important;min-height:190px!important;text-align:center}.about-feature-icon{width:45px;height:45px;margin:0 auto 12px;border-radius:11px;display:grid;place-items:center;background:#102f49;color:#4fc7ff;font-size:22px;border:1px solid #23506c}.about-feature h3{font-size:12px!important;margin:0 0 8px}.about-feature p{font-size:9px!important;line-height:1.6;color:#829fb3!important;margin:0}
 .about-info-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}.about-info{min-height:190px}.about-info-body{padding:17px}.about-info-body p{font-size:10px!important;line-height:1.6}.about-principles{display:grid;grid-template-columns:1fr 1fr;gap:12px;color:#b7d2e3}.about-principles span{font-size:9px;padding:9px 10px;background:#081824;border:1px solid #193b52;border-radius:7px}.about-footer{text-align:center;padding:18px 0 4px;font-size:9px!important}
 @media(max-width:1000px){.about-feature-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.about-info-grid{grid-template-columns:1fr}}@media(max-width:620px){.about-feature-grid{grid-template-columns:1fr}.about-brand-lockup{flex-direction:column}.about-wordmark{width:210px}.about-principles{grid-template-columns:1fr}}
+
+.about-page-heading{margin-bottom:12px!important;text-align:left}.about-page-heading h1{margin:0 0 4px!important}
 </style></head>
 <body>
 <div id="authOverlay" class="overlay" style="display:none">
@@ -7439,6 +7441,7 @@ sudo godseye-https-setup godseye.example.com letsencrypt</pre></div></section>
 </div>
 
 <div class="view" id="view-about" style="display:none">
+  <div class="hero about-page-heading"><div><h1>About GODSEYE</h1><div class="muted">Self-hosted network intelligence and security operations for growing MSPs.</div></div></div>
   <div class="about-hero panel">
     <div class="about-brand-lockup">
       <img class="about-mark" src="/assets/godseye-mark.svg" alt="GODSEYE shield G cyber eye logo">
