@@ -122,22 +122,30 @@ MFA_BACKUP_CODE_COUNT = 10
 # policy decision, not something a project can supply on your behalf.
 LOGIN_BANNER = os.environ.get("GODSEYE_LOGIN_BANNER", "")
 
-EYE_LOGO = """<svg class="eye-logo godseye-g-mark" viewBox="0 0 96 96" role="img" aria-label="GODSEYE shield G cyber eye logo">
+EYE_LOGO = """<svg class="eye-logo godseye-shield-eye" viewBox="0 0 96 96" role="img" aria-label="GODSEYE shield eye logo">
 <defs>
-<linearGradient id="gsShield" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#0b3156"/><stop offset=".52" stop-color="#07182b"/><stop offset="1" stop-color="#0a4d7a"/></linearGradient>
-<linearGradient id="gsMetal" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f7fdff"/><stop offset=".35" stop-color="#bfe7ff"/><stop offset=".68" stop-color="#5fb7f3"/><stop offset="1" stop-color="#d8f5ff"/></linearGradient>
-<radialGradient id="gsIris"><stop stop-color="#e7fbff"/><stop offset=".18" stop-color="#39d4ff"/><stop offset=".48" stop-color="#087fd9"/><stop offset=".8" stop-color="#052c58"/><stop offset="1" stop-color="#020d1e"/></radialGradient>
-<filter id="gsGlow" x="-35%" y="-35%" width="170%" height="170%"><feGaussianBlur stdDeviation="2.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  <linearGradient id="geOuter" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#22c7ff"/><stop offset=".45" stop-color="#168ee8"/><stop offset="1" stop-color="#0b5db8"/></linearGradient>
+  <linearGradient id="geInner" x1=".15" y1="0" x2=".85" y2="1"><stop stop-color="#174e7e"/><stop offset=".52" stop-color="#0b2e52"/><stop offset="1" stop-color="#0a5c91"/></linearGradient>
+  <radialGradient id="geIris"><stop stop-color="#eafcff"/><stop offset=".14" stop-color="#44dcff"/><stop offset=".42" stop-color="#079be8"/><stop offset=".72" stop-color="#035aa8"/><stop offset="1" stop-color="#02203f"/></radialGradient>
+  <linearGradient id="geWhite" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f8fdff"/><stop offset=".55" stop-color="#bde7ff"/><stop offset="1" stop-color="#5eb6ef"/></linearGradient>
+  <filter id="geGlow" x="-35%" y="-35%" width="170%" height="170%"><feGaussianBlur stdDeviation="2.3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
 </defs>
-<path d="M48 4 84 17v27c0 23-14 39-36 49C26 83 12 67 12 44V17Z" fill="url(#gsShield)" stroke="#169eea" stroke-width="2.5"/>
-<path d="M48 8 79 19v24c0 19-11 33-31 43C28 76 17 62 17 43V19Z" fill="none" stroke="#65d8ff" stroke-opacity=".45"/>
-<g stroke="#1bbcff" stroke-width="1.2" opacity=".75"><path d="M24 26v10h7"/><path d="M72 27v9h-7"/><path d="M23 58v9h8"/><path d="M73 58v9h-8"/><circle cx="24" cy="24" r="2" fill="#b7f5ff"/><circle cx="72" cy="25" r="2" fill="#b7f5ff"/><circle cx="23" cy="70" r="2" fill="#b7f5ff"/><circle cx="73" cy="70" r="2" fill="#b7f5ff"/></g>
-<path d="M68 29H43c-13 0-23 8-23 20s10 20 23 20h24V53H50" fill="none" stroke="#071426" stroke-width="17" stroke-linecap="square" stroke-linejoin="round" opacity=".75"/>
-<path d="M67 27H42c-13 0-23 9-23 21s10 21 23 21h25V53H49" fill="none" stroke="url(#gsMetal)" stroke-width="12" stroke-linecap="square" stroke-linejoin="round"/>
-<path d="M25 48c5-8 13-13 23-13s18 5 23 13c-5 8-13 13-23 13S30 56 25 48Z" fill="#06172c" stroke="#36c7ff" stroke-width="2.2"/>
-<circle cx="48" cy="48" r="12.5" fill="url(#gsIris)" stroke="#78e8ff" stroke-width="1.6" filter="url(#gsGlow)"/>
-<g fill="none" stroke="#8ff1ff" stroke-width=".8" opacity=".72"><circle cx="48" cy="48" r="8.4"/><path d="M35.5 48h25M48 35.5v25M40 42c5 2 11 2 16 0M40 54c5-2 11-2 16 0"/></g>
-<circle cx="48" cy="48" r="3.3" fill="#effcff"/><circle cx="49.5" cy="46.5" r="1.1" fill="#25bfff"/>
+<path d="M48 4 84 17v27c0 23-14 39-36 49C26 83 12 67 12 44V17Z" fill="url(#geOuter)"/>
+<path d="M48 9 78 20v23c0 19-11 32-30 42C29 75 18 62 18 43V20Z" fill="#071828"/>
+<path d="M48 13 73 22v20c0 16-9 28-25 37-16-9-25-21-25-37V22Z" fill="url(#geInner)" stroke="#36c7ff" stroke-width="1.6"/>
+<g fill="none" stroke="#3bd0ff" stroke-width="1.15" opacity=".85">
+  <path d="M30 29h8v6M66 29h-8v6M28 61h9v-6M68 61h-9v-6"/>
+  <path d="M26 38h8M70 38h-8M26 53h8M70 53h-8"/>
+  <circle cx="27" cy="38" r="1.8" fill="#9af2ff"/><circle cx="69" cy="38" r="1.8" fill="#9af2ff"/>
+  <circle cx="27" cy="53" r="1.8" fill="#9af2ff"/><circle cx="69" cy="53" r="1.8" fill="#9af2ff"/>
+</g>
+<path d="M24 47c6-10 14-15 24-15s18 5 24 15c-6 10-14 15-24 15S30 57 24 47Z" fill="#051322" stroke="url(#geWhite)" stroke-width="3"/>
+<path d="M28 47c5-7 12-11 20-11s15 4 20 11c-5 7-12 11-20 11s-15-4-20-11Z" fill="#0b4d80" stroke="#22c8ff" stroke-width="1.3"/>
+<circle cx="48" cy="47" r="11.4" fill="url(#geIris)" stroke="#7beaff" stroke-width="1.5" filter="url(#geGlow)"/>
+<g fill="none" stroke="#a2f3ff" stroke-width=".75" opacity=".75">
+  <circle cx="48" cy="47" r="7.8"/><path d="M36.6 47h22.8M48 35.6v22.8M41 41c4.3 1.8 9.7 1.8 14 0M41 53c4.3-1.8 9.7-1.8 14 0"/>
+</g>
+<circle cx="48" cy="47" r="3.5" fill="#f2fdff"/><circle cx="49.6" cy="45.5" r="1.15" fill="#1fc7ff"/>
 </svg>"""
 
 # Only used to seed the very first admin account on a fresh install. Change
@@ -6770,11 +6778,19 @@ html[data-theme="dark"] #view-security .panel h2,html[data-theme="dark"] #view-r
 html[data-theme="dark"] .status-pill{background:#0d2e48!important;border:1px solid #245f83!important;color:#9edcff!important}
 html[data-theme="dark"] .status-pill.warn{background:#422b17!important;border-color:#745029!important;color:#ffd27d!important}
 html[data-theme="dark"] .badge{box-shadow:none!important}
+
+/* Approved master logo + wordmark */
+.godseye-shield-eye{width:49px!important;height:52px!important;filter:drop-shadow(0 0 8px rgba(35,190,255,.34))}
+.v430-brand-copy b,.login-brand-row b{display:inline-flex!important;align-items:baseline!important;letter-spacing:.055em!important;background:none!important;-webkit-background-clip:initial!important;background-clip:initial!important;color:inherit!important;text-shadow:0 1px 0 rgba(255,255,255,.12),0 0 16px rgba(34,174,255,.12)!important}
+.brand-gods{background:linear-gradient(180deg,#ffffff 0%,#d9effc 40%,#9fcbe6 76%,#f4fbff 100%);-webkit-background-clip:text;background-clip:text;color:transparent!important}
+.brand-eye{background:linear-gradient(180deg,#55d8ff 0%,#159cff 54%,#0a73cc 100%);-webkit-background-clip:text;background-clip:text;color:transparent!important}
+.v430-brand-copy b{font-size:21px!important}.login-brand-row b{font-size:29px!important}
+.v430-brand-copy small{color:#5f8ba8!important}
 </style></head>
 <body>
 <div id="authOverlay" class="overlay" style="display:none">
   <div class="authcard">
-    <div class="login-brand"><div class="login-brand-row">__EYE_LOGO__<b>GODSEYE</b></div><small class="login-build">MSP SECURITY OPERATIONS</small><div class="muted">Network Intelligence · Device Correlation · Smart Alerts</div></div>
+    <div class="login-brand"><div class="login-brand-row">__EYE_LOGO__<b><span class="brand-gods">GODS</span><span class="brand-eye">EYE</span></b></div><small class="login-build">MSP SECURITY OPERATIONS</small><div class="muted">Network Intelligence · Device Correlation · Smart Alerts</div></div>
     <div id="loginBanner" class="muted" style="white-space:pre-wrap;margin-bottom:14px;__LOGIN_BANNER_DISPLAY__">__LOGIN_BANNER__</div>
     <h2>Welcome Back</h2>
     <div class="muted">Sign in to your GODSEYE account</div>
@@ -6829,7 +6845,7 @@ html[data-theme="dark"] .badge{box-shadow:none!important}
 <div class="healthbar" id="pwReminderBar" style="display:none;color:#f7c948;cursor:pointer" onclick="openChangePassword()"></div>
 <div class="shell">
 <nav class="sidebar">
-<div class="brand v430-brand"><div class="eye">__EYE_LOGO__</div><div class="v430-brand-copy"><b>GODSEYE</b><small>SECURITY OPERATIONS</small></div></div>
+<div class="brand v430-brand"><div class="eye">__EYE_LOGO__</div><div class="v430-brand-copy"><b><span class="brand-gods">GODS</span><span class="brand-eye">EYE</span></b><small>SECURITY OPERATIONS</small></div></div>
 <div class="sidebar-arrange-bar"><b>Arrange sidebar</b>Drag items to reorder them or move them into another section.<span class="sidebar-save-state" id="sidebarSaveState">Changes save automatically.</span><div class="sidebar-arrange-actions"><button type="button" class="primary" onclick="toggleSidebarEditing(event)">Done</button><button type="button" class="secondary" onclick="resetSidebarLayout(event)">Reset</button></div></div>
 <div class="navlist">
 <button type="button" class="navitem active" data-view="overview"><span class="navicon"><svg viewBox="0 0 24 24"><path d="M3 11.5 12 4l9 7.5V21H3Z"/><path d="M9 21v-6h6v6"/></svg></span><span>Dashboard</span></button>
