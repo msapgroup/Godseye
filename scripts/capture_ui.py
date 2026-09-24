@@ -97,7 +97,7 @@ async def main():
                 assert response.ok, await response.text()
                 response = await context.post(address + '/api/v1/auth/login', data={'username': 'admin', 'password': PASSWORD})
                 assert response.ok, await response.text()
-                cookies = await context.cookies(address)
+                cookies = (await context.storage_state())['cookies']
                 csrf = next(c['value'] for c in cookies if c['name'] == 'godseye_csrf')
                 response = await context.post(address + '/api/v1/federation/pairing-tokens', headers={'X-CSRF-Token': csrf})
                 assert response.ok, await response.text()
