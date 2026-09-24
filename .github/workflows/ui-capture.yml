@@ -47,6 +47,10 @@ jobs:
           curl -fsS http://127.0.0.1:8080/ >/dev/null
       - name: Capture real running app screens
         run: python scripts/capture_ui.py
+      - name: Show application errors if capture fails
+        if: failure()
+        run: |
+          tail -100 /tmp/godseye-ui.log || true
       - name: Verify screenshot files
         run: |
           test -s docs/screenshots/v431-dashboard-map-logo.png
