@@ -35,6 +35,8 @@ Use GODSEYE to:
 
 ## See GODSEYE in action
 
+The gallery combines running-app capture images and documentation previews so administrators can see the major GODSEYE workspaces before deployment.
+
 ### Dashboard
 
 ![GODSEYE Dashboard](docs/screenshots/v431-dashboard-map-logo.png)
@@ -378,7 +380,7 @@ When installation completes, open:
 
 The built-in administrator username is **admin**.
 
-GODSEYE ships without a default administrator password. The first-run setup page requires you to create one.
+GODSEYE ships with **no default admin password**. The first-run setup page requires you to create one.
 
 ### Upgrade an existing appliance
 
