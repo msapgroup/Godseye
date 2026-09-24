@@ -122,30 +122,30 @@ MFA_BACKUP_CODE_COUNT = 10
 # policy decision, not something a project can supply on your behalf.
 LOGIN_BANNER = os.environ.get("GODSEYE_LOGIN_BANNER", "")
 
-EYE_LOGO = """<svg class="eye-logo godseye-shield-eye" viewBox="0 0 96 96" role="img" aria-label="GODSEYE shield eye logo">
+EYE_LOGO = """<svg class="eye-logo godseye-shield-g-eye" viewBox="0 0 104 104" role="img" aria-label="GODSEYE shield G cyber eye logo">
 <defs>
-  <linearGradient id="geOuter" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#22c7ff"/><stop offset=".45" stop-color="#168ee8"/><stop offset="1" stop-color="#0b5db8"/></linearGradient>
-  <linearGradient id="geInner" x1=".15" y1="0" x2=".85" y2="1"><stop stop-color="#174e7e"/><stop offset=".52" stop-color="#0b2e52"/><stop offset="1" stop-color="#0a5c91"/></linearGradient>
-  <radialGradient id="geIris"><stop stop-color="#eafcff"/><stop offset=".14" stop-color="#44dcff"/><stop offset=".42" stop-color="#079be8"/><stop offset=".72" stop-color="#035aa8"/><stop offset="1" stop-color="#02203f"/></radialGradient>
-  <linearGradient id="geWhite" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f8fdff"/><stop offset=".55" stop-color="#bde7ff"/><stop offset="1" stop-color="#5eb6ef"/></linearGradient>
-  <filter id="geGlow" x="-35%" y="-35%" width="170%" height="170%"><feGaussianBlur stdDeviation="2.3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  <linearGradient id="goShield" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#12d9ff"/><stop offset=".2" stop-color="#168ee8"/><stop offset=".56" stop-color="#07396d"/><stop offset=".82" stop-color="#0aaee7"/><stop offset="1" stop-color="#0a59b6"/></linearGradient>
+  <linearGradient id="goInner" x1=".1" y1="0" x2=".9" y2="1"><stop stop-color="#0f4677"/><stop offset=".48" stop-color="#071b35"/><stop offset="1" stop-color="#0a4e82"/></linearGradient>
+  <linearGradient id="goMetal" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#ffffff"/><stop offset=".18" stop-color="#dff4ff"/><stop offset=".42" stop-color="#8cccf2"/><stop offset=".68" stop-color="#f7fdff"/><stop offset=".88" stop-color="#58b8ee"/><stop offset="1" stop-color="#d7f2ff"/></linearGradient>
+  <radialGradient id="goIris"><stop stop-color="#f3feff"/><stop offset=".12" stop-color="#53e3ff"/><stop offset=".38" stop-color="#0e9fe6"/><stop offset=".68" stop-color="#0758a6"/><stop offset="1" stop-color="#021b39"/></radialGradient>
+  <filter id="goGlow" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="2.4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
 </defs>
-<path d="M48 4 84 17v27c0 23-14 39-36 49C26 83 12 67 12 44V17Z" fill="url(#geOuter)"/>
-<path d="M48 9 78 20v23c0 19-11 32-30 42C29 75 18 62 18 43V20Z" fill="#071828"/>
-<path d="M48 13 73 22v20c0 16-9 28-25 37-16-9-25-21-25-37V22Z" fill="url(#geInner)" stroke="#36c7ff" stroke-width="1.6"/>
-<g fill="none" stroke="#3bd0ff" stroke-width="1.15" opacity=".85">
-  <path d="M30 29h8v6M66 29h-8v6M28 61h9v-6M68 61h-9v-6"/>
-  <path d="M26 38h8M70 38h-8M26 53h8M70 53h-8"/>
-  <circle cx="27" cy="38" r="1.8" fill="#9af2ff"/><circle cx="69" cy="38" r="1.8" fill="#9af2ff"/>
-  <circle cx="27" cy="53" r="1.8" fill="#9af2ff"/><circle cx="69" cy="53" r="1.8" fill="#9af2ff"/>
+<path d="M52 3 93 18v31c0 25-16 43-41 53C27 92 11 74 11 49V18Z" fill="url(#goShield)"/>
+<path d="M52 9 86 21v27c0 21-13 36-34 46C31 84 18 69 18 48V21Z" fill="#061729"/>
+<path d="M52 13 81 23v24c0 18-10 31-29 40-19-9-29-22-29-40V23Z" fill="url(#goInner)" stroke="#33cfff" stroke-width="1.7"/>
+<g fill="none" stroke="#32caff" stroke-width="1.2" opacity=".9">
+  <path d="M26 31h8v7M78 31h-8v7M25 66h9v-7M79 66h-9v-7"/>
+  <path d="M23 41h9M81 41h-9M23 56h9M81 56h-9"/>
+  <circle cx="23" cy="41" r="2" fill="#a7f5ff"/><circle cx="81" cy="41" r="2" fill="#a7f5ff"/>
+  <circle cx="23" cy="56" r="2" fill="#a7f5ff"/><circle cx="81" cy="56" r="2" fill="#a7f5ff"/>
 </g>
-<path d="M24 47c6-10 14-15 24-15s18 5 24 15c-6 10-14 15-24 15S30 57 24 47Z" fill="#051322" stroke="url(#geWhite)" stroke-width="3"/>
-<path d="M28 47c5-7 12-11 20-11s15 4 20 11c-5 7-12 11-20 11s-15-4-20-11Z" fill="#0b4d80" stroke="#22c8ff" stroke-width="1.3"/>
-<circle cx="48" cy="47" r="11.4" fill="url(#geIris)" stroke="#7beaff" stroke-width="1.5" filter="url(#geGlow)"/>
-<g fill="none" stroke="#a2f3ff" stroke-width=".75" opacity=".75">
-  <circle cx="48" cy="47" r="7.8"/><path d="M36.6 47h22.8M48 35.6v22.8M41 41c4.3 1.8 9.7 1.8 14 0M41 53c4.3-1.8 9.7-1.8 14 0"/>
-</g>
-<circle cx="48" cy="47" r="3.5" fill="#f2fdff"/><circle cx="49.6" cy="45.5" r="1.15" fill="#1fc7ff"/>
+<path d="M74 28H48C31 28 20 38 20 51s11 23 28 23h27V57H53" fill="none" stroke="#04101f" stroke-width="19" stroke-linejoin="miter" stroke-linecap="square" opacity=".78"/>
+<path d="M73 26H47C30 26 19 38 19 51s11 25 28 25h28V56H52" fill="none" stroke="url(#goMetal)" stroke-width="13" stroke-linejoin="miter" stroke-linecap="square"/>
+<path d="M27 51c6-9 15-14 25-14s19 5 25 14c-6 9-15 14-25 14S33 60 27 51Z" fill="#041526" stroke="#c8f0ff" stroke-width="2.7"/>
+<path d="M31 51c5-6.8 12-10.5 21-10.5S68 44.2 73 51c-5 6.8-12 10.5-21 10.5S36 57.8 31 51Z" fill="#0a4b7e" stroke="#22ccff" stroke-width="1.3"/>
+<circle cx="52" cy="51" r="11.7" fill="url(#goIris)" stroke="#77ecff" stroke-width="1.5" filter="url(#goGlow)"/>
+<g fill="none" stroke="#a8f7ff" stroke-width=".78" opacity=".82"><circle cx="52" cy="51" r="8.1"/><path d="M40.4 51h23.2M52 39.4v23.2M45 45c4.4 1.8 9.6 1.8 14 0M45 57c4.4-1.8 9.6-1.8 14 0"/></g>
+<circle cx="52" cy="51" r="3.5" fill="#f4feff"/><circle cx="53.5" cy="49.5" r="1.15" fill="#25c8ff"/>
 </svg>"""
 
 # Only used to seed the very first admin account on a fresh install. Change
@@ -6780,7 +6780,7 @@ html[data-theme="dark"] .status-pill.warn{background:#422b17!important;border-co
 html[data-theme="dark"] .badge{box-shadow:none!important}
 
 /* Approved master logo + wordmark */
-.godseye-shield-eye{width:49px!important;height:52px!important;filter:drop-shadow(0 0 8px rgba(35,190,255,.34))}
+.godseye-shield-g-eye{width:50px!important;height:54px!important;filter:drop-shadow(0 0 9px rgba(35,190,255,.36))}
 .v430-brand-copy b,.login-brand-row b{display:inline-flex!important;align-items:baseline!important;letter-spacing:.055em!important;background:none!important;-webkit-background-clip:initial!important;background-clip:initial!important;color:inherit!important;text-shadow:0 1px 0 rgba(255,255,255,.12),0 0 16px rgba(34,174,255,.12)!important}
 .brand-gods{background:linear-gradient(180deg,#ffffff 0%,#d9effc 40%,#9fcbe6 76%,#f4fbff 100%);-webkit-background-clip:text;background-clip:text;color:transparent!important}
 .brand-eye{background:linear-gradient(180deg,#55d8ff 0%,#159cff 54%,#0a73cc 100%);-webkit-background-clip:text;background-clip:text;color:transparent!important}
@@ -6805,7 +6805,7 @@ html[data-theme="dark"] .badge{box-shadow:none!important}
 </div>
 <div id="setupOverlay" class="overlay" style="display:none">
   <div class="authcard">
-    <div class="brand" style="margin-bottom:18px"><div class="eye">__EYE_LOGO__</div><div><b>GODSEYE</b><small class="login-build">MSP SECURITY OPERATIONS</small><div class="muted">NETWORK INTELLIGENCE &amp; SECURITY</div></div></div>
+    <div class="brand setup-brand" style="margin-bottom:18px"><div class="eye">__EYE_LOGO__</div><div><b><span class="brand-gods">GODS</span><span class="brand-eye">EYE</span></b><small class="login-build">MSP SECURITY OPERATIONS</small><div class="muted">NETWORK INTELLIGENCE &amp; SECURITY</div></div></div>
     <h2>Create your administrator password</h2>
     <div class="muted">Fresh installation complete. Choose a password for the <b>admin</b> account.</div>
     <form id="setupForm" onsubmit="return doInitialSetup(event)">
