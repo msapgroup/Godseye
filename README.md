@@ -35,7 +35,7 @@ Use GODSEYE to:
 
 ## See GODSEYE in action
 
-The gallery combines running-app capture images and documentation previews so administrators can see the major GODSEYE workspaces before deployment.
+The gallery combines running-app capture images and documentation UI previews so administrators can see the major GODSEYE workspaces before deployment.
 
 ### Dashboard
 
