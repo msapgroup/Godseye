@@ -53,7 +53,7 @@ def capture() -> None:
         body_text = page.locator("body").inner_text()
         assert "Devices Inventory" not in body_text
         assert "Recent Result\n" not in body_text
-        assert "GODSEYE" in body_text
+        assert page.locator("img[alt='GODSEYE']").count() >= 1
 
         for view, filename in VIEWS:
             page.evaluate("(name) => window.showView(name, true)", view)
