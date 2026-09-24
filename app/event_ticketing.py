@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import json
+from urllib.parse import urlencode
 from typing import Any
 
 STORAGE_IDS={7,11,15,51,55,98,129,153,157}
@@ -11,6 +12,37 @@ UPDATE_IDS={20,25,31,34}
 DEFENDER_IDS={1116,1117,1118,1119}
 VSS_IDS={25,27,36}
 SERVICE_IDS=set(range(7000,7046))
+
+# Fixed Microsoft documentation URLs are curated by event family. The search
+# link carries only provider and event ID, never the computer or event message.
+MICROSOFT_EVENT_GUIDES={
+    "Storage": [("Diagnose disk errors", "https://learn.microsoft.com/en-us/troubleshoot/windows-server/backup-and-storage/troubleshoot-data-corruption-and-disk-errors")],
+    "Hardware": [("Understand WHEA hardware errors", "https://learn.microsoft.com/en-us/windows-hardware/drivers/whea/whea-hardware-error-events")],
+    "Power / Shutdown": [("Troubleshoot unexpected restarts (Event 41)", "https://learn.microsoft.com/en-us/troubleshoot/windows-client/performance/event-id-41-restart")],
+    "Service": [("Troubleshoot a service start timeout", "https://learn.microsoft.com/en-us/troubleshoot/windows-server/system-management-components/service-not-start-events-7000-7011-time-out-error")],
+    "Windows Update": [("Troubleshoot Windows Update", "https://learn.microsoft.com/en-us/troubleshoot/windows-client/installing-updates-features-roles/troubleshoot-windows-update-issues")],
+    "Security": [("Review Defender Antivirus event IDs", "https://learn.microsoft.com/en-us/defender-endpoint/troubleshoot-microsoft-defender-antivirus")],
+    "Backup / VSS": [("Investigate VSS writer failures", "https://learn.microsoft.com/en-us/troubleshoot/windows-server/backup-and-storage/backup-fails-vss-writer")],
+    "Application": [("Troubleshoot application crashes", "https://learn.microsoft.com/en-us/troubleshoot/windows-server/performance/troubleshoot-application-service-crashing-behavior")],
+    "Storage Optimization": [("Optimize-Volume reference", "https://learn.microsoft.com/en-us/powershell/module/storage/optimize-volume")],
+}
+
+def trusted_event_fix_links(finding: dict) -> list[dict[str,str]]:
+    """Return relevant official guidance and a narrowly scoped Microsoft search."""
+    provider=_norm(finding.get("provider"))[:100]
+    try: event_id=int(finding.get("event_id") or 0)
+    except (ValueError,TypeError): event_id=0
+    category=_norm(finding.get("category"))
+    guides=MICROSOFT_EVENT_GUIDES.get(category, [])
+    links=[{"label":label,"url":url,"source":"Microsoft Learn"} for label,url in guides]
+    if provider and 0 < event_id <= 65535:
+        query=f'site:learn.microsoft.com "{provider}" "Event {event_id}" troubleshooting'
+        links.append({"label":f"Search Microsoft guidance for {provider} Event {event_id}",
+                      "url":"https://www.google.com/search?"+urlencode({"q":query}),
+                      "source":"Google search · Microsoft Learn only"})
+    elif not links:
+        links.append({"label":"Review Windows event logs", "url":"https://learn.microsoft.com/en-us/powershell/scripting/samples/creating-get-winevent-queries-with-filterhashtable", "source":"Microsoft Learn"})
+    return links
 
 def _norm(value: Any) -> str:
     return str(value or "").strip()
@@ -32,7 +64,17 @@ def classify_windows_event(event: dict) -> dict:
         "Recheck the finding after corrective work.",
     ]
 
-    if event_id in STORAGE_IDS or any(x in p for x in ("disk","storahci","stornvme","ntfs","partmgr")):
+    if event_id==264 and "defrag" in p:
+        category="Storage Optimization"
+        title="Windows drive optimization reported an error"
+        recommendation="Check the affected volume and exact error in the event message before changing drive settings."
+        actions=[
+            "Identify the volume, media type, operation (retrim or defragmentation), and error code in the event message.",
+            "Check whether the volume or its underlying hardware supports the requested operation.",
+            "Review the next optimization event to see whether another operation completed successfully.",
+            "Recheck after confirming the storage configuration; avoid forcing a repair without evidence of corruption.",
+        ]
+    elif event_id in STORAGE_IDS or any(x in p for x in ("disk","storahci","stornvme","ntfs","partmgr")):
         category="Storage"
         severity="critical" if event_id in {7,55,157} else "high"
         title=f"Storage / disk reliability warning on {event.get('computer_name') or event.get('MachineName') or 'Windows host'}"

@@ -6,7 +6,7 @@ GODSEYE v4.31 keeps the v4.30 interface and adds a redesigned Quick Assist-style
 
 ## See GODSEYE in action
 
-These images show the dark v4.31 workspaces. Dashboard and Network Map are running-app captures. The Devices, Calendar, Email, System Health, and Remote Access images are documentation previews rebuilt from earlier v4.31 captures with the approved G logo; they preserve the pictured controls and sample states. The Cyber Tools images are UI previews, and their example result is illustrative. Data and availability on your appliance will differ. Current navigation also includes the separate Cyber Tools workspace.
+These images show the dark v4.31 workspaces. Dashboard and Network Map are running-app captures. The Devices, Calendar, Email, System Health, and Remote Access images are documentation previews rebuilt from earlier v4.31 captures with the approved G logo; they preserve the pictured controls and sample states. Windows Event Findings is an illustrative preview based on a user-provided capture, showing the new Suggested Fix action and guide panel. The Cyber Tools images are UI previews, and their example result is illustrative. Data and availability on your appliance will differ. Current navigation also includes the separate Cyber Tools workspace.
 
 ### Dashboard
 
@@ -49,6 +49,12 @@ These images show the dark v4.31 workspaces. Dashboard and Network Map are runni
 ![GODSEYE Remote Access setup preview](docs/screenshots/v431-remote-access-guide.png)
 
 **How it works:** In **Event Findings → Windows Agents**, create a one-time enrollment token and install Agent 2.4.4 on the Windows computer. Select an online enrolled computer in **Remote Access** and request a session. The person at that computer must approve screen sharing; the session starts view-only after the first validated frame. **Request Control** requires a separate approval before pointer or keyboard input. Disconnect from the portal or use **Stop Sharing** locally to end it. The image shows the honest empty state before an Agent is enrolled.
+
+### Windows Event Findings
+
+![GODSEYE Windows Event Findings Suggested Fix preview](docs/screenshots/v431-event-findings-guide.png)
+
+**How it works:** Enroll a Windows Agent or configure a WinRM source to collect selected Critical, Error, and Warning events. GODSEYE groups repeat events into a finding and prepares a suggested action list as the event arrives. Select **Suggested Fix** on a row to see the event message, tailored steps, and clickable Microsoft Learn guidance. An additional Google link searches Microsoft Learn for that specific provider and event ID; it sends no computer name or event message. Review the full event before making changes, then use **Recheck** to confirm the result or **Create Ticket** to assign the work. The image is an illustrative UI preview of the new flow, not a live result from an enrolled computer.
 
 ### Cyber Tools
 
@@ -209,7 +215,7 @@ Hardware-dependent behavior should also be validated on the target Raspberry Pi,
 
 ## Screenshots
 
-The complete screen gallery and capture notes are in [docs/SCREENSHOTS.md](docs/SCREENSHOTS.md). The README above includes the Dashboard, Devices, Network Map, Calendar, Email, System Health, Remote Access, and both Cyber Tools views with instructions for each. Documentation examples are not installed as live records.
+The complete screen gallery and capture notes are in [docs/SCREENSHOTS.md](docs/SCREENSHOTS.md). The README above includes the Dashboard, Devices, Network Map, Calendar, Email, System Health, Remote Access, Windows Event Findings, and both Cyber Tools views with instructions for each. Documentation examples are not installed as live records.
 
 ## Documentation
 

@@ -13,6 +13,7 @@ def test_readme_uses_current_branded_screenshot_gallery():
         'v431-email-guide.png',
         'v431-system-health-guide.png',
         'v431-remote-access-guide.png',
+        'v431-event-findings-guide.png',
         'v431-cyber-tools-overview.png',
         'v431-cyber-tools-working.png',
     ]

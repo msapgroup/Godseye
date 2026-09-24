@@ -1,6 +1,6 @@
 # GODSEYE v4.31 screen gallery
 
-Dashboard and Network Map are running-app captures. Devices, Calendar, Email, System Health, and Remote Access are branding-corrected previews of earlier v4.31 captures. Cyber Tools uses UI previews; the example result is illustrative. Current navigation includes Cyber Tools, even where an earlier captured sidebar does not yet show it. No sample records ship with the release.
+Dashboard and Network Map are running-app captures. Devices, Calendar, Email, System Health, and Remote Access are branding-corrected previews of earlier v4.31 captures. Windows Event Findings is an illustrative preview based on a user-provided screen capture, showing the new Suggested Fix flow. Cyber Tools uses UI previews; the example result is illustrative. Current navigation includes Cyber Tools, even where an earlier captured sidebar does not yet show it. No sample records ship with the release.
 
 ## Dashboard
 
@@ -43,6 +43,12 @@ Check service status, resources, backups, retention, updates, and logs; run a he
 ![Remote Access empty state](screenshots/v431-remote-access-guide.png)
 
 Enroll Agent 2.4.4, select an online computer, obtain screen-sharing approval, and separately request control. The person at the computer can stop sharing.
+
+## Windows Event Findings
+
+![Windows Event Findings Suggested Fix preview](screenshots/v431-event-findings-guide.png)
+
+Each incoming event is classified and receives suggested steps. Select **Suggested Fix** on a finding row to open the event message, the prepared action list, an official Microsoft troubleshooting guide when the event family is recognized, and a Google search scoped to Microsoft Learn for the exact event provider and ID. Recheck after corrective work or create a linked ticket. This image is an illustrative preview of the updated UI, not a live capture.
 
 ## Cyber Tools cards
 
