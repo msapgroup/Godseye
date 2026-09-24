@@ -1,5 +1,12 @@
 # GODSEYE v4.31 Remote Support Candidate
 
+## Paired multi-site management
+
+- A master GODSEYE can link another installation over an existing VPN using its private HTTPS address and a one-time, 15-minute pairing token.
+- The remote installation keeps its own database and can revoke the master's API key at any time. The master stores the key encrypted and displays device, finding, ticket, and offline counts for each named location.
+- Open a site card to edit remote device names and classifications, resolve findings, create linked tickets, and create or close remote tickets.
+- The README includes a screenshot captured from two running, paired GODSEYE instances and setup instructions.
+
 ## Windows Agent 2.4.4 hotfix
 
 - Remote desktop frames now use GODSEYE's configured writable data directory instead of the read-only application directory. This fixes sessions that stalled after the Windows user selected **Share Screen**.
@@ -7,7 +14,7 @@
 - The Windows tray now includes **Submit Ticket...** with name, department, phone, email, issue notes, and Email, Internet, Phone, Hardware, Software, Security, and Other categories.
 - Tray ticket delivery is authenticated through the enrolled Windows Agent and idempotent, so transient retries cannot create duplicate tickets.
 
-GODSEYE v4.31 retains the v4.30 visual rebuild and introduces Windows Agent 2.4.4 for a more reliable, Quick Assist-style remote-support workflow.
+GODSEYE v4.31 includes the current visual design and Windows Agent 2.4.4 for a more reliable, Quick Assist-style remote-support workflow.
 
 ## Remote connection fix
 

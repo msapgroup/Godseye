@@ -5,11 +5,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 VERSION = (ROOT / 'VERSION').read_text(encoding='utf-8').strip()
-if VERSION != '4.30.0':
-    raise SystemExit(f'Refusing release build: VERSION is {VERSION!r}, expected 4.30.0')
+if VERSION != '4.31.0':
+    raise SystemExit(f'Refusing release build: VERSION is {VERSION!r}, expected 4.31.0')
 
 required = [
-    'VERSION','README.md','RELEASE_MANIFEST.json','V430_RELEASE_NOTES.md','requirements.txt','install.sh',
+    'VERSION','README.md','RELEASE_MANIFEST.json','V431_RELEASE_NOTES.md','requirements.txt','install.sh',
     'app/main.py','app/windows_agent.py','windows/agent-x64/update-manifest.json',
     'windows/agent-x64/src/Godseye.WindowsAgent/Godseye.WindowsAgent.csproj',
 ]
@@ -31,7 +31,7 @@ if manifest.get('status') == 'ready':
 out = Path(sys.argv[1] if len(sys.argv)>1 else ROOT.parent / f'GODSEYE-v{VERSION}-server-candidate.zip').resolve()
 out.parent.mkdir(parents=True, exist_ok=True)
 
-skip_parts = {'.git','.pytest_cache','__pycache__','.mypy_cache','.ruff_cache','.venv','venv','node_modules','screenshots-v430-actual'}
+skip_parts = {'.git','.pytest_cache','__pycache__','.mypy_cache','.ruff_cache','.venv','venv','node_modules','tests'}
 skip_suffixes = {'.pyc','.pyo','.log','.tmp','.swp'}
 skip_names = {'godseye.db','godseye.db-shm','godseye.db-wal'}
 
@@ -44,6 +44,8 @@ for p in ROOT.rglob('*'):
         continue
     if p.suffix.lower() in skip_suffixes or p.name in skip_names:
         continue
+    if p.name.endswith('_RELEASE_NOTES.md') and p.name != 'V431_RELEASE_NOTES.md':
+        continue
     # Do not ship test/runtime backup databases even if renamed.
     if p.suffix.lower()=='.db' and ('data' in rel.parts or 'backup' in p.name.lower()):
         continue
@@ -52,7 +54,7 @@ for p in ROOT.rglob('*'):
 with zipfile.ZipFile(out,'w',compression=zipfile.ZIP_DEFLATED,compresslevel=9) as z:
     for p,rel in sorted(files,key=lambda x:str(x[1])):
         info=zipfile.ZipInfo(str(rel).replace(os.sep,'/'))
-        info.date_time=(2026,9,18,0,0,0)
+        info.date_time=(2026,9,24,0,0,0)
         mode = 0o755 if os.access(p,os.X_OK) or p.name in {'install.sh','doctor.sh','godseye-apply-update','godseye-https-setup','godseye-release-audit'} else 0o644
         info.external_attr=(stat.S_IFREG|mode)<<16
         z.writestr(info,p.read_bytes(),compress_type=zipfile.ZIP_DEFLATED,compresslevel=9)

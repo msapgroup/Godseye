@@ -1,6 +1,6 @@
-# GODSEYE 1.0.0 GitHub Build
+# GODSEYE 4.31 Build
 
-Consolidated Raspberry Pi build for the new `Godseye` GitHub repository.
+Current Raspberry Pi and server build for the `Godseye` repository. Includes paired multi-site management over an existing VPN.
 
 Included:
 - Authentication and MFA

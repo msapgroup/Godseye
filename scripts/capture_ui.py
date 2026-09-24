@@ -74,7 +74,8 @@ async def main():
                             '-addext', 'subjectAltName=IP:' + private_ip,
                             '-addext', 'basicConstraints=critical,CA:TRUE'],
                            check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            env = dict(os.environ, GODSEYE_DB=str(Path(temp) / 'remote.db'), GODSEYE_COOKIE_SECURE='false')
+            env = dict(os.environ, GODSEYE_DB=str(Path(temp) / 'remote.db'), GODSEYE_COOKIE_SECURE='false',
+                       PYTHONPATH=str(Path.cwd()))
             subprocess.run(['python', 'scripts/seed_screenshot_data.py'], env=env, check=True)
             log = open(Path(temp) / 'remote.log', 'w')
             remote = subprocess.Popen(['python', '-m', 'uvicorn', 'app.main:app',
