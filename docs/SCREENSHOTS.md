@@ -1,63 +1,69 @@
-# GODSEYE v4.31 screen gallery
+# GODSEYE screen gallery
 
-Dashboard and Network Map are running-app captures. Devices, Calendar, Email, System Health, and Remote Access are branding-corrected previews of earlier v4.31 captures. Windows Event Findings is an illustrative preview based on a user-provided screen capture, showing the new Suggested Fix flow. Cyber Tools uses UI previews; the example result is illustrative. Current navigation includes Cyber Tools, even where an earlier captured sidebar does not yet show it. No sample records ship with the release.
+These images are captured from the redesigned running GODSEYE application using the repository's automated UI capture workflow. They use a clean local screenshot database, so empty or zero states represent a fresh installation rather than sample customer data.
 
 ## Dashboard
 
 ![Dashboard](screenshots/v431-dashboard-map-logo.png)
 
-Open a summary or card for its detail; use the World / Topology switch inside Network Map Overview or open the full map.
+Review device totals, findings, monitored services, tickets, traffic, alerts, and the Network Map overview from one operator workspace.
 
 ## Devices
 
 ![Devices](screenshots/v431-devices-guide.png)
 
-Search, filter, select a row for identity and activity, and open its full record. Add missing authorized devices with **Add Device**.
+Search and filter network assets, discover the network, add authorized devices, select a device for details, and review recent device activity.
 
 ## Network Map
 
-![Network Map card](screenshots/v431-network-map-card.png)
+![Network Map](screenshots/v431-network-map-card.png)
 
-Switch views and inspect observed device relationships; open a device to investigate its inventory record.
+Inspect observed device relationships and move from the visual map into the related inventory records.
 
 ## Calendar
 
 ![Calendar](screenshots/v431-calendar-guide.png)
 
-Create local appointments from a date, switch Month / Week / Day / List, and connect Google or Microsoft calendars when configured.
+Plan maintenance and ticket work with Month, Week, Day, or List views and supported calendar connections.
 
 ## Email
 
-![Email unconnected state](screenshots/v431-email-guide.png)
+![Email](screenshots/v431-email-guide.png)
 
-Connect an account in Mail Accounts before browsing folders, sending mail, or sharing generated reports.
+Connect a supported mailbox, browse messages, reply, and share generated GODSEYE reports from the operational workspace.
 
 ## System Health
 
 ![System Health](screenshots/v431-system-health-guide.png)
 
-Check service status, resources, backups, retention, updates, and logs; run a health check for a current diagnosis.
+Review web service, scanner, database, backups, notifications, integrations, CPU, memory, disk, storage, network activity, uptime, retention, updates, services, and logs.
 
 ## Remote Access
 
-![Remote Access empty state](screenshots/v431-remote-access-guide.png)
+![Remote Access](screenshots/v431-remote-access-guide.png)
 
-Enroll Agent 2.4.4, select an online computer, obtain screen-sharing approval, and separately request control. The person at the computer can stop sharing.
+Select an enrolled online Windows computer, request a consent-based screen-sharing session, and separately request control when needed.
 
 ## Windows Event Findings
 
-![Windows Event Findings Suggested Fix preview](screenshots/v431-event-findings-guide.png)
+![Windows Event Findings](screenshots/v431-event-findings-guide.png)
 
-Each incoming event is classified and receives suggested steps. Select **Suggested Fix** on a finding row to open the event message, the prepared action list, an official Microsoft troubleshooting guide when the event family is recognized, and a Google search scoped to Microsoft Learn for the exact event provider and ID. Recheck after corrective work or create a linked ticket. This image is an illustrative preview of the updated UI, not a live capture.
+Review collected Windows events, open Suggested Fix guidance, recheck the condition, resolve the finding, or create a linked ticket.
 
-## Cyber Tools cards
+## Cyber Tools
 
-![Eight Cyber Tools cards](screenshots/v431-cyber-tools-overview.png)
+![Cyber Tools](screenshots/v431-cyber-tools-overview.png)
 
-Enter an authorized target in the matching card, check engine availability, choose a profile, and run the bounded check.
+Run bounded, authorized security and diagnostic checks from eight focused tool cards.
 
 ## Cyber Tools result and history
 
-![Illustrative Cyber Tools result](screenshots/v431-cyber-tools-working.png)
+![Cyber Tools result](screenshots/v431-cyber-tools-working.png)
 
-Review retained results, create a Finding or Ticket, export JSON, and schedule supported checks. See [Cyber Tools](TOOLS.md) for each engine's limits.
+Review structured results and scan history, create Findings or Tickets where supported, export results, or schedule recurring supported checks.
+
+## About GODSEYE
+
+![About GODSEYE](screenshots/godseye-about.png)
+
+The About workspace presents the GODSEYE identity, MSP-focused mission, core capabilities, self-hosted operating model, and links to the project repository and documentation.
