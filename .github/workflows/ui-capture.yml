@@ -37,6 +37,7 @@ jobs:
           PORT: '8080'
         run: |
           rm -f /tmp/godseye-ui-capture.db
+          PYTHONPATH=. python scripts/seed_screenshot_data.py
           python -m app > /tmp/godseye-ui.log 2>&1 &
           echo $! > /tmp/godseye-ui.pid
           for i in {1..40}; do

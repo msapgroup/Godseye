@@ -21,8 +21,8 @@ def test_readme_uses_current_branded_screenshot_gallery():
         assert f'docs/screenshots/{shot}' in readme
         path = ROOT / 'docs' / 'screenshots' / shot
         assert path.exists() and path.stat().st_size > 20_000
-    assert 'running-app capture' in readme
-    assert 'UI previews' in readme
+    assert 'captures from the running app' in readme
+    assert 'representative sample data' in readme
 
 
 def test_readme_release_zip_install_and_first_run_admin_are_current():

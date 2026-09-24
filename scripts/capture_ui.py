@@ -43,6 +43,9 @@ async def main():
             await page.click("#loginForm button[type=submit]")
             await page.wait_for_selector("#app", state="visible", timeout=15000)
 
+        await page.locator(".godseye-approved-lockup").wait_for(state="visible")
+        assert await page.locator(".godseye-approved-lockup").evaluate("img => img.complete && img.naturalWidth > 0")
+
         # Make capture output deterministic and marketing-clean without changing app code/data.
         await page.add_style_tag(content="""
             .sidebar-customize-controls,.healthbar:empty{display:none!important}
@@ -52,6 +55,8 @@ async def main():
         for view, filename in CAPTURES:
             await page.evaluate("(v)=>showView(v,true)", view)
             await page.wait_for_timeout(1500)
+            if view == "overview":
+                assert await page.locator("#view-overview").inner_text() != ""
             await page.screenshot(path=str(OUT / filename), full_page=True)
 
         # A second Cyber Tools capture records the real card/result workspace.

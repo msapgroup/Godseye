@@ -35,7 +35,7 @@ Use GODSEYE to:
 
 ## See GODSEYE in action
 
-The gallery combines running-app capture images and documentation UI previews so administrators can see the major GODSEYE workspaces before deployment.
+The gallery shows captures from the running app with representative sample data. Counts, findings, devices, and tickets shown here are examples, not live production results.
 
 ### Dashboard
 
