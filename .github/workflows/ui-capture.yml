@@ -4,6 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches:
+      - main
       - ui/approved-godseye-redesign
     paths:
       - 'app/**'
