@@ -6678,9 +6678,15 @@ html[data-theme="dark"] .authcard{background:linear-gradient(150deg,rgba(12,31,4
 html[data-theme="dark"] .sidebar .brand.v430-brand{height:88px!important;padding:7px 10px!important;overflow:hidden!important}
 .godseye-approved-lockup{width:100%;height:73px;object-fit:contain;object-position:center;display:block}
 .godseye-shield-g-eye{object-fit:cover;object-position:left center}
-.godseye-map-scene .map-world{background:url("/assets/dashboard-map-reference.png") left -52px/520px 212px no-repeat!important;width:min(76%,430px);opacity:.55!important;filter:saturate(.7) brightness(.85)!important;mask-image:linear-gradient(to right,#000 65%,transparent 74%)!important}
-.godseye-map-scene .map-site.offline i{background:#ff6478;box-shadow:0 0 0 4px rgba(255,100,120,.14)}
-.godseye-map-scene.empty::after{content:"No devices discovered yet";position:absolute;left:50%;top:52%;transform:translate(-50%,-50%);color:#a9bfd0;font-size:12px;white-space:nowrap;z-index:6}
+.map-preview-layout{display:grid;grid-template-columns:minmax(0,58%) minmax(210px,42%);gap:4px;align-items:center;min-height:218px;padding:8px 12px;background:radial-gradient(circle at 32% 45%,#112c42,#091b2b 75%)}
+.map-preview-world{width:100%;height:170px;background:url("/assets/dashboard-map-reference.png") -16px -55px/538px 219px no-repeat;overflow:hidden}
+.map-preview-side{display:flex;flex-direction:column;justify-content:center;gap:22px;min-width:0;padding:0 5px}
+.map-preview-status{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:3px;align-items:start;text-align:center}
+.map-preview-status span{color:#a3bacb;font-size:9px;white-space:nowrap}
+.map-preview-status b{display:block;color:#55bbff;font-size:21px;line-height:1.2;margin-bottom:5px}
+.map-preview-status b.red{color:#ff6578!important}.map-preview-status b.yellow{color:#ffc85f!important}
+.map-preview-open{width:100%;min-height:38px;display:flex;align-items:center;justify-content:space-between;padding:8px 14px!important;font-size:11px!important}
+@media(max-width:700px){.map-preview-layout{grid-template-columns:1fr}.map-preview-world{height:145px}.map-preview-side{gap:12px;padding:0 10px 12px}}
 
 .login-brand-row>.eye-logo,.setup-brand>.eye{display:none!important}
 .login-brand-row .login-wordmark{width:290px!important;height:100px!important;object-fit:contain}
@@ -6923,7 +6929,7 @@ html[data-theme="dark"] .badge{box-shadow:none!important}
 <section class="panel dashboard-alerts"><div class="table-head"><h2>Recent Alerts &amp; Findings</h2><button class="link" onclick="showView('findings')">View All →</button></div><div class="activity-list" id="activityList"><div class="empty">No recent alerts.</div></div></section>
 </div>
 <div class="v430-dashboard-bottom dashboard-grid">
-<section class="panel dashboard-map-card"><div class="table-head"><h2>Network Map Overview</h2><button class="link" onclick="showView('network')">View Full Map →</button></div><div class="godseye-map-scene"><div class="map-world"></div><div class="map-link a"></div><div class="map-link b"></div><div class="map-link c"></div><div class="map-link d"></div><div class="map-site s1"><i></i><span>Endpoint</span></div><div class="map-site s2"><i></i><span>Service</span></div><div class="map-site s3"><i></i><span>Scanner</span></div><div class="map-site s4"><i></i><span>Gateway</span></div><div class="map-hub">__EYE_LOGO__<small>Managed network</small></div></div><div class="v430-map-meta map-meta-strip"><span><b id="v430MapSites">0</b>Sites</span><span><b id="v430MapDevices">0</b>Devices</span><span><b class="red" id="v430MapOffline">0</b>Offline</span><span><b class="yellow" id="v430MapAlerts">0</b>Active Alerts</span></div></section>
+<section class="panel dashboard-map-card"><div class="table-head"><h2>Network Map Overview</h2></div><div class="map-preview-layout"><div class="map-preview-world" role="img" aria-label="Illustrative world map backdrop"></div><div class="map-preview-side"><div class="map-preview-status"><span><b id="v430MapSites">—</b>Sites</span><span><b id="v430MapDevices">—</b>Devices</span><span><b class="red" id="v430MapOffline">—</b>Offline</span><span><b class="yellow" id="v430MapAlerts">—</b>Active Alerts</span></div><button class="secondary map-preview-open" type="button" onclick="showView('network')">Open Network Map <span aria-hidden="true">→</span></button></div></div></section>
 <section class="panel"><div class="table-head"><h2>Monitored Services</h2><button class="link" onclick="showView('monitoring')">View All →</button></div><div id="v430Services" class="v430-service-list"><div class="empty">Loading monitors…</div></div></section>
 <section class="panel"><div class="table-head"><h2>Recent Tickets</h2><button class="link" onclick="showView('tickets')">View All →</button></div><div id="v430Tickets" class="v430-ticket-list"><div class="empty">Loading tickets…</div></div></section>
 </div>
@@ -8914,21 +8920,6 @@ function v430RenderServices(settings,checks){const el=document.getElementById('v
 async function v430RenderTickets(){const el=document.getElementById('v430Tickets');try{const rows=await json('/api/v1/tickets?limit=50').catch(()=>[]),arr=Array.isArray(rows)?rows:(rows?.items||[]);const count=document.getElementById('dashboardTicketCount');if(count)count.textContent=arr.filter(t=>!['resolved','closed'].includes(String(t.status||'open').toLowerCase())).length;if(!el)return;el.innerHTML=arr.length?arr.slice(0,5).map(t=>`<div class="v430-ticket-row"><b>${esc(t.ticket_number||('TKT-'+String(t.id||'').padStart(4,'0')))}</b><span>${esc(t.title||'Ticket')}</span><span class="v430-ticket-state ${String(t.status||'').toLowerCase()}">${esc(t.status||'Open')}</span></div>`).join(''):'<div class="empty">No recent tickets.</div>'}catch(_){el.innerHTML='<div class="empty">No recent tickets.</div>'}}
 function v430UpdateClock(){const d=new Date(),date=document.getElementById('v430Date'),clock=document.getElementById('v430Clock');if(date)date.textContent=d.toLocaleDateString([], {month:'short',day:'numeric',year:'numeric'});if(clock)clock.textContent=d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}
 function setDashboardMapMode(mode,event){event?.preventDefault();event?.stopPropagation();const next=mode==='topology'?'topology':'world';document.querySelectorAll('[data-map-view]').forEach(x=>x.classList.toggle('active',x.dataset.mapView===next));document.querySelectorAll('[data-map-mode]').forEach(x=>x.classList.toggle('active',x.dataset.mapMode===next));try{localStorage.setItem('godseye_v431_dashboard_map_mode',next)}catch(_){}}
-function renderDashboardMap(devices){
-  const scene=document.querySelector('.godseye-map-scene');if(!scene)return;
-  const rows=Array.isArray(devices)?devices:[];
-  const nodes=[...scene.querySelectorAll('.map-site')];
-  nodes.forEach((node,i)=>{
-    const device=rows[i];node.style.display=device?'flex':'none';
-    if(!device)return;
-    const name=String(device.name||device.hostname||device.ip||'Device');
-    node.querySelector('span').textContent=name;
-    node.title=[name,device.ip,String(device.status||'unknown')].filter(Boolean).join(' · ');
-    node.classList.toggle('offline',String(device.status||'').toLowerCase()!=='online');
-  });
-  scene.querySelectorAll('.map-link').forEach((line,i)=>line.style.display=rows[i]?'block':'none');
-  scene.classList.toggle('empty',rows.length===0);
-}
 function initDashboardMapMode(){let mode='world';try{mode=localStorage.getItem('godseye_v431_dashboard_map_mode')||'world'}catch(_){}setDashboardMapMode(mode)}
 async function loadDashboard(){
   initDashboardMapMode();
@@ -8951,7 +8942,7 @@ async function loadDashboard(){
     if(onlineEl)onlineEl.textContent=h.online??0;
     if(issueEl)issueEl.textContent=h.needs_review??h.unknown??0;
     const tr=document.getElementById('onlineTrend');if(tr)tr.textContent=h.total?Math.round((h.online/h.total)*100)+'%':'0%';
-    const total=Number(h.total||0),online=Number(h.online||0),review=Number(h.needs_review??h.unknown??0),offline=Math.max(0,total-online),deviceRows=tasks[2].status==='fulfilled'&&Array.isArray(tasks[2].value)?tasks[2].value:[],sites=new Set(deviceRows.map(inventorySiteName).filter(Boolean)).size,openIssues=tasks[7].status==='fulfilled'&&Array.isArray(tasks[7].value)?tasks[7].value:null;renderDashboardMap(deviceRows);const donut=document.getElementById('v430DeviceDonut');if(donut){const onPct=total?online/total*100:0,offPct=total?offline/total*100:0;donut.style.background=`conic-gradient(#41dfa1 0 ${onPct}%,#ff5968 ${onPct}% ${onPct+offPct}%,#ffc447 ${onPct+offPct}% 100%)`}for(const [id,val] of [['v430DonutTotal',total],['v430LegendOnline',online],['v430LegendOffline',offline],['v430LegendReview',review],['v430MapSites',sites],['v430MapDevices',total],['v430MapOffline',offline],['v430MapAlerts',openIssues?openIssues.length:'—']]){const e=document.getElementById(id);if(e)e.textContent=val}const ds=document.getElementById('v430DeviceSub');if(ds)ds.textContent=review?review+' need review':'Inventory healthy';
+    const total=Number(h.total||0),online=Number(h.online||0),review=Number(h.needs_review??h.unknown??0),offline=Math.max(0,total-online),deviceRows=tasks[2].status==='fulfilled'&&Array.isArray(tasks[2].value)?tasks[2].value:[],sites=new Set(deviceRows.map(inventorySiteName).filter(Boolean)).size,openIssues=tasks[7].status==='fulfilled'&&Array.isArray(tasks[7].value)?tasks[7].value:null;const donut=document.getElementById('v430DeviceDonut');if(donut){const onPct=total?online/total*100:0,offPct=total?offline/total*100:0;donut.style.background=`conic-gradient(#41dfa1 0 ${onPct}%,#ff5968 ${onPct}% ${onPct+offPct}%,#ffc447 ${onPct+offPct}% 100%)`}for(const [id,val] of [['v430DonutTotal',total],['v430LegendOnline',online],['v430LegendOffline',offline],['v430LegendReview',review],['v430MapSites',sites],['v430MapDevices',total],['v430MapOffline',offline],['v430MapAlerts',openIssues?openIssues.length:'—']]){const e=document.getElementById(id);if(e)e.textContent=val}const ds=document.getElementById('v430DeviceSub');if(ds)ds.textContent=review?review+' need review':'Inventory healthy';
     const scanner=document.getElementById('dashScannerState');
     if(scanner){scanner.textContent=h.scanner?.healthy?'Scanner healthy':(h.scanner?.detail||'Scanner waiting');scanner.classList.toggle('warn',!h.scanner?.healthy)}
     const hb=document.getElementById('healthbar');
