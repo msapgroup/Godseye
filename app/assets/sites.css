@@ -13,7 +13,7 @@
 .site-card .site-numbers{display:flex;gap:22px;margin-top:21px;color:#a2bacb;font-size:11px}
 .site-card .site-numbers b{display:block;color:#f4fbff;font-size:22px;margin-bottom:1px}
 .site-card .site-foot{display:flex;justify-content:space-between;color:#83a5bb;font-size:11px;margin-top:16px}
-.site-setup{padding:19px!important}.site-setup h2{margin-bottom:7px}.site-setup p{font-size:12px;line-height:1.5}
+.site-setup{padding:19px!important}.site-setup.admin-visible{display:block!important}.site-setup h2{margin-bottom:7px}.site-setup p{font-size:12px;line-height:1.5}
 .site-setup form{display:grid;gap:10px;margin-top:14px}.site-setup label{font-size:11px;color:#a5bdcd;display:grid;gap:5px}
 .site-setup .input{width:100%;min-width:0}.site-setup textarea{resize:vertical}.site-setup summary{color:#a9c7da;font-size:11px;cursor:pointer}.site-setup form button{justify-self:start}
 .site-setup-divider{height:1px;background:#244258;margin:20px 0}.site-setup h3{font-size:14px;margin:0 0 6px}
