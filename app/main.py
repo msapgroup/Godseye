@@ -122,7 +122,23 @@ MFA_BACKUP_CODE_COUNT = 10
 # policy decision, not something a project can supply on your behalf.
 LOGIN_BANNER = os.environ.get("GODSEYE_LOGIN_BANNER", "")
 
-EYE_LOGO = '<svg class="eye-logo godseye-g-mark" viewBox="0 0 72 72" role="img" aria-label="GODSEYE sideways G logo"><path d="M59 13H29L10 36l19 23h30V39H42" fill="none" stroke="#27b5ff" stroke-width="11" stroke-linecap="square" stroke-linejoin="miter"/><path d="M59 59V39H42" fill="none" stroke="#736dff" stroke-width="11" stroke-linecap="square" stroke-linejoin="miter"/><path d="M55 19H32L18 36" fill="none" stroke="#c4f5ff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity=".78"/></svg>'
+EYE_LOGO = """<svg class="eye-logo godseye-g-mark" viewBox="0 0 96 96" role="img" aria-label="GODSEYE shield G cyber eye logo">
+<defs>
+<linearGradient id="gsShield" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#0b3156"/><stop offset=".52" stop-color="#07182b"/><stop offset="1" stop-color="#0a4d7a"/></linearGradient>
+<linearGradient id="gsMetal" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f7fdff"/><stop offset=".35" stop-color="#bfe7ff"/><stop offset=".68" stop-color="#5fb7f3"/><stop offset="1" stop-color="#d8f5ff"/></linearGradient>
+<radialGradient id="gsIris"><stop stop-color="#e7fbff"/><stop offset=".18" stop-color="#39d4ff"/><stop offset=".48" stop-color="#087fd9"/><stop offset=".8" stop-color="#052c58"/><stop offset="1" stop-color="#020d1e"/></radialGradient>
+<filter id="gsGlow" x="-35%" y="-35%" width="170%" height="170%"><feGaussianBlur stdDeviation="2.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs>
+<path d="M48 4 84 17v27c0 23-14 39-36 49C26 83 12 67 12 44V17Z" fill="url(#gsShield)" stroke="#169eea" stroke-width="2.5"/>
+<path d="M48 8 79 19v24c0 19-11 33-31 43C28 76 17 62 17 43V19Z" fill="none" stroke="#65d8ff" stroke-opacity=".45"/>
+<g stroke="#1bbcff" stroke-width="1.2" opacity=".75"><path d="M24 26v10h7"/><path d="M72 27v9h-7"/><path d="M23 58v9h8"/><path d="M73 58v9h-8"/><circle cx="24" cy="24" r="2" fill="#b7f5ff"/><circle cx="72" cy="25" r="2" fill="#b7f5ff"/><circle cx="23" cy="70" r="2" fill="#b7f5ff"/><circle cx="73" cy="70" r="2" fill="#b7f5ff"/></g>
+<path d="M68 29H43c-13 0-23 8-23 20s10 20 23 20h24V53H50" fill="none" stroke="#071426" stroke-width="17" stroke-linecap="square" stroke-linejoin="round" opacity=".75"/>
+<path d="M67 27H42c-13 0-23 9-23 21s10 21 23 21h25V53H49" fill="none" stroke="url(#gsMetal)" stroke-width="12" stroke-linecap="square" stroke-linejoin="round"/>
+<path d="M25 48c5-8 13-13 23-13s18 5 23 13c-5 8-13 13-23 13S30 56 25 48Z" fill="#06172c" stroke="#36c7ff" stroke-width="2.2"/>
+<circle cx="48" cy="48" r="12.5" fill="url(#gsIris)" stroke="#78e8ff" stroke-width="1.6" filter="url(#gsGlow)"/>
+<g fill="none" stroke="#8ff1ff" stroke-width=".8" opacity=".72"><circle cx="48" cy="48" r="8.4"/><path d="M35.5 48h25M48 35.5v25M40 42c5 2 11 2 16 0M40 54c5-2 11-2 16 0"/></g>
+<circle cx="48" cy="48" r="3.3" fill="#effcff"/><circle cx="49.5" cy="46.5" r="1.1" fill="#25bfff"/>
+</svg>"""
 
 # Only used to seed the very first admin account on a fresh install. Change
 # these via env vars before first boot if you don't want the well-known
@@ -4976,7 +4992,7 @@ function runWebsite(){post('/api/v1/monitor/website',{url:val('webUrl')},'webOut
 
 
 
-DEVICE_DETAIL_PAGE = r'''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>GODSEYE — Device</title><script>(function(){try{const saved=localStorage.getItem('godseye_theme');const dark=saved==='dark'||(!saved&&window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.dataset.theme=dark?'dark':'light'}catch(e){document.documentElement.dataset.theme='light'}})();</script><style>
+DEVICE_DETAIL_PAGE = r'''<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>GODSEYE — Device</title><script>(function(){try{const saved=localStorage.getItem('godseye_theme');const dark=saved!=='light';document.documentElement.dataset.theme=dark?'dark':'light'}catch(e){document.documentElement.dataset.theme='light'}})();</script><style>
 *{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;background:#f5f9fd;color:#17263c}.shell{min-height:100vh;display:grid;grid-template-columns:188px 1fr}.side{background:#07101c;color:#dce8f5;min-height:100vh;position:fixed;left:0;top:0;width:188px;padding:24px 8px}.brand{text-align:center;margin-bottom:34px}.brand svg{width:76px;height:46px}.brand b{display:block;color:#fff;letter-spacing:.16em;font-size:15px}.nav a{display:block;color:#c8d5e5;text-decoration:none;padding:10px 12px;border-radius:6px;font-size:12px;margin:3px 0}.nav a:hover,.nav a.active{background:#0d74f5;color:#fff}.main{grid-column:2;min-width:0}.top{height:58px;background:#fff;border-bottom:1px solid #e2eaf3;display:flex;justify-content:flex-end;align-items:center;padding:0 28px;gap:16px;font-size:12px}.online{background:#eaf9f2;color:#0c9562;border-radius:999px;padding:5px 10px}.wrap{padding:26px 24px 40px;max-width:1380px}.back{display:inline-flex;align-items:center;gap:7px;color:#0d66cf;text-decoration:none;font-weight:650;font-size:13px;margin-bottom:14px}.hero{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;margin-bottom:16px}.hero h1{font-size:26px;margin:0}.muted{color:#73849a;font-size:12px}.status{border-radius:999px;padding:5px 10px;background:#eaf9f2;color:#07955e;font-size:11px}.grid{display:grid;grid-template-columns:minmax(0,2fr) minmax(280px,1fr);gap:14px}.stack{display:flex;flex-direction:column;gap:14px}.panel{background:#fff;border:1px solid #dce6f1;border-radius:7px;box-shadow:0 2px 8px rgba(27,64,102,.04);overflow:hidden}.panel-head{padding:13px 15px;border-bottom:1px solid #e6edf5;display:flex;justify-content:space-between;align-items:center}.panel-head h2{font-size:14px;margin:0}.panel-body{padding:15px}.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.kpi{padding:12px;border:1px solid #e4ebf3;border-radius:6px}.kpi .v{font-size:21px;font-weight:760;margin-top:4px}.kv{display:grid;grid-template-columns:110px 1fr;gap:10px 14px;font-size:12px}.kv .k{color:#71839a}table{width:100%;border-collapse:collapse}th,td{padding:10px 12px;border-bottom:1px solid #edf2f7;text-align:left;font-size:12px}th{font-size:10px;color:#72839a;text-transform:uppercase;background:#fbfdff}.actions{display:flex;gap:8px;flex-wrap:wrap}.btn{border:1px solid #ccd9e8;background:#fff;color:#24405f;padding:8px 11px;border-radius:6px;cursor:pointer}.btn.primary{background:#0d74f5;border-color:#0d74f5;color:#fff}.detail-device-icon{width:54px;height:54px;object-fit:contain;border:1px solid #dce6f1;border-radius:10px;background:#fff;padding:6px}.identity-input,.identity-select{width:100%;min-width:0;border:1px solid #d8e0e9;border-radius:6px;background:#fff;color:#25334a;padding:8px 9px;font:inherit}.identity-input:focus,.identity-select:focus{outline:2px solid #d9ecff;border-color:#0d74f5}.empty{padding:24px;color:#8090a4;text-align:center}.timeline{padding:12px 15px;border-bottom:1px solid #edf2f7;font-size:12px}.error{padding:14px;background:#fff1f1;color:#b52d3d;border:1px solid #ffd0d4;border-radius:6px}@media(max-width:900px){.shell{display:block}.side{position:relative;width:100%;min-height:auto}.main{grid-column:auto}.grid{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(2,1fr)}}
 
 .device-icon{width:38px;height:38px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 38px}.device-icon img{width:36px;height:36px;object-fit:contain;display:block;filter:drop-shadow(0 2px 2px rgba(18,38,63,.18))}.device-icon-modal{position:fixed!important;inset:0!important;z-index:5000!important;place-items:center!important;background:rgba(7,16,28,.62)!important;padding:24px!important;overflow:auto!important}.device-icon-dialog{width:min(720px,calc(100vw - 32px))!important;max-width:720px!important;max-height:calc(100vh - 48px)!important;overflow:auto!important;padding:0!important;border:1px solid #d8e3ef;border-radius:13px!important;box-shadow:0 26px 90px rgba(2,12,27,.34)!important}.device-icon-dialog .modal-head{padding:18px 20px 12px;border-bottom:1px solid #edf2f7}.device-icon-dialog .modal-form{display:block;margin:0;padding:0 20px 18px}.device-icon-summary{display:flex;align-items:center;gap:14px;padding:14px 0}.device-icon-summary-art{width:72px;height:64px;border:1px solid #dce6f1;border-radius:10px;background:linear-gradient(180deg,#fff,#f6f9fc);display:grid;place-items:center}.device-icon-summary-art img{width:58px;height:58px;object-fit:contain;filter:drop-shadow(0 3px 3px rgba(17,39,64,.2))}.device-icon-summary-name{font-size:16px;font-weight:750;color:#0b6ddd}.device-icon-summary-meta{font-size:12px;color:#64768d;line-height:1.5}.device-icon-tabs{display:flex;gap:24px;border-bottom:1px solid #e5edf5;margin-bottom:14px;overflow:auto}.device-icon-tab{border:0;background:transparent;padding:10px 2px 9px;color:#61738b;font-size:11px;white-space:nowrap;cursor:pointer;border-bottom:2px solid transparent}.device-icon-tab.active{color:#0d74f5;border-bottom-color:#0d74f5;font-weight:700}.device-icon-picker{display:grid;grid-template-columns:repeat(5,minmax(96px,1fr));gap:10px;max-height:390px;overflow:auto;padding:2px}.device-icon-choice{position:relative;border:1px solid #d8e3ef;background:linear-gradient(180deg,#fff,#fbfdff);border-radius:9px;padding:9px 6px 8px;cursor:pointer;text-align:center;color:#30445e;font-size:10px;min-height:92px}.device-icon-choice:hover{border-color:#86bdfb;background:#f7fbff}.device-icon-choice.selected{border:2px solid #0d74f5;padding:8px 5px 7px;box-shadow:0 0 0 2px rgba(13,116,245,.09)}.device-icon-choice.selected:after{content:'✓';position:absolute;top:5px;right:5px;width:18px;height:18px;border-radius:50%;background:#0d74f5;color:#fff;display:grid;place-items:center;font-size:11px;font-weight:800}.device-icon-choice img{width:66px;height:58px;display:block;object-fit:contain;margin:0 auto 5px;filter:drop-shadow(0 3px 3px rgba(18,38,63,.2))}.device-icon-custom{border-top:1px solid #e4ebf3;margin-top:14px;padding-top:13px}.custom-icon-preview{width:58px;height:58px;object-fit:contain;border:1px solid #d8e3ef;border-radius:8px;background:#fff;padding:4px}.icon-upload-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.device-icon-dialog .modal-actions{display:flex;justify-content:flex-end;gap:8px;border-top:1px solid #edf2f7;padding-top:14px;margin-top:14px}@media(max-width:700px){.device-icon-modal{padding:10px!important;align-items:center!important}.device-icon-dialog{max-height:calc(100vh - 20px)!important}.device-icon-picker{grid-template-columns:repeat(3,1fr)}.device-icon-tabs{gap:14px}.device-icon-summary-art{width:60px;height:56px}.device-icon-summary-art img{width:48px;height:48px}}
@@ -5043,7 +5059,7 @@ DASHBOARD = r'''<!doctype html>
 (function(){
   try{
     const saved=localStorage.getItem('godseye_theme');
-    const dark=saved==='dark'||(!saved&&window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches);
+    const dark=saved!=='light';
     document.documentElement.dataset.theme=dark?'dark':'light';
   }catch(e){document.documentElement.dataset.theme='light'}
 })();
@@ -6570,11 +6586,52 @@ html[data-theme="dark"] .v430-inventory-panel{overflow:visible!important;margin-
 @media(max-width:1450px){html[data-theme="dark"] .content>.wrap{padding-left:20px!important;padding-right:20px!important}.v430-inventory-table th,.v430-inventory-table td{font-size:9px!important;padding-left:6px!important;padding-right:6px!important}.v430-inventory-table td:last-child button{font-size:8px!important;padding:3px 4px!important}.v430-dashboard-main,.v430-dashboard-row3,.v430-dashboard-bottom{gap:10px!important}}
 @media(max-width:1000px){.v430-global-search{position:static!important;transform:none!important;width:auto!important;flex:1!important}.v430-header-title{min-width:140px!important}.content>.headerbar.v430-header{display:flex!important}.view>.hero{grid-template-columns:1fr!important}.view>.hero>.actions{justify-self:start!important}}
 @media(max-width:700px){html[data-theme="dark"] .content>.headerbar.v430-header{height:auto!important;min-height:58px!important;padding:8px 13px!important;flex-wrap:wrap!important}.v430-header-title{display:flex!important;min-width:0!important}.v430-header-title b{font-size:18px!important}.v430-global-search{order:3!important;flex-basis:100%!important}.top-actions{margin-left:auto!important}html[data-theme="dark"] .content>.wrap{padding:17px 13px 34px!important}}
+
+/* GODSEYE approved unified application design */
+:root{--gs-bg:#06111d;--gs-panel:#0b1b2a;--gs-line:#19384f;--gs-text:#eef8ff;--gs-muted:#8fa9bc;--gs-blue:#159cff;--gs-cyan:#28d1ff;--gs-green:#3ed69b;--gs-red:#ff5f73;--gs-amber:#ffbd4a;--gs-purple:#9b6cff}
+html[data-theme="dark"] body{background:radial-gradient(circle at 38% -10%,#0d2941 0,#07131f 32%,#050e18 72%)!important;color:var(--gs-text)!important}
+html[data-theme="dark"] .sidebar{width:248px!important;background:linear-gradient(180deg,#07131f,#060f19 68%,#07131f)!important;border-right:1px solid #18354a!important;box-shadow:12px 0 32px rgba(0,0,0,.18)!important;padding:0 0 14px!important}
+html[data-theme="dark"] .sidebar .brand{min-height:82px!important;padding:13px 17px!important;margin:0 0 8px!important;border-bottom:1px solid #163247!important;display:flex!important;align-items:center!important;gap:11px!important}
+html[data-theme="dark"] .sidebar .brand .eye{width:48px!important;height:52px!important;min-width:48px!important;border:0!important;background:transparent!important;box-shadow:none!important;border-radius:0!important;display:grid!important;place-items:center!important}
+.godseye-g-mark{width:48px!important;height:48px!important;filter:drop-shadow(0 0 8px rgba(39,184,255,.35))}
+.v430-brand-copy b,.login-brand-row b{font-size:20px!important;font-weight:900!important;letter-spacing:.04em!important;background:linear-gradient(180deg,#fff 8%,#bfeaff 47%,#369fe9 95%);-webkit-background-clip:text;background-clip:text;color:transparent!important;text-shadow:0 0 18px rgba(72,182,255,.17)}
+.v430-brand-copy small{display:block!important;margin-top:3px!important;font-size:7px!important;letter-spacing:.16em!important;color:#6c94b2!important}
+html[data-theme="dark"] .navlist{padding:3px 10px!important;gap:2px!important}
+html[data-theme="dark"] .navsection{display:none!important}
+html[data-theme="dark"] .navitem{min-height:39px!important;padding:8px 11px!important;border:1px solid transparent!important;border-radius:7px!important;border-left:0!important;color:#9db3c6!important;font-size:11px!important;font-weight:650!important;gap:10px!important}
+html[data-theme="dark"] .navitem:hover{background:#0c2233!important;color:#e4f5ff!important;border-color:#173e59!important}
+html[data-theme="dark"] .navitem.active{background:linear-gradient(90deg,#0d3f69,#0d2b47)!important;color:#fff!important;border-color:#195e8d!important;box-shadow:inset 3px 0 0 #1ba6ff,0 0 16px rgba(22,151,239,.1)!important}
+.navicon{width:24px!important;height:24px!important;display:grid!important;place-items:center!important;color:#58bfff!important;flex:0 0 24px!important}
+html[data-theme="dark"] .navitem .badge{background:#4e1524!important;color:#ff98a6!important;border:1px solid #7b253a!important;font-size:9px!important}
+html[data-theme="dark"] .sidebar-footer{padding:12px 13px 4px!important;border-top:1px solid #163247!important}
+html[data-theme="dark"] .sidebar-customize-controls{display:none!important}
+html[data-theme="dark"] .content{background:linear-gradient(180deg,rgba(5,15,25,.9),rgba(6,17,29,.98))!important}
+html[data-theme="dark"] .content>.headerbar.v430-header{height:68px!important;padding:0 25px!important;background:rgba(6,17,29,.94)!important;border-bottom:1px solid #17364b!important;backdrop-filter:blur(16px)!important;z-index:50!important}
+.v430-header-title{display:none!important}
+.v430-global-search{left:28px!important;transform:none!important;width:min(620px,52vw)!important;height:40px!important;background:#091a29!important;border:1px solid #1d415b!important;border-radius:8px!important}
+.v430-global-search input{font-size:11px!important;color:#deeffb!important}.v430-global-search>span{color:#55b6ef!important}.v430-global-search kbd{background:#10263a!important;border:1px solid #28516d!important;color:#8fb2ca!important}
+html[data-theme="dark"] .v430-bell,html[data-theme="dark"] .user-chip{background:#091a29!important;border:1px solid #1d415b!important;border-radius:8px!important}
+html[data-theme="dark"] .user-chip{padding:6px 10px!important;min-height:40px!important}.user-chip .avatar{background:linear-gradient(135deg,#167fd0,#22c0ff)!important;box-shadow:0 0 0 2px #0c2031}
+html[data-theme="dark"] .content>.wrap{padding:23px 25px 44px!important;max-width:none!important}
+html[data-theme="dark"] .view>.hero{min-height:66px!important;margin-bottom:14px!important}
+html[data-theme="dark"] .view>.hero h1,.calendar-hero h1,.email-hero h1,.report-hero h1{font-size:25px!important;font-weight:800!important;letter-spacing:-.025em!important;color:#f6fbff!important}
+html[data-theme="dark"] .view>.hero .muted,.calendar-hero .muted,.email-hero .muted,.report-hero .muted{font-size:11px!important;color:#8da8bb!important}
+html[data-theme="dark"] .panel,html[data-theme="dark"] .card,html[data-theme="dark"] .tool-card,html[data-theme="dark"] .cyber-tool-card,html[data-theme="dark"] .monitor-summary-card,html[data-theme="dark"] .network-device-card,html[data-theme="dark"] .network-connected-card,html[data-theme="dark"] .network-controls-card{background:linear-gradient(150deg,#0d2234,#091824 72%)!important;border:1px solid #1b3c54!important;border-radius:9px!important;box-shadow:0 7px 24px rgba(0,0,0,.12)!important}
+html[data-theme="dark"] .table-head{min-height:48px!important;padding:12px 15px!important;border-bottom:1px solid #17384f!important}.table-head h2{font-size:12px!important;font-weight:750!important;color:#eaf6ff!important}
+html[data-theme="dark"] .primary{background:linear-gradient(180deg,#168feb,#0f72c6)!important;border:1px solid #2aaaff!important;color:#fff!important;box-shadow:0 5px 14px rgba(0,121,214,.2)!important}
+html[data-theme="dark"] .secondary,html[data-theme="dark"] .icon-btn{background:#0b1e2d!important;border:1px solid #28506b!important;color:#cde9fb!important}
+html[data-theme="dark"] .danger{background:#371621!important;border-color:#73293a!important;color:#ff9eaa!important}
+html[data-theme="dark"] .input,html[data-theme="dark"] .filter,html[data-theme="dark"] select,html[data-theme="dark"] textarea{background:#071623!important;border:1px solid #24475f!important;color:#e6f4ff!important;border-radius:7px!important}
+html[data-theme="dark"] .input:focus,html[data-theme="dark"] .filter:focus{border-color:#1f9df1!important;box-shadow:0 0 0 2px rgba(31,157,241,.12)!important}
+html[data-theme="dark"] table{color:#d8e8f3!important}html[data-theme="dark"] th{background:#091a29!important;color:#7f9cb1!important;font-size:8px!important;letter-spacing:.08em!important;text-transform:uppercase!important;border-color:#17384f!important}html[data-theme="dark"] td{border-color:#173247!important;font-size:10px!important}html[data-theme="dark"] tbody tr:hover{background:#0d2639!important}
+html[data-theme="dark"] .modal{background:rgba(1,7,13,.78)!important;backdrop-filter:blur(7px)}html[data-theme="dark"] .modal-card{background:linear-gradient(150deg,#0d2234,#081522)!important;border:1px solid #28506a!important;border-radius:11px!important;box-shadow:0 30px 90px rgba(0,0,0,.5)!important}
+html[data-theme="dark"] .authcard{background:linear-gradient(150deg,rgba(12,31,47,.97),rgba(6,17,29,.98))!important;border:1px solid #2a5874!important;border-radius:12px!important;box-shadow:0 28px 90px rgba(0,0,0,.5)!important}.login-brand-row .eye-logo{width:64px!important;height:64px!important}.login-brand-row b{font-size:27px!important}.login-build{color:#6fa4c6!important;letter-spacing:.16em!important}
+@media(max-width:820px){html[data-theme="dark"] .sidebar{width:100%!important}.v430-global-search{position:static!important;width:auto!important;transform:none!important}.content>.headerbar.v430-header{height:auto!important;min-height:64px!important;flex-wrap:wrap!important}}
 </style></head>
 <body>
 <div id="authOverlay" class="overlay" style="display:none">
   <div class="authcard">
-    <div class="login-brand"><div class="login-brand-row">__EYE_LOGO__<b>GODSEYE</b></div><small class="login-build">v__APP_VERSION__</small><div class="muted">Network Intelligence · Device Correlation · Smart Alerts</div></div>
+    <div class="login-brand"><div class="login-brand-row">__EYE_LOGO__<b>GODSEYE</b></div><small class="login-build">MSP SECURITY OPERATIONS</small><div class="muted">Network Intelligence · Device Correlation · Smart Alerts</div></div>
     <div id="loginBanner" class="muted" style="white-space:pre-wrap;margin-bottom:14px;__LOGIN_BANNER_DISPLAY__">__LOGIN_BANNER__</div>
     <h2>Welcome Back</h2>
     <div class="muted">Sign in to your GODSEYE account</div>
@@ -6585,11 +6642,11 @@ html[data-theme="dark"] .v430-inventory-panel{overflow:visible!important;margin-
       <button class="primary" type="submit">Sign in</button>
     </form>
   </div>
-  <div class="login-scene-footer">GODSEYE v__APP_VERSION__<br>Network Intelligence · Device Correlation · Smart Alerts</div>
+  <div class="login-scene-footer">GODSEYE<br>Network Intelligence · Security Operations · Remote Support</div>
 </div>
 <div id="setupOverlay" class="overlay" style="display:none">
   <div class="authcard">
-    <div class="brand" style="margin-bottom:18px"><div class="eye">__EYE_LOGO__</div><div><b>GODSEYE</b><small class="login-build">v__APP_VERSION__</small><div class="muted">NETWORK INTELLIGENCE &amp; SECURITY</div></div></div>
+    <div class="brand" style="margin-bottom:18px"><div class="eye">__EYE_LOGO__</div><div><b>GODSEYE</b><small class="login-build">MSP SECURITY OPERATIONS</small><div class="muted">NETWORK INTELLIGENCE &amp; SECURITY</div></div></div>
     <h2>Create your administrator password</h2>
     <div class="muted">Fresh installation complete. Choose a password for the <b>admin</b> account.</div>
     <form id="setupForm" onsubmit="return doInitialSetup(event)">
@@ -6629,7 +6686,7 @@ html[data-theme="dark"] .v430-inventory-panel{overflow:visible!important;margin-
 <div class="healthbar" id="pwReminderBar" style="display:none;color:#f7c948;cursor:pointer" onclick="openChangePassword()"></div>
 <div class="shell">
 <nav class="sidebar">
-<div class="brand v430-brand"><div class="eye">__EYE_LOGO__</div><div class="v430-brand-copy"><b>GODSEYE</b><small>v__APP_VERSION__</small></div></div>
+<div class="brand v430-brand"><div class="eye">__EYE_LOGO__</div><div class="v430-brand-copy"><b>GODSEYE</b><small>SECURITY OPERATIONS</small></div></div>
 <div class="sidebar-arrange-bar"><b>Arrange sidebar</b>Drag items to reorder them or move them into another section.<span class="sidebar-save-state" id="sidebarSaveState">Changes save automatically.</span><div class="sidebar-arrange-actions"><button type="button" class="primary" onclick="toggleSidebarEditing(event)">Done</button><button type="button" class="secondary" onclick="resetSidebarLayout(event)">Reset</button></div></div>
 <div class="navlist">
 <button type="button" class="navitem active" data-view="overview"><span class="navicon">⌂</span><span>Dashboard</span></button>
