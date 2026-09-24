@@ -6652,6 +6652,28 @@ html[data-theme="dark"] .authcard{background:linear-gradient(150deg,rgba(12,31,4
 #view-health>.v430-health-status-grid{grid-template-columns:repeat(6,minmax(0,1fr))!important;gap:12px!important}.v430-health-card{min-height:96px!important;padding:12px!important}.v430-health-icon{width:39px!important;height:39px!important;border-radius:9px!important;background:#102e47!important;color:#4fc2ff!important}.v430-health-card small{font-size:8px!important;color:#7f9cb0!important}.v430-health-card b{font-size:14px!important;margin-top:4px!important}.v430-health-card em{font-size:7px!important;color:#6f8da3!important}.v430-health-card::after{display:none!important}
 .v430-health-metrics{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:12px!important}.v430-health-metric{min-height:190px!important}.v430-ring{box-shadow:inset 0 0 0 7px #10283a,0 0 0 1px #1d4864!important}.v430-spark{opacity:.8}.v430-health-secondary,.v430-health-operational-grid{gap:12px!important}
 @media(max-width:1100px){#view-health>.v430-health-status-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important}}@media(max-width:760px){#view-health>.v430-health-status-grid,.v430-health-metrics{grid-template-columns:1fr!important}}
+
+/* GODSEYE approved typography + icon color system */
+html[data-theme="dark"] body{color:#dcebf5!important}
+html[data-theme="dark"] h1{color:#f7fcff!important;text-shadow:0 1px 0 rgba(255,255,255,.02)}
+html[data-theme="dark"] h2{color:#eaf6ff!important}
+html[data-theme="dark"] h3{color:#e3f1fb!important}
+html[data-theme="dark"] p,html[data-theme="dark"] label,html[data-theme="dark"] td{color:#c6d9e6!important}
+html[data-theme="dark"] .muted,html[data-theme="dark"] small,html[data-theme="dark"] .panel-subtle{color:#86a1b5!important}
+html[data-theme="dark"] .label,html[data-theme="dark"] .statmeta,html[data-theme="dark"] th{color:#7894a8!important}
+html[data-theme="dark"] .link,html[data-theme="dark"] a:not(.primary):not(.secondary){color:#49baff!important}
+html[data-theme="dark"] .link:hover,html[data-theme="dark"] a:not(.primary):not(.secondary):hover{color:#8fd8ff!important}
+html[data-theme="dark"] .green,html[data-theme="dark"] .good,html[data-theme="dark"] .health-good{color:#47dda5!important}
+html[data-theme="dark"] .red,html[data-theme="dark"] .bad,html[data-theme="dark"] .health-bad{color:#ff6478!important}
+html[data-theme="dark"] .yellow,html[data-theme="dark"] .warning{color:#ffc85f!important}
+html[data-theme="dark"] .purple{color:#b596ff!important}
+html[data-theme="dark"] code{color:#83d7ff!important;background:#071622!important;border:1px solid #193b53!important}
+html[data-theme="dark"] pre.result,html[data-theme="dark"] pre{color:#b8d2e3!important}
+html[data-theme="dark"] ::placeholder{color:#55758c!important;opacity:1}
+.navicon{font-size:0!important}.navicon svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+html[data-theme="dark"] .navitem{color:#96aec0!important}html[data-theme="dark"] .navitem.active{color:#f0f9ff!important}
+html[data-theme="dark"] .status,html[data-theme="dark"] .pill{color:#a9d9f8!important}
+html[data-theme="dark"] .trend{color:#7fa0b7!important}
 </style></head>
 <body>
 <div id="authOverlay" class="overlay" style="display:none">
@@ -6714,31 +6736,31 @@ html[data-theme="dark"] .authcard{background:linear-gradient(150deg,rgba(12,31,4
 <div class="brand v430-brand"><div class="eye">__EYE_LOGO__</div><div class="v430-brand-copy"><b>GODSEYE</b><small>SECURITY OPERATIONS</small></div></div>
 <div class="sidebar-arrange-bar"><b>Arrange sidebar</b>Drag items to reorder them or move them into another section.<span class="sidebar-save-state" id="sidebarSaveState">Changes save automatically.</span><div class="sidebar-arrange-actions"><button type="button" class="primary" onclick="toggleSidebarEditing(event)">Done</button><button type="button" class="secondary" onclick="resetSidebarLayout(event)">Reset</button></div></div>
 <div class="navlist">
-<button type="button" class="navitem active" data-view="overview"><span class="navicon">⌂</span><span>Dashboard</span></button>
+<button type="button" class="navitem active" data-view="overview"><span class="navicon"><svg viewBox="0 0 24 24"><path d="M3 11.5 12 4l9 7.5V21H3Z"/><path d="M9 21v-6h6v6"/></svg></span><span>Dashboard</span></button>
 <div class="navsection">Monitoring</div>
-<button type="button" class="navitem" data-view="devices"><span class="navicon">▣</span><span>Devices</span></button>
-<button type="button" class="navitem" data-view="network"><span class="navicon">⌁</span><span>Network Map</span></button>
-<button type="button" class="navitem" data-view="monitoring"><span class="navicon">◔</span><span>Monitoring</span></button>
-<button type="button" class="navitem" data-view="findings"><span class="navicon">!</span><span>Findings</span><span class="badge" id="findingBadge">0</span></button>
+<button type="button" class="navitem" data-view="devices"><span class="navicon"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></span><span>Devices</span></button>
+<button type="button" class="navitem" data-view="network"><span class="navicon"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><circle cx="5" cy="18" r="2"/><circle cx="19" cy="18" r="2"/><path d="M12 7v4M12 11 6 16M12 11l6 5"/></svg></span><span>Network Map</span></button>
+<button type="button" class="navitem" data-view="monitoring"><span class="navicon"><svg viewBox="0 0 24 24"><path d="M3 12h4l2-5 4 10 2-5h6"/></svg></span><span>Monitoring</span></button>
+<button type="button" class="navitem" data-view="findings"><span class="navicon"><svg viewBox="0 0 24 24"><path d="M12 3 3.5 20h17Z"/><path d="M12 9v5M12 17h.01"/></svg></span><span>Findings</span><span class="badge" id="findingBadge">0</span></button>
 
 <div class="navsection">Operations</div>
-<button type="button" class="navitem" data-view="tools"><span class="navicon">⚒</span><span>Tools</span></button><button type="button" class="navitem operate-only" data-view="cyber-tools"><span class="navicon">⌁</span><span>Cyber Tools</span></button>
-<button type="button" class="navitem" data-view="integrations"><span class="navicon">⌘</span><span>Integrations</span></button>
-<button type="button" class="navitem" data-view="reports"><span class="navicon">▤</span><span>Reports</span></button>
-<button type="button" class="navitem" data-view="calendar"><span class="navicon">▦</span><span>Calendar</span></button>
-<button type="button" class="navitem operate-only" data-view="email"><span class="navicon">✉</span><span>Email</span></button>
-<button type="button" class="navitem" data-view="event-findings"><span class="navicon">⚠</span><span>Event Findings</span><span class="badge" id="eventFindingBadge">0</span></button>
-<button type="button" class="navitem admin-only" data-view="remote-access"><span class="navicon">▰</span><span>Remote Access</span></button>
-<button type="button" class="navitem operate-only" data-view="windows-updates"><span class="navicon">↻</span><span>Windows Updates</span></button>
-<button type="button" class="navitem admin-only" onclick="openWindowsAgentModal();event.preventDefault()"><span class="navicon">⚙</span><span>Windows Agent</span></button>
-<button type="button" class="navitem admin-only" data-view="antivirus"><span class="navicon">🛡</span><span>Antivirus</span></button>
-<button type="button" class="navitem" data-view="tickets"><span class="navicon">▧</span><span>Ticket Portal</span><span class="badge" id="ticketBadge">0</span></button>
+<button type="button" class="navitem" data-view="tools"><span class="navicon"><svg viewBox="0 0 24 24"><path d="m14 6 4-4 4 4-4 4M2 22l8-8M7 7l10 10"/><circle cx="5" cy="5" r="3"/></svg></span><span>Tools</span></button><button type="button" class="navitem operate-only" data-view="cyber-tools"><span class="navicon"><svg viewBox="0 0 24 24"><path d="M12 3 20 6v6c0 5-3.2 8-8 9-4.8-1-8-4-8-9V6Z"/><path d="M8 12h8M12 8v8"/></svg></span><span>Cyber Tools</span></button>
+<button type="button" class="navitem" data-view="integrations"><span class="navicon"><svg viewBox="0 0 24 24"><path d="M8 3v5M16 3v5M6 8h12v3a6 6 0 0 1-12 0Z"/><path d="M12 17v4"/></svg></span><span>Integrations</span></button>
+<button type="button" class="navitem" data-view="reports"><span class="navicon"><svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6Z"/><path d="M15 3v5h5M9 12h6M9 16h6"/></svg></span><span>Reports</span></button>
+<button type="button" class="navitem" data-view="calendar"><span class="navicon"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18"/></svg></span><span>Calendar</span></button>
+<button type="button" class="navitem operate-only" data-view="email"><span class="navicon"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 7 8 6 8-6"/></svg></span><span>Email</span></button>
+<button type="button" class="navitem" data-view="event-findings"><span class="navicon"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4Z"/><path d="M8 8h8M8 12h5M8 16h7"/></svg></span><span>Event Findings</span><span class="badge" id="eventFindingBadge">0</span></button>
+<button type="button" class="navitem admin-only" data-view="remote-access"><span class="navicon"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4M8 10h8"/></svg></span><span>Remote Access</span></button>
+<button type="button" class="navitem operate-only" data-view="windows-updates"><span class="navicon"><svg viewBox="0 0 24 24"><path d="M4 5h7v7H4ZM13 5h7v7h-7ZM4 14h7v5H4ZM13 14h7v5h-7Z"/></svg></span><span>Windows Updates</span></button>
+<button type="button" class="navitem admin-only" onclick="openWindowsAgentModal();event.preventDefault()"><span class="navicon"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/><circle cx="17" cy="8" r="2.2"/><path d="M17 4.8v1M17 10.2v1M13.8 8h1M19.2 8h1"/></svg></span><span>Windows Agent</span></button>
+<button type="button" class="navitem admin-only" data-view="antivirus"><span class="navicon"><svg viewBox="0 0 24 24"><path d="M12 3 20 6v6c0 5-3.2 8-8 9-4.8-1-8-4-8-9V6Z"/><path d="m8.5 12 2.2 2.2 4.8-5"/></svg></span><span>Antivirus</span></button>
+<button type="button" class="navitem" data-view="tickets"><span class="navicon"><svg viewBox="0 0 24 24"><path d="M4 6h16v4a2 2 0 0 0 0 4v4H4v-4a2 2 0 0 0 0-4Z"/><path d="M12 8v8"/></svg></span><span>Ticket Portal</span><span class="badge" id="ticketBadge">0</span></button>
 <div class="navsection">Administration</div>
-<button type="button" class="navitem" data-view="health"><span class="navicon">♥</span><span>System Health</span></button>
-<button type="button" class="navitem" data-view="rules" id="navRules"><span class="navicon">⚑</span><span>Alert Rules</span></button>
-<button type="button" class="navitem" id="navUsers" data-view="users"><span class="navicon">♙</span><span>Users</span></button>
-<button type="button" class="navitem" id="navAudit" data-view="audit"><span class="navicon">▥</span><span>Audit Log</span></button>
-<button type="button" class="navitem" data-view="security"><span class="navicon">⚙</span><span>Settings</span></button>
+<button type="button" class="navitem" data-view="health"><span class="navicon"><svg viewBox="0 0 24 24"><path d="M3 12h4l2-5 4 10 2-5h6"/><path d="M20.5 5.5a5 5 0 0 0-7.1 0L12 7l-1.4-1.5a5 5 0 0 0-7.1 7L12 21l8.5-8.5a5 5 0 0 0 0-7Z"/></svg></span><span>System Health</span></button>
+<button type="button" class="navitem" data-view="rules" id="navRules"><span class="navicon"><svg viewBox="0 0 24 24"><path d="M5 4h14M5 12h14M5 20h14"/><circle cx="9" cy="4" r="2"/><circle cx="15" cy="12" r="2"/><circle cx="8" cy="20" r="2"/></svg></span><span>Alert Rules</span></button>
+<button type="button" class="navitem" id="navUsers" data-view="users"><span class="navicon"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="4"/><path d="M2 21a7 7 0 0 1 14 0M16 7a4 4 0 0 1 0 7M18 16a6 6 0 0 1 4 5"/></svg></span><span>Users</span></button>
+<button type="button" class="navitem" id="navAudit" data-view="audit"><span class="navicon"><svg viewBox="0 0 24 24"><path d="M6 3h12v18H6Z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg></span><span>Audit Log</span></button>
+<button type="button" class="navitem" data-view="security"><span class="navicon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.5-2.5 1A7 7 0 0 0 15 6l-.4-2.7h-4L10 6a7 7 0 0 0-1.4.8l-2.5-1-2 3.5L6.2 11a7 7 0 0 0 0 2l-2 1.5 2 3.5 2.5-1A7 7 0 0 0 10 18l.5 2.7h4L15 18a7 7 0 0 0 1.4-.8l2.5 1 2-3.5-2-1.5c.1-.4.1-.8.1-1.2Z"/></svg></span><span>Settings</span></button>
 </div>
 <div class="sidebar-footer">
 <div class="sidebar-customize-controls"><button type="button" class="sidebar-page-arrange" onclick="toggleLayoutEditing(event)"><span class="layout-arrange-label">Reorder Page</span></button><button type="button" class="sidebar-nav-arrange" onclick="toggleSidebarEditing(event)"><span class="sidebar-arrange-label">Reorder Sidebar</span></button><button type="button" onclick="resetPageLayout(event)">Reset Page</button><button type="button" onclick="resetSidebarLayout(event)">Reset Sidebar</button></div>
