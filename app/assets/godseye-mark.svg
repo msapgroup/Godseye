@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 104 104" role="img" aria-labelledby="title">
+<title id="title">GODSEYE shield G cyber eye</title>
+<defs>
+<linearGradient id="s" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#12d9ff"/><stop offset=".2" stop-color="#168ee8"/><stop offset=".56" stop-color="#07396d"/><stop offset=".82" stop-color="#0aaee7"/><stop offset="1" stop-color="#0a59b6"/></linearGradient>
+<linearGradient id="i" x1=".1" y1="0" x2=".9" y2="1"><stop stop-color="#0f4677"/><stop offset=".48" stop-color="#071b35"/><stop offset="1" stop-color="#0a4e82"/></linearGradient>
+<linearGradient id="m" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fff"/><stop offset=".18" stop-color="#dff4ff"/><stop offset=".42" stop-color="#8cccf2"/><stop offset=".68" stop-color="#f7fdff"/><stop offset=".88" stop-color="#58b8ee"/><stop offset="1" stop-color="#d7f2ff"/></linearGradient>
+<radialGradient id="r"><stop stop-color="#f3feff"/><stop offset=".12" stop-color="#53e3ff"/><stop offset=".38" stop-color="#0e9fe6"/><stop offset=".68" stop-color="#0758a6"/><stop offset="1" stop-color="#021b39"/></radialGradient>
+<filter id="g" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="2.4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs>
+<path d="M52 3 93 18v31c0 25-16 43-41 53C27 92 11 74 11 49V18Z" fill="url(#s)"/>
+<path d="M52 9 86 21v27c0 21-13 36-34 46C31 84 18 69 18 48V21Z" fill="#061729"/>
+<path d="M52 13 81 23v24c0 18-10 31-29 40-19-9-29-22-29-40V23Z" fill="url(#i)" stroke="#33cfff" stroke-width="1.7"/>
+<g fill="none" stroke="#32caff" stroke-width="1.2" opacity=".9"><path d="M26 31h8v7M78 31h-8v7M25 66h9v-7M79 66h-9v-7"/><path d="M23 41h9M81 41h-9M23 56h9M81 56h-9"/></g>
+<path d="M74 28H48C31 28 20 38 20 51s11 23 28 23h27V57H53" fill="none" stroke="#04101f" stroke-width="19" opacity=".78"/>
+<path d="M73 26H47C30 26 19 38 19 51s11 25 28 25h28V56H52" fill="none" stroke="url(#m)" stroke-width="13"/>
+<path d="M27 51c6-9 15-14 25-14s19 5 25 14c-6 9-15 14-25 14S33 60 27 51Z" fill="#041526" stroke="#c8f0ff" stroke-width="2.7"/>
+<path d="M31 51c5-6.8 12-10.5 21-10.5S68 44.2 73 51c-5 6.8-12 10.5-21 10.5S36 57.8 31 51Z" fill="#0a4b7e" stroke="#22ccff" stroke-width="1.3"/>
+<circle cx="52" cy="51" r="11.7" fill="url(#r)" stroke="#77ecff" stroke-width="1.5" filter="url(#g)"/>
+<circle cx="52" cy="51" r="3.5" fill="#f4feff"/><circle cx="53.5" cy="49.5" r="1.15" fill="#25c8ff"/>
+</svg>

@@ -106,6 +106,12 @@ After a run, review the structured result and scan history. Where supported, res
 
 ![GODSEYE Cyber Tools result](docs/screenshots/v431-cyber-tools-working.png)
 
+### About GODSEYE
+
+![GODSEYE About](docs/screenshots/godseye-about.png)
+
+**How it works:** About GODSEYE presents the platform identity, MSP-focused mission, core capabilities, self-hosted operating model, and direct links to the project repository and documentation. It uses the same approved shield/G/eye branding and visual system as the rest of the application.
+
 ---
 
 ## Designed for day-to-day MSP operations
