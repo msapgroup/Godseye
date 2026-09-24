@@ -20,6 +20,12 @@ Search and filter network assets, discover the network, add authorized devices, 
 
 Inspect observed device relationships and move from the visual map into the related inventory records.
 
+## Sites
+
+![Sites management](screenshots/v431-sites-management.png)
+
+The capture pairs two running GODSEYE instances over HTTPS and opens the remote location card. On a remote installation, generate a one-time token in Sites; on the master, enter its VPN-reachable HTTPS address, a name, and the token. Open its card to manage devices, findings, and tickets. Add a trusted PEM certificate when the remote uses a private CA. Revoke the paired master on the remote installation to end access.
+
 ## Calendar
 
 ![Calendar](screenshots/v431-calendar-guide.png)

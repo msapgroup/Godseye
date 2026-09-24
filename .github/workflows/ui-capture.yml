@@ -53,6 +53,7 @@ jobs:
           test -s docs/screenshots/v431-devices-guide.png
           test -s docs/screenshots/v431-cyber-tools-overview.png
           test -s docs/screenshots/v431-system-health-guide.png
+          test -s docs/screenshots/v431-sites-management.png
           test -s docs/screenshots/godseye-about.png
       - name: Commit refreshed screenshots
         run: |

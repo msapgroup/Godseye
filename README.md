@@ -55,6 +55,12 @@ The gallery shows captures from the running app with representative sample data.
 
 **How it works:** Network Map turns collected discovery evidence into a visual view of devices and observed relationships. Select a device from the map to continue the investigation in its inventory record.
 
+### Sites · Manage multiple GODSEYE installations
+
+![GODSEYE Sites management](docs/screenshots/v431-sites-management.png)
+
+**How it works:** Each location runs its own GODSEYE on a Raspberry Pi or server. On the remote installation, open **Sites** and generate a one-time pairing token. On the master installation, enter a location name, the remote HTTPS address reachable through your existing VPN, and that token. Supply its trusted PEM certificate if it uses a private certificate authority. The linked location appears as a card with real device, offline, finding, and ticket counts. Select it to view remote devices, findings, and tickets; edit device names and classifications, create or close tickets, and resolve findings. Refresh retrieves current data. The remote administrator can revoke the master under **Sites** at any time. GODSEYE does not set up the VPN.
+
 ### Calendar and maintenance planning
 
 ![GODSEYE Calendar](docs/screenshots/v431-calendar-guide.png)

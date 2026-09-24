@@ -45,6 +45,7 @@ from .cyber_tools import (CyberScheduleManager, SCHEDULABLE_TOOLS, capabilities 
                           ensure_schema as ensure_cyber_schema, execute as execute_cyber_tool,
                           public_run as public_cyber_run, record_run as record_cyber_run,
                           utcnow as cyber_utcnow)
+from .site_federation import ensure_schema as ensure_site_schema, register_routes as register_site_routes
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -709,6 +710,7 @@ def init_db():
                 (ADMIN_DEFAULT_USER, "", "", now(), now()),
             )
             print("[GODSEYE] Fresh install: admin account created; first-login password setup is required.")
+        ensure_site_schema(c)
 
 
 
@@ -894,6 +896,14 @@ def dashboard_map_reference():
 @app.get("/assets/godseye-approved.png", include_in_schema=False)
 def godseye_approved_asset():
     return FileResponse(BASE_DIR / "app" / "assets" / "godseye-approved.png", media_type="image/png", headers={"Cache-Control":"public, max-age=86400"})
+
+@app.get("/assets/sites.css", include_in_schema=False)
+def sites_css_asset():
+    return FileResponse(BASE_DIR / "app" / "assets" / "sites.css", media_type="text/css")
+
+@app.get("/assets/sites.js", include_in_schema=False)
+def sites_js_asset():
+    return FileResponse(BASE_DIR / "app" / "assets" / "sites.js", media_type="application/javascript")
 
 
 @app.get("/assets/godseye-mark.svg", include_in_schema=False)
@@ -6817,7 +6827,7 @@ html[data-theme="dark"] .badge{box-shadow:none!important}
 @media(max-width:1000px){.about-feature-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.about-info-grid{grid-template-columns:1fr}}@media(max-width:620px){.about-feature-grid{grid-template-columns:1fr}.about-brand-lockup{flex-direction:column}.about-wordmark{width:210px}.about-principles{grid-template-columns:1fr}}
 
 .about-page-heading{margin-bottom:12px!important;text-align:left}.about-page-heading h1{margin:0 0 4px!important}
-</style></head>
+</style><link rel="stylesheet" href="/assets/sites.css"></head>
 <body>
 <div id="authOverlay" class="overlay" style="display:none">
   <div class="authcard">
@@ -6883,6 +6893,7 @@ html[data-theme="dark"] .badge{box-shadow:none!important}
 <div class="navsection">Monitoring</div>
 <button type="button" class="navitem" data-view="devices"><span class="navicon"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></span><span>Devices</span></button>
 <button type="button" class="navitem" data-view="network"><span class="navicon"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><circle cx="5" cy="18" r="2"/><circle cx="19" cy="18" r="2"/><path d="M12 7v4M12 11 6 16M12 11l6 5"/></svg></span><span>Network Map</span></button>
+<button type="button" class="navitem" data-view="sites"><span class="navicon"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="7" height="7" rx="1"/><rect x="14" y="4" width="7" height="7" rx="1"/><rect x="3" y="15" width="7" height="6" rx="1"/><rect x="14" y="15" width="7" height="6" rx="1"/></svg></span><span>Sites</span></button>
 <button type="button" class="navitem" data-view="monitoring"><span class="navicon"><svg viewBox="0 0 24 24"><path d="M3 12h4l2-5 4 10 2-5h6"/></svg></span><span>Monitoring</span></button>
 <button type="button" class="navitem" data-view="findings"><span class="navicon"><svg viewBox="0 0 24 24"><path d="M12 3 3.5 20h17Z"/><path d="M12 9v5M12 17h.01"/></svg></span><span>Findings</span><span class="badge" id="findingBadge">0</span></button>
 
@@ -7463,6 +7474,17 @@ sudo godseye-https-setup godseye.example.com letsencrypt</pre></div></section>
 <section class="panel"><h2>Two-Factor Authentication</h2><div id="mfaStatus" style="padding:16px 18px"></div></section>
 </div>
 
+<div class="view" id="view-sites" style="display:none">
+  <div class="hero"><div><h1>Managed Sites</h1><div class="muted">Manage other GODSEYE installations across your existing VPN.</div></div><div class="actions"><button class="secondary" onclick="loadSites()">Refresh Sites</button></div></div>
+  <div class="site-hub panel"><div><b>Master GODSEYE · This installation</b><div class="muted">Each linked site runs GODSEYE on its own Raspberry Pi or server.</div></div><span class="site-live">● Local</span></div>
+  <div class="site-page-grid"><div><h2>Linked locations</h2><div id="sitesList" class="site-list"><div class="empty">Loading sites…</div></div></div>
+    <section class="panel site-setup admin-only"><h2>Link an installation</h2><p class="muted">On the remote GODSEYE, generate a one-time pairing token below. Enter its existing VPN address here. GODSEYE does not configure the VPN.</p>
+      <form id="siteLinkForm" onsubmit="return linkSite(event)"><label>Site name<input class="input" name="name" placeholder="Law Office · Florida" required maxlength="120"></label><label>Remote HTTPS address<input class="input" name="endpoint" type="url" placeholder="https://100.101.12.24:8080" required></label><label>One-time pairing token<input class="input" name="pairing_token" autocomplete="off" required></label><details><summary>Private certificate authority (if needed)</summary><textarea class="input" name="ca_cert" rows="4" placeholder="Paste the trusted PEM CA certificate"></textarea></details><button class="primary" type="submit">Link Site</button></form>
+      <div class="site-setup-divider"></div><h3>Pair this installation to a master</h3><p class="muted">Run this on the remote GODSEYE and copy the token to the master's Link an installation form.</p><button class="secondary" onclick="generateSitePairToken()">Generate Pairing Token</button><div id="sitePairToken" class="site-token" aria-live="polite"></div><div id="sitePeerList" class="muted"></div>
+    </section></div>
+  <section id="siteWorkspace" class="panel site-workspace" style="display:none" aria-live="polite"></section>
+</div>
+
 <div class="view" id="view-about" style="display:none">
   <div class="hero about-page-heading"><div><h1>About GODSEYE</h1><div class="muted">Self-hosted network intelligence and security operations for growing MSPs.</div></div></div>
   <div class="about-hero panel">
@@ -7663,6 +7685,7 @@ sudo godseye-https-setup godseye.example.com letsencrypt</pre></div></section>
     <div id="headerHelpModalBody" class="header-help-body"></div>
   </div>
 </div>
+<script src="/assets/sites.js"></script>
 <script>
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const CLASS_CYCLE={new:'investigate',investigate:'known',known:'managed',managed:'ignored',ignored:'new'};
@@ -8576,6 +8599,7 @@ const VIEW_LOADERS={
   overview:()=>loadDashboard(),
   devices:()=>loadInventory(),
   network:()=>loadNetwork(),
+  sites:()=>loadSites(),
   monitoring:()=>loadMonitoring(),
   findings:()=>loadFindings(),
   integrations:()=>loadIntegrations(),
@@ -8729,7 +8753,7 @@ function showView(name,updateHash=true){
   document.querySelectorAll('.navitem[data-view]').forEach(b=>{b.classList.remove('active');b.removeAttribute('aria-current')});
   const btn=document.querySelector('.navitem[data-view="'+name+'"]');
   if(btn){btn.classList.add('active');btn.setAttribute('aria-current','page')}
-  const pageTitles={overview:'Dashboard',devices:'Devices',network:'Network Map',monitoring:'Monitoring',findings:'Findings',tools:'Tools','cyber-tools':'Cyber Tools','windows-updates':'Microsoft Windows Updates',integrations:'Integrations',reports:'Reports',calendar:'Calendar',email:'Email','event-findings':'Event Findings','remote-access':'Remote Access',antivirus:'Antivirus',tickets:'Ticket Portal',health:'System Health',security:'Settings',about:'About GODSEYE',rules:'Alert Rules',users:'Users',audit:'Audit Log',activity:'Activity'};const pageTitle=document.getElementById('v430PageTitle');if(pageTitle)pageTitle.textContent=pageTitles[name]||'GODSEYE';
+  const pageTitles={overview:'Dashboard',devices:'Devices',network:'Network Map',sites:'Sites',monitoring:'Monitoring',findings:'Findings',tools:'Tools','cyber-tools':'Cyber Tools','windows-updates':'Microsoft Windows Updates',integrations:'Integrations',reports:'Reports',calendar:'Calendar',email:'Email','event-findings':'Event Findings','remote-access':'Remote Access',antivirus:'Antivirus',tickets:'Ticket Portal',health:'System Health',security:'Settings',about:'About GODSEYE',rules:'Alert Rules',users:'Users',audit:'Audit Log',activity:'Activity'};const pageTitle=document.getElementById('v430PageTitle');if(pageTitle)pageTitle.textContent=pageTitles[name]||'GODSEYE';
   if(updateHash && location.hash!=='#'+name){history.replaceState(null,'','#'+name)}
   if(updateHash)window.scrollTo(0,0);
   const loader=VIEW_LOADERS[name];
@@ -10373,3 +10397,6 @@ def execute_remediation(req: RemediationRequest, request: Request, user=Depends(
 def remediation_history(limit:int=100,user=Depends(require_admin)):
     with db() as c:
         ensure_production_schema(c); return [dict(r) for r in c.execute('SELECT * FROM remediation_actions ORDER BY id DESC LIMIT ?',(max(1,min(limit,500)),)).fetchall()]
+
+
+register_site_routes(app, __import__(__name__, fromlist=["app"]))
