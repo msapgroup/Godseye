@@ -1,230 +1,483 @@
-# GODSEYE v4.31
+# GODSEYE
 
-**Local network intelligence, security monitoring, operations, and remote support — in one self-hosted appliance.**
+**Network intelligence, security operations, monitoring, reporting, and remote support — in one self-hosted platform.**
 
-GODSEYE v4.31 keeps the v4.30 interface and adds a redesigned Quick Assist-style Remote Access handshake. The Windows Agent retains token enrollment and Event Findings collection while handing approved screen sharing to a dedicated interactive-session helper. Remote sessions begin view-only and require a separate local-user approval before mouse or keyboard control is enabled.
+GODSEYE is built for **small and mid-sized MSPs, IT providers, and organizations** that need strong visibility and useful security tooling without taking on the cost and complexity of a large enterprise stack.
+
+The goal is simple: bring the tools you use every day into one practical platform that you control.
+
+**Self-hosted. Practical. Built for MSPs. Designed with the budget in mind.**
+
+---
+
+## Why GODSEYE
+
+Small and growing MSPs often end up juggling separate products for discovery, monitoring, reporting, security investigations, Windows event collection, ticketing, remote support, email, and maintenance planning.
+
+GODSEYE brings those workflows together so your team can spend less time moving between tools and more time understanding what is happening across the environments you manage.
+
+Use GODSEYE to:
+
+- Discover and track devices across managed networks.
+- Monitor systems, websites, services, and network health.
+- Investigate security findings and recurring failures.
+- Review Windows Event findings from enrolled computers.
+- Run built-in Cyber Tools for authorized security checks.
+- Generate professional operational and security reports.
+- Create and manage tickets from findings.
+- Plan maintenance work with the built-in calendar.
+- Connect supported email providers for operational workflows.
+- Provide consent-based Windows remote support.
+- Monitor the GODSEYE appliance itself.
+- Keep your infrastructure and data under your control.
+
+---
 
 ## See GODSEYE in action
 
-These images show the dark v4.31 workspaces. Dashboard and Network Map are running-app captures. The Devices, Calendar, Email, System Health, and Remote Access images are documentation previews rebuilt from earlier v4.31 captures with the approved G logo; they preserve the pictured controls and sample states. Windows Event Findings is an illustrative preview based on a user-provided capture, showing the new Suggested Fix action and guide panel. The Cyber Tools images are UI previews, and their example result is illustrative. Data and availability on your appliance will differ. Current navigation also includes the separate Cyber Tools workspace.
-
 ### Dashboard
 
-![GODSEYE v4.31 Dashboard](docs/screenshots/v431-dashboard-map-logo.png)
+![GODSEYE Dashboard](docs/screenshots/v431-dashboard-map-logo.png)
 
-**How it works:** Start here to see device and security totals, traffic, recent findings, monitored services, tickets, and appliance health. Select a summary or card to open its full page or a focused detail; use **Back to Dashboard** to return. The Network Map Overview offers **Topology** and **World** views and a button to open the full map. The image uses disposable demonstration records, which are not installed with GODSEYE.
+**How it works:** The Dashboard gives you a quick view of device totals, security findings, traffic, monitored services, tickets, and appliance health. Select a summary or card to open the related workspace. The Network Map preview lets you switch between topology and geographic views before opening the full map.
 
 ### Devices and inventory
 
-![GODSEYE Devices inventory preview](docs/screenshots/v431-devices-guide.png)
+![GODSEYE Devices inventory](docs/screenshots/v431-devices-guide.png)
 
-**How it works:** Search by device or address, then narrow the inventory by type, status, platform, or site. Select a row to review its identity, classification, first and last seen times, and recent activity; **Open Device Details** shows the full record. Use **Add Device** for an item discovery has not found, and investigate anything unfamiliar before classifying it as managed or known.
+**How it works:** Search by device or address and filter the inventory by type, status, platform, or site. Open a device to review its identity, classification, first and last seen information, history, findings, and recent activity. Devices that discovery has not found can also be added manually.
 
 ### Network Map
 
-![GODSEYE Network Map overview](docs/screenshots/v431-network-map-card.png)
+![GODSEYE Network Map](docs/screenshots/v431-network-map-card.png)
 
-**How it works:** Open **Network Map** from the sidebar or the Dashboard map card. Switch the Dashboard preview between the geographic World view and Topology; the full page shows observed devices and relationships. Select a device to investigate its inventory details. Map links are based on collected evidence and can change as GODSEYE learns about the network.
+**How it works:** Network Map turns collected discovery evidence into a visual view of devices and observed relationships. Select a device from the map to continue the investigation in its inventory record.
 
 ### Calendar and maintenance planning
 
-![GODSEYE Calendar preview](docs/screenshots/v431-calendar-guide.png)
+![GODSEYE Calendar](docs/screenshots/v431-calendar-guide.png)
 
-**How it works:** Choose Month, Week, Day, or List. Double-click a date to create an appointment there, or choose **Create Event** and set its time and details. Use the side panel for upcoming work and monthly totals. Calendar can include local events and, after authorization, Google Calendar or Microsoft 365; ticket appointments can lead back to their related work item.
+**How it works:** Use Month, Week, Day, or List views to plan maintenance, reviews, appointments, and ticket work. Events can be created locally, linked to tickets, or synchronized with supported calendar providers after authorization.
 
 ### Email workspace
 
-![GODSEYE Email preview with no mailbox connected](docs/screenshots/v431-email-guide.png)
+![GODSEYE Email workspace](docs/screenshots/v431-email-guide.png)
 
-**How it works:** Open **Mail Accounts** and authorize Gmail or Microsoft 365 before reading or sending mail. Choose a connected account and folder, search messages, then compose, reply, forward, or attach a generated report. SMTP Relay in Integrations is for alert delivery. This image deliberately shows the unconnected setup state rather than invented mailbox contents.
+**How it works:** Connect a supported mailbox, browse folders, search messages, read and respond to email, and send generated GODSEYE reports from the same operational workspace. SMTP relay settings are available separately for automated notifications.
 
 ### System Health
 
-![GODSEYE System Health preview](docs/screenshots/v431-system-health-guide.png)
+![GODSEYE System Health](docs/screenshots/v431-system-health-guide.png)
 
-**How it works:** Check the appliance, scanner, database, backups, update channel, and integrations at the top. Inspect CPU, memory, disk, storage growth, network I/O, temperature, and uptime below. Open the detailed backup, retention, service, and update panels to investigate issues; use **Run Health Check**, **Create Backup**, **View Logs**, or **Check for Updates** as appropriate. Metrics shown here are sample capture values.
+**How it works:** System Health gives administrators one place to review the appliance, scanner, database, backups, integrations, CPU, memory, disk usage, storage growth, network activity, temperature, and uptime. Health checks, logs, backups, retention, services, and update controls are available from the same area.
 
 ### Remote Access
 
-![GODSEYE Remote Access setup preview](docs/screenshots/v431-remote-access-guide.png)
+![GODSEYE Remote Access](docs/screenshots/v431-remote-access-guide.png)
 
-**How it works:** In **Event Findings → Windows Agents**, create a one-time enrollment token and install Agent 2.4.4 on the Windows computer. Select an online enrolled computer in **Remote Access** and request a session. The person at that computer must approve screen sharing; the session starts view-only after the first validated frame. **Request Control** requires a separate approval before pointer or keyboard input. Disconnect from the portal or use **Stop Sharing** locally to end it. The image shows the honest empty state before an Agent is enrolled.
+**How it works:** Enroll a Windows computer with the GODSEYE Agent, select an online system, and request a remote session. The person at the Windows computer must approve screen sharing before the session begins. Sessions start view-only, and remote keyboard or pointer control requires a separate approval. Either side can end the session.
 
 ### Windows Event Findings
 
-![GODSEYE Windows Event Findings Suggested Fix preview](docs/screenshots/v431-event-findings-guide.png)
+![GODSEYE Windows Event Findings](docs/screenshots/v431-event-findings-guide.png)
 
-**How it works:** Enroll a Windows Agent or configure a WinRM source to collect selected Critical, Error, and Warning events. GODSEYE groups repeat events into a finding and prepares a suggested action list as the event arrives. Select **Suggested Fix** on a row to see the event message, tailored steps, and clickable Microsoft Learn guidance. An additional Google link searches Microsoft Learn for that specific provider and event ID; it sends no computer name or event message. Review the full event before making changes, then use **Recheck** to confirm the result or **Create Ticket** to assign the work. The image is an illustrative UI preview of the new flow, not a live result from an enrolled computer.
+**How it works:** Enrolled Windows computers can send selected Critical, Error, and Warning events to GODSEYE over HTTPS. Repeated events are grouped into findings so technicians can review the message, use Suggested Fix guidance, recheck the condition, resolve the finding, or create a ticket.
 
 ### Cyber Tools
 
-![GODSEYE Cyber Tools card overview](docs/screenshots/v431-cyber-tools-overview.png)
+![GODSEYE Cyber Tools](docs/screenshots/v431-cyber-tools-overview.png)
 
-**How it works:** Open **Cyber Tools** from Operations. Each of the eight cards owns its target, profile, availability badge, run button, and result. Enter only systems you administer; engine availability depends on the software configured on the appliance.
+**How it works:** Cyber Tools provides focused security and troubleshooting utilities for systems you own or are authorized to administer. Each card contains its target, available options, run controls, and structured result.
 
-| Card | What to enter and run |
+| Tool | What it does |
 | --- | --- |
-| Network Exposure Scan | Enter a private host or network, choose Quick, Standard, or Deep, then run bounded Nmap discovery. |
-| Endpoint Security Posture | Enroll a Windows Agent, then review reachability, version, updates, errors, and malware scan state. |
-| Web & TLS Audit | Enter a website URL and profile to inspect HTTPS, certificate, redirects, and headers. |
-| Malware & IOC Scan | Enter a hash, IP, or domain; optionally select a file up to 10 MB for ClamAV and YARA. |
-| DNS & Email Security | Enter a domain and optional DKIM selector to inspect address, MX, SPF, DMARC, DKIM, CAA, and DNSSEC records. |
-| Linux Security Audit | Choose a profile and run a read-only Lynis assessment of the appliance. |
-| Network Threat Detection | Choose the number of alerts to review from an existing Suricata EVE feed. |
-| Evidence Capture | Choose a validated interface and optional host IP; set up to 15 seconds and 500 packets for the PCAP. |
+| Network Exposure Scan | Runs bounded network discovery and port checks against an authorized private host or network. |
+| Endpoint Security Posture | Reviews enrolled Windows endpoint reachability, agent health, updates, errors, and security state. |
+| Web & TLS Audit | Reviews HTTPS, certificates, redirects, and important web security headers. |
+| Malware & IOC Scan | Checks supported hashes, IP addresses, domains, and uploaded files with configured security engines. |
+| DNS & Email Security | Reviews MX, SPF, DMARC, DKIM, CAA, address records, and related DNS security information. |
+| Linux Security Audit | Runs a read-only security assessment of the GODSEYE appliance using the configured audit engine. |
+| Network Threat Detection | Reviews alerts from an existing supported network-threat feed. |
+| Evidence Capture | Captures a bounded packet sample from a validated network interface for troubleshooting or evidence collection. |
 
-After a run, review the card's structured result and **Scan history**. Where supported, create a linked Finding or Ticket, export JSON, or schedule a repeat check. File uploads and packet capture cannot be scheduled. See [Cyber Tools configuration](docs/TOOLS.md) for dependencies and limits.
+After a run, review the structured result and scan history. Where supported, results can be turned into Findings or Tickets, exported, or scheduled for another check.
 
-![Illustrative Cyber Tools result and workflow preview](docs/screenshots/v431-cyber-tools-working.png)
+![GODSEYE Cyber Tools result](docs/screenshots/v431-cyber-tools-working.png)
 
-## Movable dashboard cards
+---
 
-Dashboard and supported workspace cards can be rearranged per user. Choose **Unlock Layout**, drag cards within a layout zone, and GODSEYE saves that arrangement automatically for the signed-in account. **Reset My Layout** restores the GODSEYE default without affecting another user's layout.
+## Designed for day-to-day MSP operations
 
-Click a Dashboard card to open its detail or full data page. **Back to Dashboard** returns to the original page and scroll position. Devices, Calendar statistics, and System Health cards open focused data with a **Back to page** control. Focused card views retain the dark GODSEYE masthead without introducing a light strip. Selecting a device opens its full record; **Close Device Details and Return** takes you back to the page you came from. Buttons inside cards continue to perform their own labeled actions.
+GODSEYE is not just a passive device list. It is designed as an operator-facing platform that connects discovery, monitoring, diagnostics, findings, tickets, reporting, remote support, integrations, and administration.
 
-Persistent controls at the bottom of the sidebar provide **Reorder Page**, **Reorder Sidebar**, **Reset Page**, and **Reset Sidebar** on every screen. Reorder Page supports the Dashboard plus Devices, Calendar, Email, Reports, traffic, integration, monitoring, and System Health card grids. Reorder Sidebar lets you drag navigation items into a new order or move them between Monitoring, Operations, and Administration. Both layouts save automatically for the signed-in user and reset independently.
+A typical workflow can look like this:
 
-## What GODSEYE is for
+1. **Discover** devices on the managed network.
+2. **Classify** known equipment and investigate anything unfamiliar.
+3. **Monitor** important systems, services, websites, and infrastructure.
+4. **Investigate** findings, device changes, and recurring failures.
+5. **Use Cyber Tools** when deeper troubleshooting or authorized security checks are needed.
+6. **Create a Ticket** when work needs to be assigned or tracked.
+7. **Schedule the work** on Calendar when maintenance or follow-up is required.
+8. **Use Remote Access** when an enrolled Windows user approves a support session.
+9. **Generate Reports** for internal review or client communication.
+10. **Review System Health** to make sure the GODSEYE appliance itself remains healthy.
 
-GODSEYE helps a home, small business, lab, or managed network answer practical security questions: What is connected right now? What device just appeared? Which known device changed IP addresses? What systems have gone offline? Are important websites and services responding? Are DNS, packet loss, or reachability problems recurring? Which findings need investigation? What changed while nobody was watching?
+---
 
-It is designed as an operator-facing network appliance rather than a passive device list. Discovery, monitoring, findings, diagnostics, integrations, reporting, audit history, and controlled administrative actions are brought together in one interface.
+## Network intelligence and device management
 
-## Network security capabilities
+GODSEYE helps answer practical questions such as:
 
-- **Device discovery and inventory** — discovers local devices and tracks first/last seen state, IP history, status, identity, classification, device type, friendly names, and icons.
-- **Change detection** — records new-device, disconnect, reconnect, IP-change, and related network events so unexpected changes can be investigated.
-- **Device intelligence** — correlates discovery evidence, history, findings, diagnostics, topology, and risk information around each device.
-- **Monitoring and findings** — continuously checks configured services and turns repeated failures, packet loss, DNS problems, offline devices, and service failures into actionable findings.
-- **Alert rules** — supports rules for device bursts, offline duration, IP changes, reconnect activity, scanner health, classification counts, and other operational conditions.
-- **Network topology** — combines available discovery evidence into a network map showing devices and observed relationships.
-- **Per-device traffic infrastructure** — supports explicitly configured UniFi/controller, SNMP, SPAN/mirror, and inline/gateway traffic sources. GODSEYE only reports per-device byte accounting when the selected source can actually observe or provide those counters.
-- **Integrations** — supports multiple Pi-hole, UniFi, and SNMP configurations with synchronization and health information.
-- **Network tools** — provides authenticated Ping, Traceroute, DNS Lookup, Port Scan, Device Information, Network Discovery, Wake-on-LAN, gateway checks, Internet checks, and website monitoring.
-- **Calendar and maintenance planning** — provides a Google Calendar-inspired month view for appointments, maintenance windows, reviews, reminders, and network-security work, with local CRUD plus two-way Google Calendar and Microsoft 365 synchronization through OAuth. Private ICS subscriptions remain available as a read-only fallback. Double-click any date in the month grid, including past dates, to open a new appointment already set to that day.
-- **Email client** — adds a Management-side Gmail and Microsoft 365 mailbox client with OAuth, inbox/folder browsing, search, message reading, unread/star controls, attachments, compose, drafts, reply/reply-all/forward, trash, and direct emailing of generated GODSEYE reports.
-- **Windows Event Findings** — the recommended GODSEYE Windows Agent reads only Critical, Error, and Warning records locally on 64-bit Windows workstations and Windows Server, queues them durably, and sends them outbound to GODSEYE over HTTPS. WinRM remains available as an agentless fallback. Repeated events are grouped into findings with Suggested Fix, Recheck, Resolve, and Create Ticket workflows. Agent v1.1 also supports operator-triggered **Pull Events Now** requests and checks GODSEYE for defined commands every 10 seconds.
-- **Ticket Portal** — tracks manual, Network Finding, and Event Finding work with priority, assignee, status, notes, linked systems, calendar scheduling, and closure. Ticket assignees are selected from GODSEYE application users, with optional display names shown in the picker. Scheduled tickets appear on Calendar and can be opened, noted, resolved, or closed directly from the calendar appointment.
+- What is connected right now?
+- What new device just appeared?
+- Which known device changed addresses?
+- What systems went offline or came back online?
+- Which services are failing repeatedly?
+- Are DNS, reachability, or packet-loss issues recurring?
+- Which findings need investigation?
+- What changed while nobody was watching?
 
-- **Reporting** — generates Network Summary, Device Inventory, Security Findings, Availability & Monitoring, Integrations Health, Traffic Usage, Audit Activity, and Device Changes reports with CSV/PDF export.
-- **Notifications** — supports webhook, ntfy, and SMTP delivery for important events and findings.
-- **Audit and administration** — provides role-based access, audit history, MFA, controlled cleanup actions, backups, retention settings, configuration portability, and staged updates.
+Core network capabilities include:
 
-## Security model
+- Device discovery and inventory
+- First-seen and last-seen tracking
+- Device classification and friendly naming
+- Address and status history
+- New-device and reconnect events
+- Network topology
+- Device-focused findings and diagnostics
+- Bounded network tools
+- Service and website monitoring
+- Alert rules
+- Traffic-source integrations
+- Audit history
 
-GODSEYE is local-first. The web application runs as the unprivileged `godseye` service account. Privileged network collection is separated into services that receive only the permissions needed for their job. Integration credentials and other protected secrets are encrypted at rest with the appliance key.
+---
 
-Authentication includes session protection, CSRF defenses, security headers, account lockout, password controls, TOTP MFA with backup codes, and role-based permissions for `admin`, `operator`, `auditor`, and `readonly` users.
+## Monitoring and findings
 
-GODSEYE is intended for trusted LAN or VPN access. Do not expose the application directly to the public Internet. HTTPS can be configured through the included Nginx helper. For Windows Event collection, prefer the GODSEYE Windows Agent over outbound HTTPS. If WinRM is used as the agentless fallback, use WinRM over HTTPS with a dedicated least-privilege Event Log Readers account and do not expose WinRM directly to the public Internet.
+GODSEYE turns repeated operational problems into findings your team can work.
 
-## Installation
+Monitoring can cover configured services, websites, infrastructure, device availability, DNS behavior, reachability, and other supported conditions. Findings can then be reviewed, rechecked, resolved, or converted into tickets.
 
-GODSEYE v4.31 is installed directly on Raspberry Pi OS, Debian, or Ubuntu-style Linux with `systemd`; Docker is not required. The release ZIP contains the application and installer.
+Alert rules can be used for conditions such as device bursts, offline duration, address changes, reconnect activity, scanner health, and other operational events.
 
-### Storage recommendation
+---
 
-GODSEYE runs best when the appliance boots from an SSD or NVMe drive. Faster, lower-latency storage improves database activity, dashboard response, log processing, report generation, updates, backups, and packet/evidence capture—especially as monitoring history grows. HDD and SD-card installations remain supported, but for continuous monitoring use, place the operating system and `/var/lib/godseye` data directory on SSD-class storage when possible.
+## Windows management
 
-### Fresh install from the release ZIP
+### Windows Agent
 
-```bash
-mkdir -p ~/godseye-v431
-unzip GODSEYE-v4.31.0-server-candidate.zip -d ~/godseye-v431
-cd ~/godseye-v431
-chmod +x install.sh
-sudo ./install.sh --fresh
-```
+The GODSEYE Windows Agent is the recommended way to connect supported Windows workstations and servers.
 
-When installation completes, open:
+Enrollment uses a one-time token created from GODSEYE. After enrollment, the agent keeps its identity and protected credentials on the Windows computer so normal reinstall or upgrade operations can preserve the enrolled system.
 
-```text
-http://YOUR-GODSEYE-IP:8080
-```
+The agent communicates outbound to GODSEYE over HTTPS and can support:
 
-The built-in username is `admin`. GODSEYE ships with **no default admin password**; the first-run setup page requires you to create it.
+- Windows Event collection
+- Agent health and status
+- Operator-requested event collection
+- Endpoint posture information
+- Consent-based remote support
 
-### Upgrade an existing GODSEYE appliance
+The Windows Agent does not provide an unrestricted remote shell.
 
-Extract the new release ZIP into a temporary directory and run:
+### Windows Event Findings
 
-```bash
-chmod +x install.sh
-sudo ./install.sh --upgrade
-```
+The agent reads selected Critical, Error, and Warning Windows Event records locally and sends them to GODSEYE. Recurring events are grouped into findings to reduce noise and give technicians a clearer operational view.
 
-The upgrade path preserves the GODSEYE data/configuration directories and performs the migration/backup checks before starting the new application.
+A finding can include:
 
-Useful maintenance commands:
+- Event details
+- Suggested Fix guidance
+- Documentation links
+- Recheck
+- Resolve
+- Create Ticket
 
-```bash
-sudo ./install.sh --doctor
-sudo systemctl status godseye-web
-sudo systemctl status godseye-scanner
-sudo journalctl -u godseye-web -n 100 --no-pager
-```
+WinRM can also be used as an agentless fallback where appropriate, but the Windows Agent is the preferred path.
 
-The web service listens on **port 8080** by default. HTTPS can be placed in front of it with the included Nginx helper.
+### Consent-based Remote Access
 
-## Using GODSEYE for network security
+Remote support is designed around local-user approval.
 
-Start with **Devices** to classify known equipment and investigate anything unfamiliar. Use **Network Map** to understand observed relationships, **Monitoring** to watch important infrastructure and services, and **Findings** to work recurring failures or suspicious changes.
+A remote session requires the user at the Windows computer to approve screen sharing. The session begins in view-only mode. Keyboard and pointer control require an additional approval.
 
-Use **Alert Rules** for conditions that should receive attention automatically. **Event Findings** extends that workflow to Windows computers and servers. The recommended **GODSEYE Windows Agent** runs locally as a Windows service, reads selected Critical/Error/Warning Event Log records, keeps per-channel Event Record ID bookmarks, queues unsent batches during outages, and sends them outbound to GODSEYE over HTTPS. **Pull Events Now (Agents)** can request an immediate fresh collection from one or all online Agent v1.1 endpoints. Recurring hardware, disk, WHEA, service, update, Defender, VSS, and application errors become explainable findings. WinRM remains available as an agentless fallback. Findings can be rechecked, resolved, or converted into **Ticket Portal** work items.
+The remote channel is limited to the supported screen, pointer, keyboard, and wheel operations. The local user can stop sharing, and the GODSEYE operator can disconnect the session from the portal.
 
-**Ticket Portal** tracks operational work from discovery through closure. Administrators can delete individual or selected tickets and clean up old resolved/closed tickets by age; linked findings are preserved while the deleted ticket's work notes and local ticket-calendar appointment are removed. Tickets can be created manually or from Network Findings and Event Findings, assigned, given priorities, documented with work notes, and scheduled directly onto **Calendar**. Calendar appointments linked to tickets can add work notes, mark the ticket resolved, or close it after the work is complete. **Calendar** also supports OAuth-connected Google Calendar and Microsoft 365 calendars, while ICS subscriptions remain available for read-only imports. **Integrations** can add controller, DNS, switch, or router context. **Reports** provide inventory, security, availability, traffic, audit, and change records for periodic review. Generated Report History entries can be emailed through a connected mailbox or deleted individually/in bulk by an administrator. **System Health** covers the GODSEYE appliance itself, including backups, retention, diagnostics, metrics security, and production management.
+---
 
-For traffic visibility, choose a source that can actually see the traffic. A normal Raspberry Pi connected as an ordinary LAN client cannot automatically see traffic between every other client and the router. Controller counters, attributable SNMP data, a mirrored switch port, or an inline/gateway deployment can provide the required visibility.
+## Ticket Portal
 
-## Windows Agent
+Ticket Portal helps MSP teams move from detection to tracked work.
 
-For Windows workstations and servers, **GODSEYE Windows Agent 2.4.4** is the intended path. This v4.31 candidate contains the compiled x64 guided Setup EXE, and the authenticated **Download x64 Installer** button serves the uniquely named, cache-safe 2.4.4 file directly. In **Event Findings → Windows Agents**, create a one-time enrollment token, then run the Setup EXE as Administrator on the Windows computer and enter the GODSEYE URL and token. The separate MSI used by agent self-update is produced by the Windows-native release pipeline and must pass clean-install, uninstall, and 2.4.2-to-2.4.4 upgrade tests before release.
+Tickets can be created manually or from supported Findings and Event Findings. They can include:
 
-Agent 2.4.0 is a self-contained x64 .NET 8 service installed under `C:\Program Files\GODSEYE Agent\`. Enrollment identity, the DPAPI-protected API key, Event Log bookmarks, queued events and configuration remain under `C:\ProgramData\GODSEYE\Agent\` so reinstall and upgrade preserve the enrolled computer.
+- Priority
+- Assignee
+- Status
+- Work notes
+- Linked devices or findings
+- Calendar scheduling
+- Resolution and closure tracking
 
-Remote Access in 2.4.0 uses a persistent tray application plus a dedicated helper in the signed-in Windows session. Every screen-sharing session requires a local **Allow/Deny** decision, and remote control requires a second approval. Sessions start view-only. GODSEYE does not mark the session active until the server has received and validated the first real JPEG frame. The remote channel accepts only the defined screen, pointer, keyboard and wheel operations; it does not expose a remote shell or arbitrary process execution.
+Ticket assignees come from GODSEYE application users, helping keep operational ownership inside the platform.
 
-The older PowerShell-installed Agent package is retained only as a legacy migration path. New deployments should use the x64 Setup/MSI. See `docs/WINDOWS_AGENT.md`.
+---
+
+## Reports
+
+GODSEYE can generate reports for operational review and client communication, including:
+
+- Network Summary
+- Device Inventory
+- Security Findings
+- Availability and Monitoring
+- Integrations Health
+- Traffic Usage
+- Audit Activity
+- Device Changes
+
+Supported reports can be exported to common formats, and generated reports can be shared through a connected mailbox where configured.
+
+---
+
+## Integrations
+
+GODSEYE supports integrations that add network, infrastructure, communication, and operational context.
+
+Depending on your environment, integrations can include supported:
+
+- DNS and filtering platforms
+- Network controllers
+- SNMP-capable infrastructure
+- Traffic sources
+- Gmail
+- Microsoft 365
+- Google Calendar
+- Microsoft calendars
+- Webhooks
+- ntfy
+- SMTP delivery
+
+Integration availability depends on the software and services configured on your appliance.
+
+---
+
+## Movable dashboard and workspace cards
+
+Supported GODSEYE pages allow users to rearrange cards and navigation for their own workflow.
+
+Use the layout controls to:
+
+- Reorder supported page cards.
+- Reorder sidebar navigation.
+- Move items between supported navigation groups.
+- Reset the page layout.
+- Reset the sidebar layout.
+
+Layouts are saved for the signed-in user, so one technician's preferred arrangement does not overwrite another user's layout.
+
+---
 
 ## Built-in network tools
 
-The authenticated Network Tools workspace includes Ping, Traceroute, DNS Lookup, bounded TCP Port Scan, Device Information, Network Discovery, Wake-on-LAN, gateway and Internet checks, and website monitoring. Network scanning functions are constrained to appropriate local/private targets where applicable.
+The authenticated Network Tools workspace includes practical troubleshooting and administration functions such as:
+
+- Ping
+- Traceroute
+- DNS Lookup
+- Bounded TCP Port Scan
+- Device Information
+- Network Discovery
+- Wake-on-LAN
+- Gateway checks
+- Internet checks
+- Website monitoring
+
+Network scanning functions are constrained to appropriate authorized targets where applicable.
+
+---
+
+## Traffic visibility
+
+GODSEYE only reports traffic information that the configured source can actually observe or provide.
+
+A Raspberry Pi or Linux appliance connected as a normal LAN client cannot automatically see all traffic moving between every other client and the router.
+
+Per-device traffic visibility can come from supported sources such as:
+
+- Controller counters
+- Attributable SNMP data
+- SPAN or mirrored switch ports
+- Inline or gateway deployments
+
+Choose the traffic source that matches the network you manage.
+
+---
+
+## Security model
+
+GODSEYE is designed as a local-first, self-hosted platform.
+
+The web application runs under an unprivileged service account, while privileged collection functions are separated into services that receive only the permissions needed for their job. Protected integration credentials and secrets are encrypted at rest with the appliance key.
+
+Security controls include:
+
+- Session protection
+- CSRF defenses
+- Security headers
+- Account lockout
+- Password controls
+- TOTP multi-factor authentication with backup codes
+- Role-based permissions
+- Audit history
+- Protected secrets
+- Controlled administrative actions
+
+Supported roles include administrators, operators, auditors, and read-only users.
+
+GODSEYE is intended for trusted LAN or VPN access. Do not expose the application directly to the public Internet. HTTPS can be configured through the included reverse-proxy helper.
+
+---
+
+## Installation
+
+GODSEYE installs directly on supported Raspberry Pi OS, Debian, or Ubuntu-style Linux systems using systemd. Docker is not required.
+
+### Storage recommendation
+
+For continuous monitoring, SSD or NVMe storage is strongly recommended.
+
+Faster storage improves:
+
+- Database activity
+- Dashboard response
+- Log processing
+- Report generation
+- Updates
+- Backups
+- Evidence capture
+
+SD-card and hard-drive installations can work, but SSD-class storage is the better choice for a production MSP appliance.
+
+### Fresh install
+
+Extract the GODSEYE server package into a working directory:
+
+    mkdir -p ~/godseye
+    unzip GODSEYE-server*.zip -d ~/godseye
+    cd ~/godseye
+    chmod +x install.sh
+    sudo ./install.sh --fresh
+
+When installation completes, open:
+
+    http://YOUR-GODSEYE-IP:8080
+
+The built-in administrator username is **admin**.
+
+GODSEYE ships without a default administrator password. The first-run setup page requires you to create one.
+
+### Upgrade an existing appliance
+
+Extract the new GODSEYE server package into a temporary directory and run:
+
+    chmod +x install.sh
+    sudo ./install.sh --upgrade
+
+The upgrade process preserves the GODSEYE data and configuration directories and performs the required migration and backup checks before starting the updated application.
+
+### Useful maintenance commands
+
+    sudo ./install.sh --doctor
+    sudo systemctl status godseye-web
+    sudo systemctl status godseye-scanner
+    sudo journalctl -u godseye-web -n 100 --no-pager
+
+The web service listens on port **8080** by default. HTTPS can be placed in front of it with the included reverse-proxy helper.
+
+---
 
 ## Data and backups
 
-The primary database is stored at `/var/lib/godseye/godseye.db`. GODSEYE uses SQLite WAL mode and supports integrity-checked backups. A restore automatically creates a pre-restore safety backup. Application secrets use the protected appliance key stored under the GODSEYE data directory.
+The primary GODSEYE database is stored under the appliance data directory and uses SQLite with write-ahead logging.
+
+GODSEYE supports:
+
+- Integrity-checked backups
+- Pre-restore safety backups
+- Retention controls
+- Configuration portability
+- Protected application secrets
+- Backup and restore administration from the platform
+
+Before major changes, keep a current verified backup of the appliance.
+
+---
 
 ## Updates and production operation
 
-GODSEYE supports staged ZIP updates with SHA-256 verification and preflight checks. Production controls include scheduled backups, retention policies, configuration export/import, notification delivery history, HTTPS setup, audit search/export, and confirmation-gated remediation actions.
+GODSEYE supports staged application updates with integrity verification and preflight checks.
 
-Upgrades preserve the GODSEYE data directory and configuration and create a safety backup before application files are replaced.
+Production controls include:
+
+- Scheduled backups
+- Retention policies
+- Configuration export and import
+- Notification delivery history
+- HTTPS setup
+- Audit search and export
+- Confirmation-gated administrative actions
+
+Updates preserve the GODSEYE data directory and configuration and create a safety backup before application files are replaced.
+
+---
 
 ## Development and testing
 
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-PYTHONPATH=. pytest -q
-python -m compileall app
-```
+For local development:
 
-Hardware-dependent behavior should also be validated on the target Raspberry Pi, particularly privileged packet collection, systemd state, thermal information, and real Pi-hole, UniFi, or SNMP integrations.
+    python3 -m venv .venv
+    source .venv/bin/activate
+    pip install -r requirements.txt
+    PYTHONPATH=. pytest -q
+    python -m compileall app
 
-## Screenshots
+Hardware-dependent behavior should also be validated on the target appliance, particularly privileged packet collection, system services, thermal information, and real infrastructure integrations.
 
-The complete screen gallery and capture notes are in [docs/SCREENSHOTS.md](docs/SCREENSHOTS.md). The README above includes the Dashboard, Devices, Network Map, Calendar, Email, System Health, Remote Access, Windows Event Findings, and both Cyber Tools views with instructions for each. Documentation examples are not installed as live records.
+---
 
 ## Documentation
 
-Key documentation is under `docs/`, including installation/usage guidance, appliance hardening, discovery/topology, integrations/reporting, production management, and the current screenshot set.
+Additional documentation is available under the **docs** directory, including:
+
+- Installation and usage guidance
+- Windows Agent documentation
+- Cyber Tools configuration
+- Appliance hardening
+- Discovery and topology
+- Integrations and reporting
+- Production management
+- Screenshot gallery and capture notes
+
+See the [complete screenshot gallery](docs/SCREENSHOTS.md) for additional GODSEYE interface views.
+
+---
+
+## Built for MSPs without forgetting the budget
+
+GODSEYE is designed for MSPs that want useful visibility and security capabilities without building their operations around a collection of expensive enterprise products.
+
+It gives small and mid-sized teams a practical platform they can host, understand, operate, and grow with.
+
+**GODSEYE — Powerful MSP tools without the enterprise price tag.**
+
+---
 
 ## Authorized use
 
-Deploy GODSEYE only on networks you own or are authorized to administer and monitor. Review the repository license before redistribution.
+Deploy GODSEYE only on networks and systems you own or are authorized to administer, monitor, test, or support.
 
-
-## Permanent x64 Windows Agent
-GODSEYE includes a self-contained x64 Windows Agent installer. First install uses a one-time enrollment token; later installer versions upgrade in place and preserve the enrolled identity.
+Review the repository license before redistribution.
