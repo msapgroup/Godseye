@@ -4945,6 +4945,15 @@ def tools_page(request: Request):
 .standalone-help-head{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid #29394d;font-weight:800}
 .standalone-help-head button{width:29px;height:29px;border:1px solid #344960;border-radius:8px;background:#142131;color:#eef5fc;cursor:pointer}
 .standalone-help-body{padding:16px;color:#d2dce8;font-size:11px;line-height:1.65}
+
+/* Approved GODSEYE standalone page palette */
+body{background:radial-gradient(circle at 40% -15%,#0d2941 0,#07131f 36%,#050e18 75%)!important;color:#dcebf5!important}
+.side{background:linear-gradient(180deg,#07131f,#060f19)!important;border-right:1px solid #18354a!important}
+.brand{color:#f6fbff!important}.brand .eye-logo{width:48px!important;height:48px!important;filter:drop-shadow(0 0 8px rgba(39,184,255,.35))}
+.nav a{color:#96aec0!important;border-radius:7px!important}.nav a:hover{background:#0c2233!important;color:#e8f6ff!important}.nav a.active{background:linear-gradient(90deg,#0d3f69,#0d2b47)!important;color:#fff!important}
+.card,.panel,.box,.tool{background:linear-gradient(150deg,#0d2234,#091824)!important;border-color:#1b3c54!important;border-radius:9px!important}
+input,select,textarea{background:#071623!important;border-color:#24475f!important;color:#e6f4ff!important}
+button,.primary{border-radius:7px!important}.muted,small{color:#86a1b5!important}h1,h2,h3{color:#f1f9ff!important}
 </style></head><body><div class="layout">
 <aside class="side"><div class="brand">__EYE_LOGO__<div><b>GODSEYE</b><small>NETWORK INTELLIGENCE</small></div></div><nav class="nav">
 <div class="nav-title">Overview</div><a href="/">◉ <span>Dashboard</span></a><a href="/#devices">▣ <span>Devices</span></a><a href="/#network">⌘ <span>Network Map</span></a><a href="/monitoring">◔ <span>Monitoring</span></a><a href="/#findings">⚠ <span>Findings</span></a>
@@ -5027,6 +5036,15 @@ DEVICE_DETAIL_PAGE = r'''<!doctype html><html lang="en"><head><meta charset="utf
 [data-theme="dark"] .back-btn,[data-theme="dark"] .back{background:#152131!important;border-color:#304056!important;color:#e7eff8!important}
 [data-theme="dark"] .identity-input,[data-theme="dark"] .identity-select{background:#0d1621!important;border-color:#304056!important;color:#f1f6fc!important}
 [data-theme="dark"] .detail-device-icon,[data-theme="dark"] .custom-icon-preview{background:#111a25!important;border-color:#2b3a4e!important}
+
+/* Approved GODSEYE standalone page palette */
+body{background:radial-gradient(circle at 40% -15%,#0d2941 0,#07131f 36%,#050e18 75%)!important;color:#dcebf5!important}
+.side{background:linear-gradient(180deg,#07131f,#060f19)!important;border-right:1px solid #18354a!important}
+.brand{color:#f6fbff!important}.brand .eye-logo{width:48px!important;height:48px!important;filter:drop-shadow(0 0 8px rgba(39,184,255,.35))}
+.nav a{color:#96aec0!important;border-radius:7px!important}.nav a:hover{background:#0c2233!important;color:#e8f6ff!important}.nav a.active{background:linear-gradient(90deg,#0d3f69,#0d2b47)!important;color:#fff!important}
+.card,.panel,.box,.tool{background:linear-gradient(150deg,#0d2234,#091824)!important;border-color:#1b3c54!important;border-radius:9px!important}
+input,select,textarea{background:#071623!important;border-color:#24475f!important;color:#e6f4ff!important}
+button,.primary{border-radius:7px!important}.muted,small{color:#86a1b5!important}h1,h2,h3{color:#f1f9ff!important}
 </style></head><body><div class="shell"><aside class="side"><div class="brand">__EYE_LOGO__<b>GODSEYE</b><div class="muted">LOCAL NETWORK INTELLIGENCE</div></div><nav class="nav"><a href="/#overview">⌂ &nbsp; Dashboard</a><a class="active" href="/#devices">▣ &nbsp; Devices</a><a href="/#network">⌘ &nbsp; Network Map</a><a href="/#monitoring">◷ &nbsp; Monitoring</a><a href="/#findings">! &nbsp; Findings</a><a href="/#tools">⌁ &nbsp; Tools</a><a href="/#integrations">⌘ &nbsp; Integrations</a><a href="/#reports">▤ &nbsp; Reports</a><a href="/#security">⚙ &nbsp; Settings</a></nav></aside><main class="main"><header class="top"><span class="online">● Online</span><span id="who">admin</span></header><div class="wrap"><button type="button" class="back" onclick="if(document.referrer.startsWith(location.origin))history.back();else location.assign('/#devices')">← Close Device Details and Return</button><div class="hero"><div style="display:flex;align-items:center;gap:12px"><img id="detailDeviceIcon" class="detail-device-icon" src="/assets/device-icons/other.svg" alt="Device icon"><div><h1 id="title">Device</h1><div class="muted" id="subtitle">Loading device intelligence…</div></div></div><div class="actions"><button class="btn" id="renameBtn" onclick="renameCurrentDevice()">Rename Device</button><span class="status" id="state">Loading</span></div></div><div id="content"><div class="panel"><div class="empty">Loading device intelligence…</div></div></div></div></main></div><datalist id="deviceTypeChoices"><option value="Router"><option value="PC"><option value="Laptop"><option value="Camera"><option value="Switch"><option value="Access Point"><option value="Phone"><option value="Tablet"><option value="Printer"><option value="Server"><option value="NAS"><option value="TV / Media"><option value="IoT"><option value="Smart Home"><option value="Game Console"><option value="Other"></datalist><script>
 const DEVICE_ID=__DEVICE_ID__;const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const DEVICE_ICON_ASSET_VERSION='27';function deviceIconAsset(key){return '/assets/device-icons/'+String(key||'other')+'.svg?v='+DEVICE_ICON_ASSET_VERSION}
@@ -6674,6 +6692,84 @@ html[data-theme="dark"] ::placeholder{color:#55758c!important;opacity:1}
 html[data-theme="dark"] .navitem{color:#96aec0!important}html[data-theme="dark"] .navitem.active{color:#f0f9ff!important}
 html[data-theme="dark"] .status,html[data-theme="dark"] .pill{color:#a9d9f8!important}
 html[data-theme="dark"] .trend{color:#7fa0b7!important}
+
+/* Unified GODSEYE workspace surfaces — every in-app page follows the approved reference */
+html[data-theme="dark"] .network-filter-row,html[data-theme="dark"] .integration-toolbar,html[data-theme="dark"] .event-finding-bulkbar,html[data-theme="dark"] .ticket-cleanup-bar{background:#081824!important;border:1px solid #193a51!important;border-radius:8px!important;padding:9px 11px!important}
+html[data-theme="dark"] .network-filter{background:#0a1b29!important;border:1px solid #234961!important;color:#9bb4c6!important;border-radius:999px!important}
+html[data-theme="dark"] .network-filter.active{background:#0b3b62!important;border-color:#178ddd!important;color:#ebf8ff!important}
+html[data-theme="dark"] .network-topology-panel,html[data-theme="dark"] .realistic-map-viewport{background:#061521!important;border-color:#1b4058!important;border-radius:9px!important}
+html[data-theme="dark"] .network-device-card,html[data-theme="dark"] .network-connected-card,html[data-theme="dark"] .network-controls-card{background:linear-gradient(150deg,#0d2234,#091824)!important;border:1px solid #1b3c54!important}
+html[data-theme="dark"] .map-layout-btn{background:#091a29!important;border:1px solid #234961!important;color:#a9c2d3!important;border-radius:6px!important}
+html[data-theme="dark"] .map-layout-btn.active{background:#0f4169!important;border-color:#188edf!important;color:#fff!important}
+
+html[data-theme="dark"] .monitor-summary{gap:12px!important}
+html[data-theme="dark"] .monitor-summary-card{background:linear-gradient(150deg,#0d2234,#091824)!important;border:1px solid #1b3c54!important;border-radius:9px!important;min-height:88px!important}
+html[data-theme="dark"] .monitor-summary-card .k{color:#809caf!important;font-size:9px!important}
+html[data-theme="dark"] .monitor-summary-card .v{color:#f1f9ff!important;font-size:25px!important}
+html[data-theme="dark"] .monitor-summary-card.good .v{color:#47dda5!important}
+html[data-theme="dark"] .monitor-summary-card.bad .v{color:#ff6478!important}
+html[data-theme="dark"] .monitor-summary-card.off .v{color:#8fa8ba!important}
+
+html[data-theme="dark"] #view-findings .cards,html[data-theme="dark"] #view-event-findings .cards,html[data-theme="dark"] #view-tickets .cards{gap:12px!important}
+html[data-theme="dark"] #view-findings .card,html[data-theme="dark"] #view-event-findings .card,html[data-theme="dark"] #view-tickets .card{min-height:92px!important;padding:14px 16px!important}
+html[data-theme="dark"] .event-detail-cell,html[data-theme="dark"] .event-message-box,html[data-theme="dark"] .event-fix-item,html[data-theme="dark"] .ticket-note{background:#081824!important;border-color:#1d4057!important}
+html[data-theme="dark"] .event-fix-resource{background:#0b2941!important;border-color:#23618a!important;color:#75cfff!important}
+html[data-theme="dark"] .event-fix-num{background:#0d3e65!important;color:#85d8ff!important}
+
+html[data-theme="dark"] .tool-grid{gap:12px!important}
+html[data-theme="dark"] .tool-card{padding:16px!important;min-height:170px!important}
+html[data-theme="dark"] .tool-card .tool-icon{width:43px!important;height:43px!important;border-radius:10px!important;background:#102e47!important;color:#4fc2ff!important}
+html[data-theme="dark"] .tool-card h3{font-size:12px!important;margin:11px 0 5px!important}
+html[data-theme="dark"] .tool-card p{font-size:9px!important;color:#86a1b5!important;line-height:1.5!important}
+
+html[data-theme="dark"] .integration-list{gap:12px!important}
+html[data-theme="dark"] .integration-card,html[data-theme="dark"] .analytics-card,html[data-theme="dark"] .notify-card{background:linear-gradient(150deg,#0d2234,#091824)!important;border:1px solid #1b3c54!important;border-radius:9px!important}
+html[data-theme="dark"] .integration-badge{background:#0d3e65!important;border:1px solid #226795!important;color:#82d6ff!important}
+html[data-theme="dark"] .notify-grid{gap:12px!important}.notify-card{padding:15px!important}.notify-card h3{color:#e8f5ff!important}.notify-desc{color:#829eb1!important}
+
+html[data-theme="dark"] .report-type-grid,html[data-theme="dark"] .report-section-grid{gap:12px!important}
+html[data-theme="dark"] .report-type-card,html[data-theme="dark"] .report-section-card{background:linear-gradient(150deg,#0d2234,#091824)!important;border:1px solid #1b3c54!important;border-radius:9px!important}
+html[data-theme="dark"] .report-type-icon,html[data-theme="dark"] .report-section-icon{background:#102e47!important;color:#4fc2ff!important}
+html[data-theme="dark"] .report-type-card h3{color:#edf8ff!important}.report-type-card p{color:#829daf!important}
+
+html[data-theme="dark"] .calendar-main-card{background:linear-gradient(150deg,#0c2031,#081824)!important;border:1px solid #1b4058!important;border-radius:9px!important;overflow:hidden!important}
+html[data-theme="dark"] .calendar-side-block{background:linear-gradient(150deg,#0d2234,#091824)!important;border:1px solid #1b3c54!important;border-radius:9px!important}
+html[data-theme="dark"] .calendar-toolbar{background:#081824!important;border-bottom:1px solid #193a51!important}
+html[data-theme="dark"] .calendar-week-head{background:#091a29!important;border-color:#19384e!important}
+html[data-theme="dark"] .calendar-day{background:#091a29!important;border-color:#18384e!important;color:#d5e7f3!important}
+html[data-theme="dark"] .calendar-day.outside{background:#07131f!important;color:#587488!important}
+html[data-theme="dark"] .calendar-day.today{background:#0c2d49!important;outline:1px solid #178fe1!important}
+html[data-theme="dark"] .calendar-provider{background:#091a29!important;border-color:#234961!important;color:#cbe1ef!important}
+
+html[data-theme="dark"] .email-shell{background:linear-gradient(150deg,#0c2031,#081824)!important;border:1px solid #1b4058!important;border-radius:9px!important}
+html[data-theme="dark"] .email-folders,html[data-theme="dark"] .email-list-pane,html[data-theme="dark"] .email-reader-pane{background:#081824!important;border-color:#19384e!important}
+html[data-theme="dark"] .email-toolbar{background:#091a29!important;border-color:#19384e!important}
+html[data-theme="dark"] .email-message-row{background:#081824!important;border-color:#18364c!important}
+html[data-theme="dark"] .email-message-row:hover,html[data-theme="dark"] .email-message-row.active{background:#0d293e!important}
+html[data-theme="dark"] .email-message-row.unread{background:#0b2740!important}
+html[data-theme="dark"] .v430-email-account-card{background:linear-gradient(150deg,#0d2234,#091824)!important;border:1px solid #1b3c54!important;border-radius:9px!important}
+
+html[data-theme="dark"] .remote-computers,html[data-theme="dark"] .remote-session-panel{background:linear-gradient(150deg,#0d2234,#091824)!important;border:1px solid #1b3c54!important;border-radius:9px!important}
+html[data-theme="dark"] .remote-agent-row{background:#081824!important;border:1px solid #193c54!important;border-radius:8px!important}
+html[data-theme="dark"] .remote-agent-row:hover,html[data-theme="dark"] .remote-agent-row.selected{background:#0d2a40!important;border-color:#2979a7!important}
+html[data-theme="dark"] .remote-screen-wrap{background:#030912!important;border:1px solid #1b4058!important;border-radius:8px!important}
+
+html[data-theme="dark"] .windows-update-card,html[data-theme="dark"] .antivirus-card,html[data-theme="dark"] .windows-agent-row,html[data-theme="dark"] .windows-source-row{background:linear-gradient(150deg,#0d2234,#091824)!important;border:1px solid #1b3c54!important;border-radius:8px!important}
+html[data-theme="dark"] .agent-recommendation,html[data-theme="dark"] .agent-onboarding,html[data-theme="dark"] .agent-enrollment-result{background:#0b2941!important;border-color:#225b82!important}
+
+html[data-theme="dark"] .ticket-page .panel,html[data-theme="dark"] .event-findings-page .panel{border-radius:9px!important}
+html[data-theme="dark"] .status-ticket-open{background:#0b3353!important;color:#73cbff!important}
+html[data-theme="dark"] .status-ticket-in_progress{background:#493315!important;color:#ffd07a!important}
+html[data-theme="dark"] .status-ticket-waiting{background:#342650!important;color:#c5adff!important}
+html[data-theme="dark"] .status-ticket-resolved,html[data-theme="dark"] .status-ticket-closed{background:#133929!important;color:#72e0aa!important}
+
+html[data-theme="dark"] #view-users .panel,html[data-theme="dark"] #view-audit .panel,html[data-theme="dark"] #view-rules .panel,html[data-theme="dark"] #view-security .panel{background:linear-gradient(150deg,#0d2234,#091824)!important;border:1px solid #1b3c54!important;border-radius:9px!important}
+html[data-theme="dark"] .userForm{background:#081824!important;border-bottom:1px solid #19384e!important}
+html[data-theme="dark"] #view-security .panel h2,html[data-theme="dark"] #view-rules .panel h2,html[data-theme="dark"] #view-users .panel h2,html[data-theme="dark"] #view-audit .panel h2{color:#edf8ff!important}
+
+html[data-theme="dark"] .status-pill{background:#0d2e48!important;border:1px solid #245f83!important;color:#9edcff!important}
+html[data-theme="dark"] .status-pill.warn{background:#422b17!important;border-color:#745029!important;color:#ffd27d!important}
+html[data-theme="dark"] .badge{box-shadow:none!important}
 </style></head>
 <body>
 <div id="authOverlay" class="overlay" style="display:none">
