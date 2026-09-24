@@ -37,6 +37,12 @@ Use GODSEYE to:
 
 The gallery shows captures from the running app with representative sample data. Counts, findings, devices, and tickets shown here are examples, not live production results.
 
+### Sign in
+
+![GODSEYE sign-in screen](docs/screenshots/v431-login.png)
+
+**How it works:** Sign in with your GODSEYE account to open the operations workspace. The four themes on this screen match the About page cards: Network Intelligence, Security Operations, MSP Workflow, and Self-Hosted Control.
+
 ### Dashboard
 
 ![GODSEYE Dashboard](docs/screenshots/v431-dashboard-map-logo.png)

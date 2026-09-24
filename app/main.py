@@ -6831,7 +6831,7 @@ html[data-theme="dark"] .badge{box-shadow:none!important}
 <body>
 <div id="authOverlay" class="overlay" style="display:none">
   <div class="authcard">
-    <div class="login-brand"><div class="login-brand-row">__EYE_LOGO__<img class="godseye-wordmark login-wordmark" src="/assets/godseye-approved.png" alt="GODSEYE"></div><small class="login-build">MSP SECURITY OPERATIONS</small><div class="muted">Network Intelligence · Device Correlation · Smart Alerts</div></div>
+    <div class="login-brand"><div class="login-brand-row">__EYE_LOGO__<img class="godseye-wordmark login-wordmark" src="/assets/godseye-approved.png" alt="GODSEYE"></div><small class="login-build">MSP SECURITY OPERATIONS</small><div class="muted">Network Intelligence · Security Operations · MSP Workflow · Self-Hosted Control</div></div>
     <div id="loginBanner" class="muted" style="white-space:pre-wrap;margin-bottom:14px;__LOGIN_BANNER_DISPLAY__">__LOGIN_BANNER__</div>
     <h2>Welcome Back</h2>
     <div class="muted">Sign in to your GODSEYE account</div>
@@ -6842,7 +6842,7 @@ html[data-theme="dark"] .badge{box-shadow:none!important}
       <button class="primary" type="submit">Sign in</button>
     </form>
   </div>
-  <div class="login-scene-footer">GODSEYE<br>Network Intelligence · Security Operations · Remote Support</div>
+  <div class="login-scene-footer">GODSEYE<br>Network Intelligence · Security Operations · MSP Workflow · Self-Hosted Control</div>
 </div>
 <div id="setupOverlay" class="overlay" style="display:none">
   <div class="authcard">

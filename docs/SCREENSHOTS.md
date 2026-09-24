@@ -2,6 +2,12 @@
 
 These images are captured from the redesigned running GODSEYE application using the repository's automated UI capture workflow. They use a clean local screenshot database, so empty or zero states represent a fresh installation rather than sample customer data.
 
+## Sign in
+
+![Sign in](screenshots/v431-login.png)
+
+Sign in to access GODSEYE. The login copy uses the same four themes shown on the About cards.
+
 ## Dashboard
 
 ![Dashboard](screenshots/v431-dashboard-map-logo.png)

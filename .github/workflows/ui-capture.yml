@@ -55,6 +55,7 @@ jobs:
       - name: Verify screenshot files
         run: |
           test -s docs/screenshots/v431-dashboard-map-logo.png
+          test -s docs/screenshots/v431-login.png
           test -s docs/screenshots/v431-devices-guide.png
           test -s docs/screenshots/v431-cyber-tools-overview.png
           test -s docs/screenshots/v431-system-health-guide.png

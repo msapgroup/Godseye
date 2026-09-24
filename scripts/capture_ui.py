@@ -40,6 +40,13 @@ async def main():
             await page.click("#setupForm button[type=submit]")
             await page.wait_for_selector("#authOverlay", state="visible")
 
+        # Record the current login copy before signing in.
+        if await page.locator("#authOverlay").is_visible():
+            assert await page.locator("#authOverlay .login-scene-footer").inner_text() == (
+                "GODSEYE\nNetwork Intelligence · Security Operations · MSP Workflow · Self-Hosted Control"
+            )
+            await page.screenshot(path=str(OUT / "v431-login.png"), full_page=True)
+
         # Sign in.
         if await page.locator("#authOverlay").is_visible():
             await page.fill("#loginUser", "admin")
