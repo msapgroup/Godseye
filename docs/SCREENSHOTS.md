@@ -1,6 +1,6 @@
 # GODSEYE screen gallery
 
-The original application states were captured from a running GODSEYE instance with the repository's automated UI capture workflow. The card, search, and login borders were visually refreshed from those captures to show the continuous rim treatment. The CRM image illustrates a sample customer. Run `scripts/capture_ui.py` with a browser to recapture the installed build directly.
+The original application states were captured from a running GODSEYE instance with the repository's automated UI capture workflow. The card, search, and login borders were visually refreshed from those captures to show the continuous rim treatment. The CRM image was captured from the running app with a saved sample customer. Run `scripts/capture_ui.py` with a browser to recapture the installed build directly.
 
 ## Sign in
 
@@ -34,9 +34,9 @@ The capture pairs two running GODSEYE instances over HTTPS and opens the remote 
 
 ## CRM
 
-![CRM customer record example](screenshots/v431-crm-guide.png)
+![CRM customer record](screenshots/v431-crm-live.png)
 
-Open **CRM** in the sidebar. Click **Add Customer**, enter the name and details, optionally select a linked GODSEYE site, then save. Select a customer card to edit details or notes. Use **Add contact** to record each person's name, role, email, and phone. Search by customer name or email. Operators and administrators can edit; administrators can delete. The example data in this image is illustrative; the real CRM reads and writes records in the local GODSEYE database.
+Open **CRM** in the sidebar. Click **Add Customer**, enter the name and details, optionally select a linked GODSEYE site, then save. Select a customer card to edit details or notes. Use **Add contact** to record each person's name, role, email, and phone. Search by customer name or email. Operators and administrators can edit; administrators can delete. This capture shows a saved sample record from the running app; CRM reads and writes records in the local GODSEYE database.
 
 ## Calendar
 
