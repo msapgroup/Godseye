@@ -19,6 +19,7 @@ async function crmRefreshList(){
  }catch(e){list.innerHTML='<div class="crm-error">Could not load customers: '+crmEscape(crmError(e))+'</div>'}
 }
 function crmNewCustomer(){CRM_ACTIVE_ID=null;CRM_CONTACT_EDIT=null;crmRefreshList();crmRenderCustomer({name:'',customer_type:'business',status:'active',email:'',phone:'',address:'',notes:'',site_id:null,contacts:[]})}
+function crmCloseCustomer(){CRM_ACTIVE_ID=null;CRM_CONTACT_EDIT=null;document.getElementById('crmRecord').innerHTML='<div class="crm-empty">Select a customer card or add a customer to get started.</div>';crmRefreshList()}
 async function crmOpenCustomer(id){
  const record=document.getElementById('crmRecord');if(!record)return;
  CRM_ACTIVE_ID=id;CRM_CONTACT_EDIT=null;record.innerHTML='<div class="crm-empty">Loading customer…</div>';
@@ -30,7 +31,7 @@ function crmRenderCustomer(customer){
  const existing=Number.isInteger(customer.id),writable=crmWritable(),disabled=writable?'':'disabled';
  const option=(value,label,selected)=>`<option value="${value}" ${value===selected?'selected':''}>${label}</option>`;
  const sites=`<option value="">No linked site</option>`+CRM_SITES.map(s=>`<option value="${Number(s.id)}" ${s.id===customer.site_id?'selected':''}>${crmEscape(s.name)}</option>`).join('');
- record.innerHTML=`<div class="crm-record-head"><div><h2>${crmEscape(existing?customer.name:'New customer')}</h2><p>Customer record ${existing?'· Created '+crmEscape(new Date(customer.created_at).toLocaleDateString()):'· Add the customer details below'}</p></div><div class="crm-record-actions">${existing&&ME?.role==='admin'?'<button class="danger" type="button" onclick="crmDeleteCustomer()">Delete</button>':''}${writable?'<button class="primary" type="submit" form="crmCustomerForm">Save customer</button>':''}</div></div>
+ record.innerHTML=`<div class="crm-record-head"><div><h2>${crmEscape(existing?customer.name:'New customer')}</h2><p>Customer record ${existing?'· Created '+crmEscape(new Date(customer.created_at).toLocaleDateString()):'· Add the customer details below'}</p></div><div class="crm-record-actions"><button class="secondary" type="button" onclick="crmCloseCustomer()" aria-label="Close customer card">Close</button>${existing&&ME?.role==='admin'?'<button class="danger" type="button" onclick="crmDeleteCustomer()">Delete</button>':''}${writable?'<button class="primary" type="submit" form="crmCustomerForm">Save customer</button>':''}</div></div>
  <form id="crmCustomerForm" onsubmit="return crmSaveCustomer(event)"><h3>Customer information</h3><div class="crm-fields">
  <label>Customer / company name<input class="input" name="name" value="${crmEscape(customer.name)}" required maxlength="160" ${disabled}></label>
  <label>Customer type<select class="filter" name="customer_type" ${disabled}>${option('business','Business',customer.customer_type)}${option('individual','Individual',customer.customer_type)}</select></label>
@@ -51,7 +52,7 @@ async function crmSaveCustomer(event){
  const form=event.target,button=recordButton(),message=document.getElementById('crmFormMessage');
  const data=Object.fromEntries(new FormData(form));data.site_id=data.site_id?Number(data.site_id):null;
  if(button)button.disabled=true;
- try{const customer=await crmApi(CRM_ACTIVE_ID?'/customers/'+CRM_ACTIVE_ID:'/customers',CRM_ACTIVE_ID?'PUT':'POST',data);CRM_ACTIVE_ID=customer.id;crmRenderCustomer(customer);await crmRefreshList();document.getElementById('crmFormMessage').textContent='Customer saved.'}
+ try{const creating=!CRM_ACTIVE_ID;const customer=await crmApi(creating?'/customers':'/customers/'+CRM_ACTIVE_ID,creating?'POST':'PUT',data);if(creating){CRM_ACTIVE_ID=null;CRM_CONTACT_EDIT=null;document.getElementById('crmRecord').innerHTML=`<div class="crm-empty crm-save-success" role="status"><b>${crmEscape(customer.name)} saved.</b> The new customer card is closed. <button class="secondary" type="button" onclick="crmOpenCustomer(${Number(customer.id)})">Open customer</button></div>`;await crmRefreshList()}else{CRM_ACTIVE_ID=customer.id;crmRenderCustomer(customer);await crmRefreshList();document.getElementById('crmFormMessage').textContent='Customer saved.'}}
  catch(e){message.textContent='Could not save customer: '+crmError(e)}finally{if(button)button.disabled=false}
  return false;
 }

@@ -89,9 +89,37 @@ def ensure_schema(c: sqlite3.Connection) -> None:
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
     );
-    CREATE INDEX IF NOT EXISTS crm_customer_name_idx ON crm_customers(name COLLATE NOCASE);
-    CREATE INDEX IF NOT EXISTS crm_contact_customer_idx ON crm_contacts(customer_id);
     """)
+    # Existing installations may already have customer/contact tables from an
+    # earlier build. CREATE TABLE IF NOT EXISTS leaves such schemas untouched;
+    # migrate any missing fields before a save attempts to use them.
+    customer_columns = {row["name"] for row in c.execute("PRAGMA table_info(crm_customers)")}
+    contact_columns = {row["name"] for row in c.execute("PRAGMA table_info(crm_contacts)")}
+    for name, definition in {
+        "customer_type": "TEXT NOT NULL DEFAULT 'business'",
+        "status": "TEXT NOT NULL DEFAULT 'active'",
+        "email": "TEXT NOT NULL DEFAULT ''",
+        "phone": "TEXT NOT NULL DEFAULT ''",
+        "address": "TEXT NOT NULL DEFAULT ''",
+        "notes": "TEXT NOT NULL DEFAULT ''",
+        "site_id": "INTEGER",
+        "created_at": "TEXT NOT NULL DEFAULT ''",
+        "updated_at": "TEXT NOT NULL DEFAULT ''",
+    }.items():
+        if name not in customer_columns:
+            c.execute(f"ALTER TABLE crm_customers ADD COLUMN {name} {definition}")
+    for name, definition in {
+        "customer_id": "INTEGER NOT NULL DEFAULT 0",
+        "role": "TEXT NOT NULL DEFAULT ''",
+        "email": "TEXT NOT NULL DEFAULT ''",
+        "phone": "TEXT NOT NULL DEFAULT ''",
+        "created_at": "TEXT NOT NULL DEFAULT ''",
+        "updated_at": "TEXT NOT NULL DEFAULT ''",
+    }.items():
+        if name not in contact_columns:
+            c.execute(f"ALTER TABLE crm_contacts ADD COLUMN {name} {definition}")
+    c.execute("CREATE INDEX IF NOT EXISTS crm_customer_name_idx ON crm_customers(name COLLATE NOCASE)")
+    c.execute("CREATE INDEX IF NOT EXISTS crm_contact_customer_idx ON crm_contacts(customer_id)")
 
 
 def register_routes(app, core) -> None:

@@ -34,6 +34,8 @@
 #view-crm .crm-contact-card b{font-size:12px}
 #view-crm .crm-contact-card p{font-size:11px;color:#9cb7ca;margin:7px 0 0;overflow-wrap:anywhere}
 #view-crm .crm-empty{padding:20px 5px;color:#9db5c7;font-size:12px}
+#view-crm .crm-save-success{padding:24px 2px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+#view-crm .crm-save-success b{color:#8be1b9}
 #view-crm .crm-error{padding:16px;color:#ff9eaa;font-size:12px}
 #view-crm .crm-contact-editor{margin-top:16px;padding:16px;border:1px solid #37617b;border-radius:10px;background:#0b2030}
 #view-crm .crm-contact-editor h3{margin:0 0 14px}

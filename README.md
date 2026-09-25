@@ -72,7 +72,7 @@ The gallery is based on captures from the running app with representative sample
 
 ![GODSEYE CRM customer card](docs/screenshots/v431-crm-live.png)
 
-**How it works:** Select **CRM** in the sidebar. Choose **Add Customer**, enter the name and contact details, optionally select a linked GODSEYE site, and save. Select any customer card to edit its status, address, and internal notes. Add contacts to the customer card; each contact can have a role, email, and phone number. Search the customer list by name or email. Operators and administrators can edit records; only administrators can delete customers. Linking a site shows its name and a shortcut to the Sites workspace. The screenshot shows a saved sample record; new installations start with an empty CRM.
+**How it works:** Select **CRM** in the sidebar. Choose **Add Customer**, enter the name and contact details, optionally select a linked GODSEYE site, and save. A successful save closes the new customer card; select the saved customer in the list to open it again. Select any customer card to edit its status, address, and internal notes. Add contacts to the customer card; each contact can have a role, email, and phone number. Search the customer list by name or email. Operators and administrators can edit records; only administrators can delete customers. Linking a site shows its name and a shortcut to the Sites workspace. The screenshot shows a saved sample record; new installations start with an empty CRM.
 
 ### Calendar and maintenance planning
 

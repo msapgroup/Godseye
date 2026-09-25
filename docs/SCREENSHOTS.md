@@ -36,7 +36,7 @@ The capture pairs two running GODSEYE instances over HTTPS and opens the remote 
 
 ![CRM customer record](screenshots/v431-crm-live.png)
 
-Open **CRM** in the sidebar. Click **Add Customer**, enter the name and details, optionally select a linked GODSEYE site, then save. Select a customer card to edit details or notes. Use **Add contact** to record each person's name, role, email, and phone. Search by customer name or email. Operators and administrators can edit; administrators can delete. This capture shows a saved sample record from the running app; CRM reads and writes records in the local GODSEYE database.
+Open **CRM** in the sidebar. Click **Add Customer**, enter the name and details, optionally select a linked GODSEYE site, then save. The new customer card closes after a successful save; select the saved card from the list to open it again. Use **Add contact** to record each person's name, role, email, and phone. Search by customer name or email. Operators and administrators can edit; administrators can delete. This capture shows a saved sample record from the running app; CRM reads and writes records in the local GODSEYE database.
 
 ## Calendar
 

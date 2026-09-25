@@ -65,19 +65,25 @@ async def main():
         """)
 
         for view, filename in CAPTURES:
-            if view == "crm":
-                customer = await page.evaluate("""async () => json('/api/v1/crm/customers', {
-                    method:'POST', headers:{'Content-Type':'application/json'},
-                    body:JSON.stringify({name:'North Shore Dental',customer_type:'business',status:'active',
-                        email:'office@example.com',phone:'(555) 010-2200',address:'Tampa, Florida',
-                        notes:'Preferred contact: email. On-site visits by appointment.',site_id:null})})""")
-                await page.evaluate("""async (id) => json('/api/v1/crm/customers/'+id+'/contacts', {
-                    method:'POST',headers:{'Content-Type':'application/json'},
-                    body:JSON.stringify({name:'Jordan Lee',role:'Office Manager',email:'jordan@example.com',phone:'(555) 010-2200'})})""", customer['id'])
             await page.evaluate("(v)=>showView(v,true)", view)
             await page.wait_for_timeout(1500)
             if view == "crm":
-                await page.evaluate("(id)=>crmOpenCustomer(id)", customer['id'])
+                await page.get_by_role('button', name='+ Add Customer').click()
+                await page.fill('#crmCustomerForm [name=name]', 'North Shore Dental')
+                await page.fill('#crmCustomerForm [name=email]', 'office@example.com')
+                await page.fill('#crmCustomerForm [name=phone]', '(555) 010-2200')
+                await page.fill('#crmCustomerForm [name=address]', 'Tampa, Florida')
+                await page.fill('#crmCustomerForm [name=notes]', 'Preferred contact: email. On-site visits by appointment.')
+                await page.locator('#crmRecord button[form=crmCustomerForm]').click()
+                await page.locator('#crmRecord .crm-save-success').wait_for()
+                assert not await page.locator('#crmCustomerForm').count(), 'New customer card did not close after save'
+                await page.get_by_role('button', name='Open customer').click()
+                await page.get_by_role('button', name='+ Add contact').click()
+                await page.fill('#crmContactEditor [name=name]', 'Jordan Lee')
+                await page.fill('#crmContactEditor [name=role]', 'Office Manager')
+                await page.fill('#crmContactEditor [name=email]', 'jordan@example.com')
+                await page.fill('#crmContactEditor [name=phone]', '(555) 010-2200')
+                await page.get_by_role('button', name='Save contact').click()
                 await page.locator('#crmRecord .crm-contact-card').first.wait_for()
             if view == "overview":
                 assert await page.locator("#view-overview").inner_text() != ""

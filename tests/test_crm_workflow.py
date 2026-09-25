@@ -1,6 +1,7 @@
 from fastapi.testclient import TestClient
 
 from app import main
+from app.crm import ensure_schema
 
 
 def test_customer_contact_lifecycle_and_site_link(tmp_path, monkeypatch):
@@ -43,3 +44,40 @@ def test_customer_contact_lifecycle_and_site_link(tmp_path, monkeypatch):
             assert c.execute("SELECT COUNT(*) FROM crm_contacts WHERE customer_id=?", (customer_id,)).fetchone()[0] == 0
     finally:
         main.app.dependency_overrides.clear()
+
+
+def test_old_customer_tables_are_upgraded_before_saving(tmp_path, monkeypatch):
+    monkeypatch.setattr(main, "DB_PATH", tmp_path / "existing.db")
+    main.init_db()
+    with main.db() as c:
+        c.execute("DROP TABLE crm_contacts")
+        c.execute("DROP TABLE crm_customers")
+        c.execute("CREATE TABLE crm_customers (id INTEGER PRIMARY KEY, name TEXT NOT NULL)")
+        c.execute("CREATE TABLE crm_contacts (id INTEGER PRIMARY KEY, name TEXT NOT NULL)")
+    with main.db() as c:
+        ensure_schema(c)
+    main.app.dependency_overrides[main.get_current_user] = lambda: {"username": "crm-test", "role": "admin"}
+    try:
+        client = TestClient(main.app)
+        result = client.post("/api/v1/crm/customers", json={"name": "MSAPGROUP LLC.",
+            "email": "info@msapgroupllc.com", "phone": "8134197511", "address": "8870 N. HIMES AVE",
+            "notes": "TEST NOTES", "site_id": None})
+        assert result.status_code == 201, result.text
+        assert result.json()["name"] == "MSAPGROUP LLC."
+    finally:
+        main.app.dependency_overrides.clear()
+
+
+def test_real_login_can_save_customer_with_form_values(tmp_path, monkeypatch):
+    monkeypatch.setattr(main, "DB_PATH", tmp_path / "auth.db")
+    main.init_db()
+    client = TestClient(main.app)
+    password = "Strong-Crm-Setup!2026"
+    assert client.post("/api/v1/auth/setup", json={"current_password": "", "new_password": password}).status_code == 200
+    assert client.post("/api/v1/auth/login", json={"username": "admin", "password": password}).status_code == 200
+    result = client.post("/api/v1/crm/customers", headers={"X-CSRF-Token": client.cookies["godseye_csrf"]},
+        json={"name": "MSAPGROUP LLC.", "customer_type": "business", "status": "active",
+              "email": "info@msapgroupllc.com", "phone": "8134197511",
+              "address": "8870 N. HIMES AVE", "notes": "TEST NOTES", "site_id": None})
+    assert result.status_code == 201, result.text
+    assert result.json()["name"] == "MSAPGROUP LLC."
