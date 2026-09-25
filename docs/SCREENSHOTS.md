@@ -1,6 +1,6 @@
 # GODSEYE screen gallery
 
-The original application states were captured from a running GODSEYE instance with the repository's automated UI capture workflow. The card, search, and login borders in this gallery were visually refreshed from those captures to show the new continuous rim treatment. The figures and customer data remain those of the original captures. Run `scripts/capture_ui.py` with a browser to recapture the installed build directly.
+The original application states were captured from a running GODSEYE instance with the repository's automated UI capture workflow. The card, search, and login borders were visually refreshed from those captures to show the continuous rim treatment. The CRM image illustrates a sample customer. Run `scripts/capture_ui.py` with a browser to recapture the installed build directly.
 
 ## Sign in
 
@@ -31,6 +31,12 @@ Inspect observed device relationships and move from the visual map into the rela
 ![Sites management](screenshots/v431-sites-management.png)
 
 The capture pairs two running GODSEYE instances over HTTPS and opens the remote location card. On a remote installation, generate a one-time token in Sites; on the master, enter its VPN-reachable HTTPS address, a name, and the token. Open its card to manage devices, findings, and tickets. Add a trusted PEM certificate when the remote uses a private CA. Revoke the paired master on the remote installation to end access.
+
+## CRM
+
+![CRM customer record example](screenshots/v431-crm-guide.png)
+
+Open **CRM** in the sidebar. Click **Add Customer**, enter the name and details, optionally select a linked GODSEYE site, then save. Select a customer card to edit details or notes. Use **Add contact** to record each person's name, role, email, and phone. Search by customer name or email. Operators and administrators can edit; administrators can delete. The example data in this image is illustrative; the real CRM reads and writes records in the local GODSEYE database.
 
 ## Calendar
 

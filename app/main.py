@@ -46,6 +46,7 @@ from .cyber_tools import (CyberScheduleManager, SCHEDULABLE_TOOLS, capabilities 
                           public_run as public_cyber_run, record_run as record_cyber_run,
                           utcnow as cyber_utcnow)
 from .site_federation import ensure_schema as ensure_site_schema, register_routes as register_site_routes
+from .crm import ensure_schema as ensure_crm_schema, register_routes as register_crm_routes
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -711,6 +712,7 @@ def init_db():
             )
             print("[GODSEYE] Fresh install: admin account created; first-login password setup is required.")
         ensure_site_schema(c)
+        ensure_crm_schema(c)
 
 
 
@@ -904,6 +906,14 @@ def sites_css_asset():
 @app.get("/assets/sites.js", include_in_schema=False)
 def sites_js_asset():
     return FileResponse(BASE_DIR / "app" / "assets" / "sites.js", media_type="application/javascript")
+
+@app.get("/assets/crm.css", include_in_schema=False)
+def crm_css_asset():
+    return FileResponse(BASE_DIR / "app" / "assets" / "crm.css", media_type="text/css")
+
+@app.get("/assets/crm.js", include_in_schema=False)
+def crm_js_asset():
+    return FileResponse(BASE_DIR / "app" / "assets" / "crm.js", media_type="application/javascript")
 
 
 @app.get("/assets/godseye-mark.svg", include_in_schema=False)
@@ -6847,7 +6857,7 @@ html[data-theme="dark"] .v430-global-search:focus-within{border-color:#7acbfa!im
 @media(max-width:700px){html[data-theme="dark"] :is(.card,.panel,.authcard,.v430-global-search){box-shadow:inset 0 1px 0 rgba(166,214,238,.28),0 0 0 1px #173a52,0 2px 0 1px #24465c,0 6px 11px rgba(0,0,0,.28)!important}}
 html:not([data-theme="dark"]) :is(.card,.panel,.tool-card,.integration-card,.analytics-card,.notify-card,.report-type-card,.report-section-card,.authcard,.modal){border:1px solid #8bb1ca!important;border-radius:11px!important;box-shadow:inset 0 1px 0 #fff,inset 1px 0 0 rgba(255,255,255,.65),0 0 0 2px #dbe9f3,0 3px 0 2px #a5c4d8,0 8px 16px rgba(25,53,73,.13)!important}
 html:not([data-theme="dark"]) :is(.v430-global-search,.v430-bell,.user-chip,.authcard .input,.authcard button.primary){border-radius:9px!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.6),0 0 0 1px #d9e9f2,0 2px 0 1px #a6c7dc,0 5px 10px rgba(27,59,84,.12)!important}
-</style><link rel="stylesheet" href="/assets/sites.css"></head>
+</style><link rel="stylesheet" href="/assets/sites.css"><link rel="stylesheet" href="/assets/crm.css"></head>
 <body>
 <div id="authOverlay" class="overlay" style="display:none">
   <div class="authcard">
@@ -6914,6 +6924,7 @@ html:not([data-theme="dark"]) :is(.v430-global-search,.v430-bell,.user-chip,.aut
 <button type="button" class="navitem" data-view="devices"><span class="navicon"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></span><span>Devices</span></button>
 <button type="button" class="navitem" data-view="network"><span class="navicon"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><circle cx="5" cy="18" r="2"/><circle cx="19" cy="18" r="2"/><path d="M12 7v4M12 11 6 16M12 11l6 5"/></svg></span><span>Network Map</span></button>
 <button type="button" class="navitem" data-view="sites"><span class="navicon"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="7" height="7" rx="1"/><rect x="14" y="4" width="7" height="7" rx="1"/><rect x="3" y="15" width="7" height="6" rx="1"/><rect x="14" y="15" width="7" height="6" rx="1"/></svg></span><span>Sites</span></button>
+<button type="button" class="navitem" data-view="crm"><span class="navicon"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M5.5 16c.5-2 6.5-2 7 0M15 9h4M15 13h4"/></svg></span><span>CRM</span></button>
 <button type="button" class="navitem" data-view="monitoring"><span class="navicon"><svg viewBox="0 0 24 24"><path d="M3 12h4l2-5 4 10 2-5h6"/></svg></span><span>Monitoring</span></button>
 <button type="button" class="navitem" data-view="findings"><span class="navicon"><svg viewBox="0 0 24 24"><path d="M12 3 3.5 20h17Z"/><path d="M12 9v5M12 17h.01"/></svg></span><span>Findings</span><span class="badge" id="findingBadge">0</span></button>
 
@@ -7505,6 +7516,14 @@ sudo godseye-https-setup godseye.example.com letsencrypt</pre></div></section>
   <section id="siteWorkspace" class="panel site-workspace" style="display:none" aria-live="polite"></section>
 </div>
 
+<div class="view" id="view-crm" style="display:none">
+  <div class="hero crm-heading"><div><h1>CRM</h1><div class="muted">Customer records, contacts, linked sites, and service notes in one workspace.</div></div><div class="actions"><button class="primary crm-write" type="button" onclick="crmNewCustomer()">+ Add Customer</button></div></div>
+  <div class="crm-grid">
+    <section class="panel crm-list-panel"><h2>Customers</h2><div class="crm-list-body"><label class="crm-search-label" for="crmSearch">Search customers</label><input class="input" id="crmSearch" type="search" placeholder="Search name or email" oninput="crmSearchChanged()"><div id="crmList" class="crm-list" aria-live="polite">Loading customers…</div></div></section>
+    <section class="panel crm-record-panel" id="crmRecord" aria-live="polite"><div class="crm-empty">Select a customer card or add a customer to get started.</div></section>
+  </div>
+</div>
+
 <div class="view" id="view-about" style="display:none">
   <div class="hero about-page-heading"><div><h1>About GODSEYE</h1><div class="muted">Self-hosted network intelligence and security operations for growing MSPs.</div></div></div>
   <div class="about-hero panel">
@@ -7705,7 +7724,7 @@ sudo godseye-https-setup godseye.example.com letsencrypt</pre></div></section>
     <div id="headerHelpModalBody" class="header-help-body"></div>
   </div>
 </div>
-<script src="/assets/sites.js"></script>
+<script src="/assets/sites.js"></script><script src="/assets/crm.js"></script>
 <script>
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const CLASS_CYCLE={new:'investigate',investigate:'known',known:'managed',managed:'ignored',ignored:'new'};
@@ -8620,6 +8639,7 @@ const VIEW_LOADERS={
   devices:()=>loadInventory(),
   network:()=>loadNetwork(),
   sites:()=>loadSites(),
+  crm:()=>loadCrm(),
   monitoring:()=>loadMonitoring(),
   findings:()=>loadFindings(),
   integrations:()=>loadIntegrations(),
@@ -8732,6 +8752,7 @@ function decorateNavigationIcons(){
     overview:'<path d="m3 10 9-7 9 7v10H3z"/><path d="M9 20v-7h6v7"/>',
     devices:'<rect x="4" y="4" width="16" height="7" rx="1"/><rect x="4" y="13" width="16" height="7" rx="1"/><path d="M7 8h.01M7 17h.01"/>',
     network:'<circle cx="12" cy="4" r="2"/><circle cx="4" cy="19" r="2"/><circle cx="20" cy="19" r="2"/><path d="M11 6 5 17M13 6l6 11M6 19h12"/>',
+    crm:'<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M6 16c.4-2 5.6-2 6 0M15 9h4M15 13h4"/>',
     monitoring:'<path d="M3 19V5M3 19h18M6 14l3-4 3 3 4-7 3 4"/>',
     findings:'<circle cx="11" cy="11" r="8"/><path d="M17 17l4 4M11 7v5M11 15h.01"/>',
     tools:'<path d="M4 4l16 16M5 19l5-5M14 10l5-5M4 7l3-3M17 20l3-3"/>',
@@ -8773,7 +8794,7 @@ function showView(name,updateHash=true){
   document.querySelectorAll('.navitem[data-view]').forEach(b=>{b.classList.remove('active');b.removeAttribute('aria-current')});
   const btn=document.querySelector('.navitem[data-view="'+name+'"]');
   if(btn){btn.classList.add('active');btn.setAttribute('aria-current','page')}
-  const pageTitles={overview:'Dashboard',devices:'Devices',network:'Network Map',sites:'Sites',monitoring:'Monitoring',findings:'Findings',tools:'Tools','cyber-tools':'Cyber Tools','windows-updates':'Microsoft Windows Updates',integrations:'Integrations',reports:'Reports',calendar:'Calendar',email:'Email','event-findings':'Event Findings','remote-access':'Remote Access',antivirus:'Antivirus',tickets:'Ticket Portal',health:'System Health',security:'Settings',about:'About GODSEYE',rules:'Alert Rules',users:'Users',audit:'Audit Log',activity:'Activity'};const pageTitle=document.getElementById('v430PageTitle');if(pageTitle)pageTitle.textContent=pageTitles[name]||'GODSEYE';
+  const pageTitles={overview:'Dashboard',devices:'Devices',network:'Network Map',sites:'Sites',crm:'CRM',monitoring:'Monitoring',findings:'Findings',tools:'Tools','cyber-tools':'Cyber Tools','windows-updates':'Microsoft Windows Updates',integrations:'Integrations',reports:'Reports',calendar:'Calendar',email:'Email','event-findings':'Event Findings','remote-access':'Remote Access',antivirus:'Antivirus',tickets:'Ticket Portal',health:'System Health',security:'Settings',about:'About GODSEYE',rules:'Alert Rules',users:'Users',audit:'Audit Log',activity:'Activity'};const pageTitle=document.getElementById('v430PageTitle');if(pageTitle)pageTitle.textContent=pageTitles[name]||'GODSEYE';
   if(updateHash && location.hash!=='#'+name){history.replaceState(null,'','#'+name)}
   if(updateHash)window.scrollTo(0,0);
   const loader=VIEW_LOADERS[name];
@@ -10420,3 +10441,4 @@ def remediation_history(limit:int=100,user=Depends(require_admin)):
 
 
 register_site_routes(app, __import__(__name__, fromlist=["app"]))
+register_crm_routes(app, __import__(__name__, fromlist=["app"]))

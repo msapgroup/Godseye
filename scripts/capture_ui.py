@@ -15,6 +15,7 @@ CAPTURES = [
     ("overview", "v431-dashboard-map-logo.png"),
     ("devices", "v431-devices-guide.png"),
     ("network", "v431-network-map-card.png"),
+    ("crm", "v431-crm-live.png"),
     ("calendar", "v431-calendar-guide.png"),
     ("email", "v431-email-guide.png"),
     ("health", "v431-system-health-guide.png"),
@@ -64,8 +65,20 @@ async def main():
         """)
 
         for view, filename in CAPTURES:
+            if view == "crm":
+                customer = await page.evaluate("""async () => json('/api/v1/crm/customers', {
+                    method:'POST', headers:{'Content-Type':'application/json'},
+                    body:JSON.stringify({name:'North Shore Dental',customer_type:'business',status:'active',
+                        email:'office@example.com',phone:'(555) 010-2200',address:'Tampa, Florida',
+                        notes:'Preferred contact: email. On-site visits by appointment.',site_id:null})})""")
+                await page.evaluate("""async (id) => json('/api/v1/crm/customers/'+id+'/contacts', {
+                    method:'POST',headers:{'Content-Type':'application/json'},
+                    body:JSON.stringify({name:'Jordan Lee',role:'Office Manager',email:'jordan@example.com',phone:'(555) 010-2200'})})""", customer['id'])
             await page.evaluate("(v)=>showView(v,true)", view)
             await page.wait_for_timeout(1500)
+            if view == "crm":
+                await page.evaluate("(id)=>crmOpenCustomer(id)", customer['id'])
+                await page.locator('#crmRecord .crm-contact-card').first.wait_for()
             if view == "overview":
                 assert await page.locator("#view-overview").inner_text() != ""
             if view == "about":

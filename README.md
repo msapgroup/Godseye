@@ -25,6 +25,7 @@ Use GODSEYE to:
 - Run built-in Cyber Tools for authorized security checks.
 - Generate professional operational and security reports.
 - Create and manage tickets from findings.
+- Keep customer records, contacts, notes, and linked GODSEYE sites in CRM.
 - Plan maintenance work with the built-in calendar.
 - Connect supported email providers for operational workflows.
 - Provide consent-based Windows remote support.
@@ -35,7 +36,7 @@ Use GODSEYE to:
 
 ## See GODSEYE in action
 
-The gallery shows captures from the running app with representative sample data. Counts, findings, devices, and tickets shown here are examples, not live production results.
+The gallery is based on captures from the running app with representative sample data. Older captures received a visual border refresh; the CRM guide below illustrates an example customer record. Counts, findings, devices, and tickets shown here are examples, not live production results.
 
 ### Sign in
 
@@ -66,6 +67,12 @@ The gallery shows captures from the running app with representative sample data.
 ![GODSEYE Sites management](docs/screenshots/v431-sites-management.png)
 
 **How it works:** Each location runs its own GODSEYE on a Raspberry Pi or server. On the remote installation, open **Sites** and generate a one-time pairing token. On the master installation, enter a location name, the remote HTTPS address reachable through your existing VPN, and that token. Supply its trusted PEM certificate if it uses a private certificate authority. The linked location appears as a card with real device, offline, finding, and ticket counts. Select it to view remote devices, findings, and tickets; edit device names and classifications, create or close tickets, and resolve findings. Refresh retrieves current data. The remote administrator can revoke the master under **Sites** at any time. GODSEYE does not set up the VPN.
+
+### CRM · Customer records
+
+![GODSEYE CRM customer card example](docs/screenshots/v431-crm-guide.png)
+
+**How it works:** Select **CRM** in the sidebar. Choose **Add Customer**, enter the name and contact details, optionally select a linked GODSEYE site, and save. Select any customer card to edit its status, address, and internal notes. Add contacts to the customer card; each contact can have a role, email, and phone number. Search the customer list by name or email. Operators and administrators can edit records; only administrators can delete customers. Linking a site shows its name and a shortcut to the Sites workspace. The screenshot uses illustrative example details; new installations start with an empty CRM.
 
 ### Calendar and maintenance planning
 
