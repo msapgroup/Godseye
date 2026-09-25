@@ -6,7 +6,7 @@ These images are captured from the redesigned running GODSEYE application using 
 
 ![Sign in](screenshots/v431-login.png)
 
-Sign in to access GODSEYE. The login copy uses the same four themes shown on the About cards.
+Sign in to manage network devices, investigate findings, coordinate service work, and control your self-hosted environment.
 
 ## Dashboard
 
@@ -78,4 +78,4 @@ Review structured results and scan history, create Findings or Tickets where sup
 
 ![About GODSEYE](screenshots/godseye-about.png)
 
-The About workspace presents the GODSEYE identity, MSP-focused mission, core capabilities, self-hosted operating model, and links to the project repository and documentation.
+The About workspace explains GODSEYE's network intelligence, security operations, MSP workflows, and self-hosted control, with links to setup and technical documentation.

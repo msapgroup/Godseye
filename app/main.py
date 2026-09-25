@@ -7493,7 +7493,7 @@ sudo godseye-https-setup godseye.example.com letsencrypt</pre></div></section>
       <img class="about-wordmark" src="/assets/godseye-approved.png" alt="GODSEYE">
     </div>
     <div class="about-tagline">Network Intelligence · Security Operations · MSP Workflow · Self-Hosted Control</div>
-    <p>GODSEYE is a self-hosted operations platform built for small and mid-sized MSPs that want strong visibility, practical security tools, and direct control without an oversized enterprise stack.</p>
+    <p>Discover and track devices, investigate security findings, monitor important services, and manage tickets and remote support from one self-hosted workspace. GODSEYE keeps operational data under your control.</p>
     <div class="about-actions">
       <a class="primary about-button" href="https://github.com/msapgroup/Godseye" target="_blank" rel="noopener">GitHub Repository</a>
       <a class="secondary about-button" href="https://github.com/msapgroup/Godseye/wiki" target="_blank" rel="noopener">Documentation</a>

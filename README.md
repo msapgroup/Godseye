@@ -41,7 +41,7 @@ The gallery shows captures from the running app with representative sample data.
 
 ![GODSEYE sign-in screen](docs/screenshots/v431-login.png)
 
-**How it works:** Sign in with your GODSEYE account to open the operations workspace. The four themes on this screen match the About page cards: Network Intelligence, Security Operations, MSP Workflow, and Self-Hosted Control.
+**How it works:** Sign in with your GODSEYE account to manage network devices, investigate security findings, coordinate MSP work, and keep your data on infrastructure you control.
 
 ### Dashboard
 
@@ -122,7 +122,7 @@ After a run, review the structured result and scan history. Where supported, res
 
 ![GODSEYE About](docs/screenshots/godseye-about.png)
 
-**How it works:** About GODSEYE presents the platform identity, MSP-focused mission, core capabilities, self-hosted operating model, and direct links to the project repository and documentation. It uses the same approved shield/G/eye branding and visual system as the rest of the application.
+**How it works:** About GODSEYE explains the four parts of the platform: network discovery and device intelligence, security investigation, day-to-day MSP workflows, and self-hosted control of your operational data. The repository and documentation links provide setup and technical details.
 
 ---
 
