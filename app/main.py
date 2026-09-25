@@ -6827,6 +6827,26 @@ html[data-theme="dark"] .badge{box-shadow:none!important}
 @media(max-width:1000px){.about-feature-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.about-info-grid{grid-template-columns:1fr}}@media(max-width:620px){.about-feature-grid{grid-template-columns:1fr}.about-brand-lockup{flex-direction:column}.about-wordmark{width:210px}.about-principles{grid-template-columns:1fr}}
 
 .about-page-heading{margin-bottom:12px!important;text-align:left}.about-page-heading h1{margin:0 0 4px!important}
+
+/* Continuous raised rim: one rounded edge around every workspace surface. */
+html[data-theme="dark"] :is(.card,.panel,.tool-card,.integration-card,.analytics-card,.notify-card,.report-type-card,.report-section-card,.calendar-main-card,.calendar-side-block,.email-shell,.v430-email-account-card,.remote-computers,.remote-session-panel,.windows-update-card,.antivirus-card,.windows-agent-row,.windows-source-row,.site-card,.authcard,.setup-card,.modal){
+  border:1px solid #3d6b86!important;
+  border-radius:11px!important;
+  box-shadow:inset 0 1px 0 rgba(166,214,238,.35),inset 1px 0 0 rgba(110,172,205,.19),inset -1px 0 0 rgba(110,172,205,.17),inset 0 -1px 0 rgba(87,142,173,.26),0 0 0 2px #132f43,0 3px 0 2px #23465e,0 9px 16px rgba(0,0,0,.34)!important;
+}
+html[data-theme="dark"] :is(.v430-global-search,.v430-bell,.user-chip,.headerbar .theme-toggle,.authcard .input,.authcard button.primary,.about-actions .about-button){
+  border:1px solid #3b6b89!important;
+  border-radius:9px!important;
+  box-shadow:inset 0 1px 0 rgba(153,208,239,.27),inset 1px 0 0 rgba(112,170,199,.12),inset 0 -1px 0 rgba(96,153,187,.2),0 0 0 1px #102d42,0 2px 0 1px #24475e,0 5px 10px rgba(0,0,0,.23)!important;
+}
+html[data-theme="dark"] :is(.card,.tool-card,.integration-card,.report-type-card,.report-section-card):hover{
+  border-color:#69a9cf!important;
+  box-shadow:inset 0 1px 0 rgba(196,235,255,.42),inset 1px 0 0 rgba(142,200,229,.2),inset 0 -1px 0 rgba(114,180,215,.27),0 0 0 2px #1c4562,0 3px 0 2px #316585,0 10px 18px rgba(0,0,0,.35)!important;
+}
+html[data-theme="dark"] .v430-global-search:focus-within{border-color:#7acbfa!important;box-shadow:inset 0 1px 0 rgba(205,240,255,.4),0 0 0 2px #164a70,0 2px 0 2px #315e7e,0 0 0 5px rgba(35,152,225,.13)!important}
+@media(max-width:700px){html[data-theme="dark"] :is(.card,.panel,.authcard,.v430-global-search){box-shadow:inset 0 1px 0 rgba(166,214,238,.28),0 0 0 1px #173a52,0 2px 0 1px #24465c,0 6px 11px rgba(0,0,0,.28)!important}}
+html:not([data-theme="dark"]) :is(.card,.panel,.tool-card,.integration-card,.analytics-card,.notify-card,.report-type-card,.report-section-card,.authcard,.modal){border:1px solid #8bb1ca!important;border-radius:11px!important;box-shadow:inset 0 1px 0 #fff,inset 1px 0 0 rgba(255,255,255,.65),0 0 0 2px #dbe9f3,0 3px 0 2px #a5c4d8,0 8px 16px rgba(25,53,73,.13)!important}
+html:not([data-theme="dark"]) :is(.v430-global-search,.v430-bell,.user-chip,.authcard .input,.authcard button.primary){border-radius:9px!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.6),0 0 0 1px #d9e9f2,0 2px 0 1px #a6c7dc,0 5px 10px rgba(27,59,84,.12)!important}
 </style><link rel="stylesheet" href="/assets/sites.css"></head>
 <body>
 <div id="authOverlay" class="overlay" style="display:none">

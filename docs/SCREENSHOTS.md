@@ -1,6 +1,6 @@
 # GODSEYE screen gallery
 
-These images are captured from the redesigned running GODSEYE application using the repository's automated UI capture workflow. They use a clean local screenshot database, so empty or zero states represent a fresh installation rather than sample customer data.
+The original application states were captured from a running GODSEYE instance with the repository's automated UI capture workflow. The card, search, and login borders in this gallery were visually refreshed from those captures to show the new continuous rim treatment. The figures and customer data remain those of the original captures. Run `scripts/capture_ui.py` with a browser to recapture the installed build directly.
 
 ## Sign in
 
