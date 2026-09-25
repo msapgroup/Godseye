@@ -68,6 +68,10 @@ async def main():
             await page.wait_for_timeout(1500)
             if view == "overview":
                 assert await page.locator("#view-overview").inner_text() != ""
+            if view == "about":
+                assert await page.locator("#view-about .about-tagline").inner_text() == (
+                    "Network Intelligence · Security Operations · MSP Workflow · Self-Hosted Control"
+                )
             await page.screenshot(path=str(OUT / filename), full_page=True)
 
         # Pair a second, seeded GODSEYE over authenticated HTTPS and capture
