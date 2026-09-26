@@ -95,23 +95,29 @@ async def main():
                 await page.locator('#kbList .crm-customer-card').first.click()
                 await page.locator('#kbRecord .kb-step-image').first.wait_for()
                 assert await page.locator('#kbRecord .kb-step').count() == 3
-                await page.screenshot(path=str(OUT / 'v431-kb-outlook-guide.png'), full_page=True)
+                assert await page.locator('#kbRecord .kb-step-image').first.evaluate('img => img.complete && img.naturalWidth > 0')
                 await page.get_by_role('button', name='+ New article').click()
                 await page.locator('#kbForm [name=title]').fill('Sample printer troubleshooting')
+                await page.locator('#kbForm [name=product]').fill('HP LaserJet')
+                await page.locator('#kbForm [name=category]').fill('Printers')
+                await page.locator('#kbForm [name=summary]').fill('Use when a printer reports a paper jam.')
                 await page.locator('#kbSteps [name=step_title]').first.fill('Check the paper path')
+                await page.locator('#kbSteps [name=step_instructions]').first.fill('Power off the printer and remove any visible paper from the tray.')
+                await page.screenshot(path=str(OUT / 'v431-kb-new-article.png'), full_page=True)
                 await page.locator('#kbRecord button[form=kbForm]').click()
                 await page.locator('#kbRecord .kb-save-success').wait_for()
                 assert not await page.locator('#kbForm').count(), 'New KB card did not close after save'
                 await page.get_by_role('button', name='Open article').click()
                 await page.get_by_role('button', name='Edit article').click()
                 await page.locator('#kbForm').wait_for()
-                await page.screenshot(path=str(OUT / 'v431-kb-new-article.png'), full_page=True)
                 await page.get_by_role('button', name='Cancel').click()
                 page.once('dialog', lambda dialog: dialog.accept())
                 await page.get_by_role('button', name='Delete', exact=True).click()
                 await page.locator('#kbRecord .crm-empty').wait_for()
                 await page.locator('#kbSearch').fill('')
                 await page.locator('#kbList .crm-customer-card').first.click()
+                await page.locator('#kbRecord .kb-step-image').first.wait_for()
+                assert await page.locator('#kbRecord .kb-step-image').first.evaluate('img => img.complete && img.naturalWidth > 0')
             if view == "overview":
                 assert await page.locator("#view-overview").inner_text() != ""
             if view == "about":
