@@ -46,7 +46,7 @@ Open **Knowledge Base** and search for a keyword in article content or steps. Ch
 
 ![New article editor](screenshots/v431-kb-new-article.png)
 
-Fill in the article title, product, optional customer/site, description, prerequisites, steps, troubleshooting, and official source links. Save to enable attachments. Each image is an illustration of the Outlook flow; consult the linked Microsoft article for the current product UI.
+Fill in the article title, product, optional customer/site, description, prerequisites, steps, troubleshooting, and official source links. Save to close the new article card and enable attachments; select **Open article** to return to the saved guide. Each image is an illustration of the Outlook flow; consult the linked Microsoft article for the current product UI.
 
 ## Calendar
 

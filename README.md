@@ -82,7 +82,7 @@ The gallery is based on captures from the running app with representative sample
 
 ![GODSEYE new KB article editor](docs/screenshots/v431-kb-new-article.png)
 
-**How to add a KB:** Open **Knowledge Base → New article**, enter a title, product, and a description of when to use it. Add each step and the expected result, then save. Reopen **Edit article** to refine the instructions. Files accept PNG, JPG, GIF, WebP, PDF, text, CSV, Word, and Excel formats up to 10 MB each. Files are private to authenticated GODSEYE users.
+**How to add a KB:** Open **Knowledge Base → New article**, enter a title, product, and a description of when to use it. Add each step and the expected result, then save. A successful save closes the new article card; select **Open article** or its entry in the list to return to it. Reopen **Edit article** to refine the instructions. Files accept PNG, JPG, GIF, WebP, PDF, text, CSV, Word, and Excel formats up to 10 MB each. Files are private to authenticated GODSEYE users.
 
 ### Calendar and maintenance planning
 

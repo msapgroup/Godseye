@@ -100,7 +100,9 @@ async def main():
                 await page.locator('#kbForm [name=title]').fill('Sample printer troubleshooting')
                 await page.locator('#kbSteps [name=step_title]').first.fill('Check the paper path')
                 await page.locator('#kbRecord button[form=kbForm]').click()
-                await page.locator('#kbRecord .kb-article').wait_for()
+                await page.locator('#kbRecord .kb-save-success').wait_for()
+                assert not await page.locator('#kbForm').count(), 'New KB card did not close after save'
+                await page.get_by_role('button', name='Open article').click()
                 await page.get_by_role('button', name='Edit article').click()
                 await page.locator('#kbForm').wait_for()
                 await page.screenshot(path=str(OUT / 'v431-kb-new-article.png'), full_page=True)
