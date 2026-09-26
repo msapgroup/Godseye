@@ -72,7 +72,17 @@ The gallery is based on captures from the running app with representative sample
 
 ![GODSEYE CRM customer card](docs/screenshots/v431-crm-live.png)
 
-**How it works:** Select **CRM** in the sidebar. Choose **Add Customer**, enter the name and contact details, optionally select a linked GODSEYE site, and save. A successful save closes the new customer card; select the saved customer in the list to open it again. Select any customer card to edit its status, address, and internal notes. Add contacts to the customer card; each contact can have a role, email, and phone number. Search the customer list by name or email. Operators and administrators can edit records; only administrators can delete customers. Linking a site shows its name and a shortcut to the Sites workspace. The screenshot shows a saved sample record; new installations start with an empty CRM.
+**How it works:** Select **CRM** in the sidebar. Choose **Add Customer**, enter the name and contact details, optionally select a linked GODSEYE site, and save. A successful save closes the new customer card; select the saved customer in the list to open it again. Select any customer card to edit its status, address, and internal notes. Add contacts to the customer card; each contact can have a role, email, and phone number. Search the customer list by name or email. Operators and administrators can edit records; only administrators can delete customers. Linking a site shows its name and a shortcut to the Sites workspace. Select **Upload files** in a saved customer card to add documents or pictures. Choose **Download** to retrieve them, or **Remove** to delete an old attachment. Files accept PNG, JPG, GIF, WebP, PDF, text, CSV, Word, and Excel formats up to 10 MB each. The screenshot shows a saved sample record; new installations start with an empty CRM.
+
+### Knowledge Base · Repeatable MSP fixes
+
+![GODSEYE Outlook setup KB article](docs/screenshots/v431-kb-outlook-guide.png)
+
+**How it works:** Select **Knowledge Base** in the sidebar. Search for a keyword in article titles, products, categories, tags, troubleshooting notes, or numbered steps. Open the included **Set up Outlook on a Windows computer** guide to see the steps and illustrated images. The guide links to [Microsoft’s current Outlook instructions](https://support.microsoft.com/en-us/outlook/getstarted/add-an-email-account-to-outlook-for-windows). The illustrated step images explain the flow; they are not Microsoft product screenshots. Select **New article** to write your own fix with prerequisites, numbered steps, links, troubleshooting, and expected results. Save it, then upload pictures and documents; use **Copy image URL** to place an uploaded picture into a step. Operators and administrators can create and edit guides; administrators can delete old articles with their attachments. The initial Outlook guide is seeded once on upgrade, and deleting it will not recreate it on restart.
+
+![GODSEYE new KB article editor](docs/screenshots/v431-kb-new-article.png)
+
+**How to add a KB:** Open **Knowledge Base → New article**, enter a title, product, and a description of when to use it. Add each step and the expected result, then save. Reopen **Edit article** to refine the instructions. Files accept PNG, JPG, GIF, WebP, PDF, text, CSV, Word, and Excel formats up to 10 MB each. Files are private to authenticated GODSEYE users.
 
 ### Calendar and maintenance planning
 

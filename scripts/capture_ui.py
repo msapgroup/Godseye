@@ -16,6 +16,7 @@ CAPTURES = [
     ("devices", "v431-devices-guide.png"),
     ("network", "v431-network-map-card.png"),
     ("crm", "v431-crm-live.png"),
+    ("kb", "v431-kb-outlook-guide.png"),
     ("calendar", "v431-calendar-guide.png"),
     ("email", "v431-email-guide.png"),
     ("health", "v431-system-health-guide.png"),
@@ -85,6 +86,30 @@ async def main():
                 await page.fill('#crmContactEditor [name=phone]', '(555) 010-2200')
                 await page.get_by_role('button', name='Save contact').click()
                 await page.locator('#crmRecord .crm-contact-card').first.wait_for()
+                await page.locator('#crmRecord .kb-upload-label input').set_input_files({
+                    'name':'office-notes.txt','mimeType':'text/plain','buffer':b'Customer support notes for screenshot demo.'})
+                await page.locator('#crmRecord .crm-contact-card').filter(has_text='office-notes.txt').wait_for()
+            if view == "kb":
+                await page.locator('#kbSearch').fill('MFA')
+                await page.locator('#kbList .crm-customer-card').first.wait_for()
+                await page.locator('#kbList .crm-customer-card').first.click()
+                await page.locator('#kbRecord .kb-step-image').first.wait_for()
+                assert await page.locator('#kbRecord .kb-step').count() == 3
+                await page.screenshot(path=str(OUT / 'v431-kb-outlook-guide.png'), full_page=True)
+                await page.get_by_role('button', name='+ New article').click()
+                await page.locator('#kbForm [name=title]').fill('Sample printer troubleshooting')
+                await page.locator('#kbSteps [name=step_title]').first.fill('Check the paper path')
+                await page.locator('#kbRecord button[form=kbForm]').click()
+                await page.locator('#kbRecord .kb-article').wait_for()
+                await page.get_by_role('button', name='Edit article').click()
+                await page.locator('#kbForm').wait_for()
+                await page.screenshot(path=str(OUT / 'v431-kb-new-article.png'), full_page=True)
+                await page.get_by_role('button', name='Cancel').click()
+                page.once('dialog', lambda dialog: dialog.accept())
+                await page.get_by_role('button', name='Delete', exact=True).click()
+                await page.locator('#kbRecord .crm-empty').wait_for()
+                await page.locator('#kbSearch').fill('')
+                await page.locator('#kbList .crm-customer-card').first.click()
             if view == "overview":
                 assert await page.locator("#view-overview").inner_text() != ""
             if view == "about":
