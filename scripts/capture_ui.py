@@ -103,6 +103,8 @@ async def main():
                 await page.locator('#kbForm [name=summary]').fill('Use when a printer reports a paper jam.')
                 await page.locator('#kbSteps [name=step_title]').first.fill('Check the paper path')
                 await page.locator('#kbSteps [name=step_instructions]').first.fill('Power off the printer and remove any visible paper from the tray.')
+                await page.evaluate('document.activeElement.blur(); window.scrollTo(0, 0)')
+                await page.wait_for_timeout(200)
                 await page.screenshot(path=str(OUT / 'v431-kb-new-article.png'), full_page=True)
                 await page.locator('#kbRecord button[form=kbForm]').click()
                 await page.locator('#kbRecord .kb-save-success').wait_for()
