@@ -102,6 +102,22 @@ The gallery is based on captures from the running app with representative sample
 
 **How it works:** System Health gives administrators one place to review the appliance, scanner, database, backups, integrations, CPU, memory, disk usage, storage growth, network activity, temperature, and uptime. Health checks, logs, backups, retention, services, and update controls are available from the same area.
 
+### Users & Permissions
+
+![GODSEYE Users and Permissions](docs/screenshots/v431-permissions-restore.png)
+
+**How it works:** Admins open **Users & Permissions** to add or remove users, change roles, and control sidebar access. Select **Operator**, **Auditor**, or **Read-Only**, then choose **Full access**, **Read only**, or **No access** for each sidebar item. Save the role permissions when finished. No access hides the item and also blocks direct API requests; Read only opens the page while write actions remain disabled.
+
+Only an Admin can change users, roles, or permissions.
+
+### Full backup and restore
+
+![GODSEYE permissions and restore](docs/screenshots/v431-permissions-restore.png)
+
+**How it works:** Admins open **System Health** and use **Full Backup & Server Restore**. **Export Full Backup ZIP** downloads the database, settings snapshot, and appliance encryption key. On a replacement server, select that ZIP inside GODSEYE and choose **Restore from ZIP**. GODSEYE validates the archive, creates a pre-restore safety backup, restores the database and key, and records the action in the Audit Log. Restart GODSEYE services after a restore and sign in with an account from the restored backup.
+
+The full backup contains sensitive operational data and the appliance encryption key. Store it securely.
+
 ### Remote Access
 
 ![GODSEYE Remote Access](docs/screenshots/v431-remote-access-guide.png)

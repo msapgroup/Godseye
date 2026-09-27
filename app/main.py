@@ -5,6 +5,10 @@ import hmac
 import mimetypes
 import ipaddress
 import json
+import io
+import hashlib
+import zipfile
+import tempfile
 import math
 import os
 import re
@@ -26,7 +30,8 @@ from email.message import EmailMessage
 from email.utils import formatdate
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
-from fastapi.responses import HTMLResponse, PlainTextResponse, FileResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse, FileResponse, RedirectResponse, JSONResponse
+from starlette.background import BackgroundTask
 from pydantic import BaseModel, field_validator
 from PIL import Image, UnidentifiedImageError
 
@@ -47,6 +52,8 @@ from .cyber_tools import (CyberScheduleManager, SCHEDULABLE_TOOLS, capabilities 
                           utcnow as cyber_utcnow)
 from .site_federation import ensure_schema as ensure_site_schema, register_routes as register_site_routes
 from .crm import ensure_schema as ensure_crm_schema, register_routes as register_crm_routes
+from . import access_control as acl
+from .appliance_hardening import BACKUP_DIR, KEY_PATH
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -968,6 +975,22 @@ async def security_headers(request: Request, call_next):
 
 router_prefix = "/api/v1"
 
+@app.middleware("http")
+async def sidebar_access_boundary(request: Request, call_next):
+    """Enforce page visibility and writes at the API, including direct requests."""
+    page = acl.page_for_path(request.url.path)
+    if page:
+        try:
+            user = get_current_user(request)
+            with db() as c:
+                acl.ensure_schema(c)
+                permission = acl.access(c, user["role"], page)
+            if permission == "none" or (permission == "read" and request.method not in {"GET", "HEAD", "OPTIONS"}):
+                return JSONResponse({"detail": "Sidebar permission denied"}, status_code=403)
+        except HTTPException as exc:
+            return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+    return await call_next(request)
+
 
 # ---------------------------------------------------------------------------
 # Auth
@@ -1118,7 +1141,15 @@ ROLE_PERMISSIONS = {
 }
 
 def require_permission(permission: str):
-    def dep(user=Depends(get_current_user)):
+    def dep(request: Request, user=Depends(get_current_user)):
+        page = acl.page_for_path(request.url.path)
+        if page:
+            with db() as c:
+                level = acl.access(c, user["role"], page)
+            if permission in {"audit.read", "reports.read"} and level != "none":
+                return user
+            if level == "full":
+                return user
         perms=ROLE_PERMISSIONS.get(user["role"], set())
         if "*" not in perms and permission not in perms:
             raise HTTPException(403, f"Permission required: {permission}")
@@ -1308,6 +1339,8 @@ def logout(request: Request, response: Response):
 def me(user=Depends(get_current_user)):
     with db() as c:
         mfa = c.execute("SELECT enabled FROM mfa_secrets WHERE user_id=?", (user["id"],)).fetchone()
+        acl.ensure_schema(c)
+        page_access = {page: acl.access(c, user["role"], page) for page in acl.PAGES}
     hard_blocked = must_change_now(user["must_change_password"], user["must_change_password_by"]) \
         or is_password_expired(user["password_changed_at"])
     resp = {
@@ -1315,6 +1348,7 @@ def me(user=Depends(get_current_user)):
         "role": user["role"],
         "must_change_password": hard_blocked,
         "mfa_enabled": bool(mfa and mfa["enabled"]),
+        "page_access": page_access,
     }
     if user["must_change_password"] and not hard_blocked:
         resp["password_change_reminder_days"] = days_until(user["must_change_password_by"])
@@ -1503,6 +1537,54 @@ def list_users(admin=Depends(require_admin)):
             "FROM users u ORDER BY u.id"
         ).fetchall()
     return [dict(r) for r in rows]
+
+
+class RoleAccessUpdate(BaseModel):
+    pages: dict[str, str]
+
+
+@app.get(f"{router_prefix}/users/role-access")
+def list_role_access(admin=Depends(require_admin)):
+    with db() as c:
+        acl.ensure_schema(c)
+        return {"groups": acl.GROUPS, "labels": acl.PAGES, "roles": acl.matrix(c)}
+
+
+@app.put(f"{router_prefix}/users/role-access/{{role}}")
+def update_role_access(role: str, req: RoleAccessUpdate, request: Request, admin=Depends(require_admin)):
+    if role not in {"operator", "auditor", "readonly"}:
+        raise HTTPException(400, "Admin permissions cannot be changed")
+    if set(req.pages) != set(acl.PAGES) or any(v not in {"full", "read", "none"} for v in req.pages.values()):
+        raise HTTPException(400, "Submit one valid access level for each sidebar page")
+    with db() as c:
+        acl.ensure_schema(c)
+        for page, level in req.pages.items():
+            c.execute("INSERT INTO role_page_permissions(role,page,access) VALUES(?,?,?) "
+                      "ON CONFLICT(role,page) DO UPDATE SET access=excluded.access", (role, page, level))
+        audit(c, admin["username"], "role_access_updated", role, json.dumps(req.pages, sort_keys=True), client_ip(request))
+    return {"ok": True, "role": role}
+
+
+class UserRoleUpdate(BaseModel):
+    role: str
+
+
+@app.put(f"{router_prefix}/users/{{user_id}}/role")
+def change_user_role(user_id: int, req: UserRoleUpdate, request: Request, admin=Depends(require_admin)):
+    if req.role not in VALID_ROLES:
+        raise HTTPException(400, "Unknown role")
+    if user_id == admin["id"]:
+        raise HTTPException(400, "Cannot change your own role")
+    with db() as c:
+        target = c.execute("SELECT username, role FROM users WHERE id=?", (user_id,)).fetchone()
+        if not target:
+            raise HTTPException(404, "User not found")
+        if target["role"] == "admin" and req.role != "admin" and c.execute("SELECT COUNT(*) FROM users WHERE role='admin'").fetchone()[0] <= 1:
+            raise HTTPException(400, "Cannot remove the last Admin")
+        c.execute("UPDATE users SET role=? WHERE id=?", (req.role, user_id))
+        c.execute("DELETE FROM sessions WHERE user_id=?", (user_id,))
+        audit(c, admin["username"], "user_role_changed", target["username"], f"{target['role']} -> {req.role}", client_ip(request))
+    return {"ok": True}
 
 
 @app.get(f"{router_prefix}/ticket-assignees")
@@ -6871,6 +6953,8 @@ html[data-theme="dark"] .v430-global-search:focus-within{border-color:#7acbfa!im
 @media(max-width:700px){html[data-theme="dark"] :is(.card,.panel,.authcard,.v430-global-search){box-shadow:inset 0 1px 0 rgba(166,214,238,.28),0 0 0 1px #173a52,0 2px 0 1px #24465c,0 6px 11px rgba(0,0,0,.28)!important}}
 html:not([data-theme="dark"]) :is(.card,.panel,.tool-card,.integration-card,.analytics-card,.notify-card,.report-type-card,.report-section-card,.authcard,.modal){border:1px solid #8bb1ca!important;border-radius:11px!important;box-shadow:inset 0 1px 0 #fff,inset 1px 0 0 rgba(255,255,255,.65),0 0 0 2px #dbe9f3,0 3px 0 2px #a5c4d8,0 8px 16px rgba(25,53,73,.13)!important}
 html:not([data-theme="dark"]) :is(.v430-global-search,.v430-bell,.user-chip,.authcard .input,.authcard button.primary){border-radius:9px!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.6),0 0 0 1px #d9e9f2,0 2px 0 1px #a6c7dc,0 5px 10px rgba(27,59,84,.12)!important}
+.role-access-card{margin:18px 16px;padding:18px;border:1px solid #3d6b86;border-radius:11px;background:linear-gradient(150deg,#0d2234,#091824);box-shadow:inset 0 1px #7699ad,0 3px #23465e,0 9px 16px #0005}
+.role-access-intro{padding:14px 18px 0}.role-access-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0}.role-tab.selected{background:#1477c2;color:white;border-color:#4ab6fd}.role-access-head,.role-access-row{display:grid;grid-template-columns:minmax(140px,1fr) repeat(3,minmax(72px,108px));align-items:center;gap:5px;padding:8px 4px}.role-access-head{color:#89acc4;text-transform:uppercase;letter-spacing:1px;font-size:10px}.role-access-head span:not(:first-child){text-align:center}.role-access-row{border-bottom:1px solid #264153;min-height:39px}.role-access-row label{text-align:center;cursor:pointer}.role-access-row input{accent-color:#249cf0;width:17px;height:17px}.role-access-group{color:#62bafa;font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;margin-top:16px;border-bottom:1px solid #35566d;padding:7px 4px}.role-access-card .actions{padding:18px 4px 0}@media(max-width:650px){.role-access-card{margin:12px 5px;padding:10px}.role-access-head,.role-access-row{grid-template-columns:minmax(105px,1fr) repeat(3,62px);font-size:11px}}
 </style><link rel="stylesheet" href="/assets/sites.css"><link rel="stylesheet" href="/assets/crm.css"><link rel="stylesheet" href="/assets/kb.css"></head>
 <body>
 <div id="authOverlay" class="overlay" style="display:none">
@@ -6958,7 +7042,7 @@ html:not([data-theme="dark"]) :is(.v430-global-search,.v430-bell,.user-chip,.aut
 <div class="navsection">Administration</div>
 <button type="button" class="navitem" data-view="health"><span class="navicon"><svg viewBox="0 0 24 24"><path d="M3 12h4l2-5 4 10 2-5h6"/><path d="M20.5 5.5a5 5 0 0 0-7.1 0L12 7l-1.4-1.5a5 5 0 0 0-7.1 7L12 21l8.5-8.5a5 5 0 0 0 0-7Z"/></svg></span><span>System Health</span></button>
 <button type="button" class="navitem" data-view="rules" id="navRules"><span class="navicon"><svg viewBox="0 0 24 24"><path d="M5 4h14M5 12h14M5 20h14"/><circle cx="9" cy="4" r="2"/><circle cx="15" cy="12" r="2"/><circle cx="8" cy="20" r="2"/></svg></span><span>Alert Rules</span></button>
-<button type="button" class="navitem" id="navUsers" data-view="users"><span class="navicon"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="4"/><path d="M2 21a7 7 0 0 1 14 0M16 7a4 4 0 0 1 0 7M18 16a6 6 0 0 1 4 5"/></svg></span><span>Users</span></button>
+<button type="button" class="navitem" id="navUsers" data-view="users"><span class="navicon"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="4"/><path d="M2 21a7 7 0 0 1 14 0M16 7a4 4 0 0 1 0 7M18 16a6 6 0 0 1 4 5"/></svg></span><span>Users &amp; Permissions</span></button>
 <button type="button" class="navitem" id="navAudit" data-view="audit"><span class="navicon"><svg viewBox="0 0 24 24"><path d="M6 3h12v18H6Z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg></span><span>Audit Log</span></button>
 <button type="button" class="navitem" data-view="security"><span class="navicon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.5-2.5 1A7 7 0 0 0 15 6l-.4-2.7h-4L10 6a7 7 0 0 0-1.4.8l-2.5-1-2 3.5L6.2 11a7 7 0 0 0 0 2l-2 1.5 2 3.5 2.5-1A7 7 0 0 0 10 18l.5 2.7h4L15 18a7 7 0 0 0 1.4-.8l2.5 1 2-3.5-2-1.5c.1-.4.1-.8.1-1.2Z"/></svg></span><span>Settings</span></button>
 <button type="button" class="navitem" data-view="about"><span class="navicon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 10v7M12 7h.01"/></svg></span><span>About</span></button>
@@ -7501,6 +7585,7 @@ html:not([data-theme="dark"]) :is(.v430-global-search,.v430-bell,.user-chip,.aut
 <section class="panel"><div class="table-head"><h2>Encrypted Secrets & Prometheus</h2><div class="muted">Integration credentials are encrypted at rest with the appliance key</div></div><div style="padding:16px"><button class="primary" onclick="rotateMetricsKey()">Generate / Rotate Metrics API Key</button><pre id="metricsKeyOut" style="white-space:pre-wrap;margin-top:12px"></pre><div class="muted header-help-extra">Prometheus can authenticate with Authorization: Bearer &lt;key&gt; or X-API-Key. Browser sessions can also open /metrics.</div></div></section>
 <section class="panel"><div class="table-head"><h2>Retention Policies</h2><div class="muted">Days to retain local operational history</div></div><div style="padding:16px" class="grid"><label>Traffic <input id="retTraffic" class="input" type="number" min="1"></label><label>Events <input id="retEvents" class="input" type="number" min="1"></label><label>Audit <input id="retAudit" class="input" type="number" min="1"></label><label>Reports <input id="retReports" class="input" type="number" min="1"></label><label>Sync history <input id="retSync" class="input" type="number" min="1"></label><label>Notifications <input id="retNotify" class="input" type="number" min="1"></label><div><button class="primary" onclick="saveRetention()">Save & Prune</button></div></div></section>
 <section class="panel"><div class="table-head"><h2>Database Backups</h2><div class="muted">SQLite online backups with integrity checks. Restore automatically creates a pre-restore safety backup.</div></div><div style="overflow:auto"><table><thead><tr><th>Created</th><th>Filename</th><th>Size</th><th>Note</th><th>Action</th></tr></thead><tbody id="backupRows"></tbody></table></div></section>
+<section class="panel admin-only"><div class="table-head"><h2>Full Backup &amp; Server Restore</h2><div class="muted">Move this GODSEYE installation to another machine, including its database, settings and encryption key.</div></div><div style="padding:16px"><p class="muted">The ZIP includes customer and operational data, account records and the appliance encryption key. Store it securely. Restore replaces this server's database and creates a safety backup first.</p><div class="actions"><button class="primary" type="button" onclick="exportFullBackup()">Export Full Backup ZIP</button><input id="fullRestoreFile" type="file" accept=".zip,application/zip" class="input" aria-label="Select full GODSEYE backup ZIP"><button class="danger" type="button" onclick="restoreFullBackup()">Restore from ZIP</button></div><p id="fullRestoreStatus" class="muted" role="status">Admin only · restart GODSEYE services after a restore.</p></div></section>
 <section class="panel"><div class="table-head"><h2>Production Appliance Management</h2><div class="muted">Automatic backups, HTTPS, configuration portability and controlled updates</div></div><div style="padding:16px" class="grid"><label>Automatic backup <select id="prodAutoBackup" class="filter"><option value="1">Enabled</option><option value="0">Disabled</option></select></label><label>Backup UTC hour <input id="prodBackupHour" class="input" type="number" min="0" max="23" value="3"></label><label>Backups to keep <input id="prodBackupKeep" class="input" type="number" min="1" max="100" value="14"></label><label>Update channel <select id="prodUpdateChannel" class="filter"><option value="stable">Stable</option><option value="beta">Beta</option></select></label><div><button class="primary" onclick="saveProductionSettings()">Save Appliance Settings</button> <a class="secondary" href="/api/v1/config/export" style="text-decoration:none">Export Config</a></div><div id="httpsOut" class="muted header-help-extra"></div></div></section>
 <section class="panel"><div class="table-head"><h2>Controlled Software Update</h2><div class="muted">Stage a GODSEYE ZIP, verify package structure and SHA-256, then explicitly confirm application.</div></div><div style="padding:16px"><input id="updateFile" type="file" accept=".zip" class="input"> <button class="primary" onclick="stageUpdate()">Stage & Preflight</button><pre id="updateOut" class="result">No update staged.</pre><button class="danger" id="applyUpdateBtn" style="display:none" onclick="applyUpdate()">Apply Staged Update</button></div></section>
 <section class="panel"><div class="table-head"><h2>HTTPS / TLS</h2><div class="muted">Nginx reverse proxy with a self-signed certificate or Let's Encrypt.</div></div><div style="padding:16px"><div id="tlsStatus" class="muted">Checking…</div><pre class="result">Run on the Raspberry Pi as root:
@@ -7605,6 +7690,8 @@ sudo godseye-https-setup godseye.example.com letsencrypt</pre></div></section>
 
 <div class="view" id="view-users" style="display:none">
 <section class="panel" id="usersPanel"><h2>Users</h2>
+<div class="role-access-intro muted">Only Admin can add or remove users, change roles, or edit the permissions below.</div>
+<section class="role-access-card"><div class="table-head"><h2>Role access by sidebar item</h2><span class="muted">One level per item</span></div><div class="role-access-tabs"><button type="button" class="secondary" disabled>Admin · full access</button><button type="button" class="secondary role-tab selected" data-role="operator" onclick="selectRoleAccess('operator')">Operator</button><button type="button" class="secondary role-tab" data-role="auditor" onclick="selectRoleAccess('auditor')">Auditor</button><button type="button" class="secondary role-tab" data-role="readonly" onclick="selectRoleAccess('readonly')">Read-Only</button></div><div class="role-access-head"><span>Sidebar item</span><span>Full access</span><span>Read only</span><span>No access</span></div><div id="roleAccessRows">Loading permissions…</div><div class="actions"><button type="button" class="primary" onclick="saveRoleAccess()">Save permissions</button><span class="muted" id="roleAccessStatus" role="status"></span></div></section>
 <form class="userForm" onsubmit="return createUser(event)"><input class="input" id="newUserDisplayName" placeholder="Display name"><input class="input" id="newUsername" placeholder="Username" required><input class="input" id="newUserPassword" type="password" placeholder="Password (min __MIN_PASSWORD_LENGTH__ chars)" required minlength="__MIN_PASSWORD_LENGTH__"><select class="filter" id="newUserRole"><option value="readonly">Read-only</option><option value="auditor">Auditor</option><option value="operator">Operator</option><option value="admin">Admin</option></select><button class="primary" type="submit">Add user</button></form>
 <div style="overflow:auto"><table><thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Created</th><th>Last login</th><th>Password changed</th><th>Must change PW</th><th>MFA</th><th></th></tr></thead><tbody id="users"></tbody></table></div>
 </section>
@@ -8086,6 +8173,12 @@ async function loadEmail(){
   emailAccountSelect.value=String(EMAIL_SELECTED_INTEGRATION);
   await loadEmailFolders();
   applyRoleVisibility();
+  document.querySelectorAll('.navitem[data-view]').forEach(nav=>{
+    if(nav.dataset.view==='users')return;
+    const level=ME.page_access?.[nav.dataset.view];
+    if(level)nav.style.display=level==='none'?'none':'';
+  });
+  document.querySelectorAll('.navitem[data-view="health"]')[0]?.setAttribute('title','System Health, backups and server restore');
  }catch(e){
   emailFolderList.innerHTML='<div class="empty">Email unavailable: '+esc(e.message)+'</div>';
  }
@@ -8811,6 +8904,8 @@ document.addEventListener('keydown',event=>{
 function showView(name,updateHash=true){
   const target=document.getElementById('view-'+name);
   if(!target){console.error('GODSEYE navigation target missing:',name);return false}
+  if(ME?.role!=='admin' && name==='users')return false;
+  if(ME?.role!=='admin' && ME?.page_access?.[name]==='none')return name==='overview'?false:showView('overview',updateHash);
   document.querySelectorAll('.view').forEach(v=>{v.style.display='none';v.setAttribute('aria-hidden','true')});
   target.style.display='block';target.setAttribute('aria-hidden','false');
   document.querySelectorAll('.navitem[data-view]').forEach(b=>{b.classList.remove('active');b.removeAttribute('aria-current')});
@@ -8850,11 +8945,38 @@ async function loadUsers(){
   if(panel)panel.style.display='block';
   try{
     const rows=await json('/api/v1/users');
+    await loadRoleAccess();
     if(tbody)tbody.innerHTML=rows.length?rows.map(x=>{
       const deadline=x.must_change_password?(x.must_change_password_by?`Yes, by ${esc(new Date(x.must_change_password_by).toLocaleDateString())}`:'Yes'):'No';
-      return `<tr><td>${esc(x.display_name||'—')}</td><td>${esc(x.username)}</td><td><span class="pill">${esc(x.role)}</span></td><td>${x.created_at?esc(new Date(x.created_at).toLocaleDateString()):'—'}</td><td>${x.last_login_at?esc(new Date(x.last_login_at).toLocaleString()):'Never'}</td><td>${x.password_changed_at?esc(new Date(x.password_changed_at).toLocaleDateString()):'—'}</td><td>${deadline}</td><td>${x.mfa_enabled?'Yes':'No'}</td><td>${x.username===ME.username?'':`<button class="link" onclick="removeUser(${x.id},'${esc(x.username)}')">Remove</button>${x.mfa_enabled?` <button class="link" onclick="resetUserMfa(${x.id},'${esc(x.username)}')">Reset MFA</button>`:''}`}</td></tr>`;
+      return `<tr><td>${esc(x.display_name||'—')}</td><td>${esc(x.username)}</td><td>${x.username===ME.username?`<span class="pill">${esc(x.role)}</span>`:`<select class="filter" aria-label="Role for ${esc(x.username)}" onchange="changeUserRole(${x.id},this.value)">${['admin','operator','auditor','readonly'].map(role=>`<option value="${role}" ${x.role===role?'selected':''}>${role==='readonly'?'Read-Only':role[0].toUpperCase()+role.slice(1)}</option>`).join('')}</select>`}</td><td>${x.created_at?esc(new Date(x.created_at).toLocaleDateString()):'—'}</td><td>${x.last_login_at?esc(new Date(x.last_login_at).toLocaleString()):'Never'}</td><td>${x.password_changed_at?esc(new Date(x.password_changed_at).toLocaleDateString()):'—'}</td><td>${deadline}</td><td>${x.mfa_enabled?'Yes':'No'}</td><td>${x.username===ME.username?'':`<button class="link" onclick="removeUser(${x.id},'${esc(x.username)}')">Remove</button>${x.mfa_enabled?` <button class="link" onclick="resetUserMfa(${x.id},'${esc(x.username)}')">Reset MFA</button>`:''}`}</td></tr>`;
     }).join(''):'<tr><td colspan="9" class="empty">No users found.</td></tr>';
   }catch(e){if(tbody)tbody.innerHTML='<tr><td colspan="9" class="empty">Unable to load users.</td></tr>'}
+}
+let ROLE_ACCESS_DATA=null,ROLE_ACCESS_DRAFT=null,ROLE_ACCESS_SELECTED='operator';
+async function loadRoleAccess(){
+  ROLE_ACCESS_DATA=await json('/api/v1/users/role-access');
+  ROLE_ACCESS_DRAFT=JSON.parse(JSON.stringify(ROLE_ACCESS_DATA.roles));
+  renderRoleAccess();
+}
+function selectRoleAccess(role){
+  if(!['operator','auditor','readonly'].includes(role))return;
+  ROLE_ACCESS_SELECTED=role;renderRoleAccess();
+}
+function renderRoleAccess(){
+  if(!ROLE_ACCESS_DATA||!ROLE_ACCESS_DRAFT)return;
+  document.querySelectorAll('.role-tab').forEach(button=>button.classList.toggle('selected',button.dataset.role===ROLE_ACCESS_SELECTED));
+  const rows=document.getElementById('roleAccessRows');if(!rows)return;
+  rows.innerHTML=Object.entries(ROLE_ACCESS_DATA.groups).map(([group,pages])=>`<div class="role-access-group">${esc(group)}</div>`+pages.map(page=>`<div class="role-access-row"><strong>${esc(ROLE_ACCESS_DATA.labels[page])}</strong>${['full','read','none'].map(level=>`<label title="${esc(level)}"><input type="radio" name="role-${ROLE_ACCESS_SELECTED}-${page}" aria-label="${esc(ROLE_ACCESS_DATA.labels[page])}: ${level==='read'?'Read only':level==='none'?'No access':'Full access'}" ${ROLE_ACCESS_DRAFT[ROLE_ACCESS_SELECTED][page]===level?'checked':''} onchange="ROLE_ACCESS_DRAFT['${ROLE_ACCESS_SELECTED}']['${page}']='${level}';document.getElementById('roleAccessStatus').textContent='Unsaved changes'"></label>`).join('')}</div>`).join('')).join('');
+}
+async function saveRoleAccess(){
+  const state=document.getElementById('roleAccessStatus');
+  try{await json('/api/v1/users/role-access/'+ROLE_ACCESS_SELECTED,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({pages:ROLE_ACCESS_DRAFT[ROLE_ACCESS_SELECTED]})});state.textContent='Permissions saved';await loadRoleAccess()}
+  catch(e){state.textContent='Could not save permissions: '+e.message}
+}
+async function changeUserRole(id,role){
+  if(!confirm('Change this user to '+role+'? Their current sessions will end.')){await loadUsers();return}
+  try{await json('/api/v1/users/'+id+'/role',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({role})});await loadUsers()}
+  catch(e){alert('Could not change role: '+e.message);await loadUsers()}
 }
 async function loadAudit(){
   const panel=document.getElementById('auditPanel'),tbody=document.getElementById('auditRows');
@@ -9331,6 +9453,20 @@ function renderHealthSummary(h,retention,backups,settings,notifications){
 async function loadHealth(){try{const [h,r,b,p,tls,nh]=await Promise.all([json('/api/v1/appliance/health'),json('/api/v1/appliance/retention').catch(()=>null),json('/api/v1/appliance/backups').catch(()=>[]),json('/api/v1/appliance/production-settings').catch(()=>null),json('/api/v1/appliance/https').catch(()=>null),json('/api/v1/notifications/history').catch(()=>[])]);LAST_HEALTH_CHECKS=Array.isArray(h.checks)?h.checks:[];healthOverall.textContent=(h.overall||'unknown').toUpperCase();healthHost.textContent=h.hostname||'—';healthKernel.textContent=h.kernel||'—';v430RenderHealthPage(h,b,p);renderHealthSummary(h,r,b,p,nh);healthChecks.innerHTML=(h.checks||[]).map(x=>`<tr><td>${esc(x.name)}</td><td><span class="pill ${x.status==='ok'?'online':x.status==='critical'?'offline':''}">${esc(x.status)}</span></td><td>${esc(v430HealthDetail(x))}</td></tr>`).join('');if(r){retTraffic.value=r.traffic_retention_days;retEvents.value=r.event_retention_days;retAudit.value=r.audit_retention_days;retReports.value=r.report_retention_days;retSync.value=r.sync_retention_days;retNotify.value=r.notification_retention_days}backupRows.innerHTML=(b||[]).map(x=>`<tr><td>${esc(new Date(x.created_at).toLocaleString())}</td><td>${esc(x.filename)}</td><td>${(x.size_bytes/1024/1024).toFixed(2)} MB</td><td>${esc(x.note||'')}</td><td><button class="link" onclick="restoreBackup('${esc(x.filename)}')">Restore</button></td></tr>`).join('')||'<tr><td colspan="5" class="empty">No backups yet.</td></tr>';if(p){prodAutoBackup.value=p.auto_backup_enabled?'1':'0';prodBackupHour.value=p.backup_hour_utc;prodBackupKeep.value=p.backup_keep_count;prodUpdateChannel.value=p.update_channel||'stable'}if(tls){tlsStatus.textContent=tls.configured?'HTTPS certificate is installed on this appliance.':'HTTPS certificate is not configured yet.';httpsOut.textContent=tls.helper||''}notificationHistoryRows.innerHTML=(nh||[]).map(x=>`<tr><td>${esc(new Date(x.created_at).toLocaleString())}</td><td>${esc(x.event_type)}</td><td>${esc(x.severity)}</td><td>${esc(x.status)}</td><td>${x.attempts||1}</td><td><button class="link" onclick="retryNotification(${x.id})">Retry</button></td></tr>`).join('')||'<tr><td colspan="6" class="empty">No notification history.</td></tr>'}catch(e){healthChecks.innerHTML='<tr><td colspan="3">'+esc(e.message)+'</td></tr>'}}
 async function createBackup(){try{await json('/api/v1/appliance/backups',{method:'POST'});await loadHealth()}catch(e){alert('Backup failed: '+e.message)}}
 async function restoreBackup(name){if(!confirm('Restore '+name+'? GODSEYE will create a safety backup first. A service restart is recommended after restore.'))return;try{const r=await json('/api/v1/appliance/backups/restore',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filename:name})});alert('Restore complete. Safety backup: '+r.safety_backup+'\nRestart GODSEYE services when convenient.');await loadHealth()}catch(e){alert('Restore failed: '+e.message)}}
+async function exportFullBackup(){
+ const status=document.getElementById('fullRestoreStatus');status.textContent='Creating portable backup…';
+ try{const response=await fetch('/api/v1/appliance/backups/export');if(!response.ok)throw new Error(await response.text());const blob=await response.blob(),link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download='godseye-full-backup-'+new Date().toISOString().slice(0,10)+'.zip';document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(link.href),60000);status.textContent='Backup downloaded. Store this ZIP securely; it contains user records and the appliance encryption key.'}
+ catch(e){status.textContent='Export failed: '+e.message}
+}
+async function restoreFullBackup(){
+ const file=document.getElementById('fullRestoreFile').files[0],status=document.getElementById('fullRestoreStatus');
+ if(!file){status.textContent='Select a full backup ZIP first.';return}
+ const phrase=prompt('This replaces the entire database, users and settings on this server. A safety backup is created first. Type RESTORE GODSEYE to continue.');
+ if(phrase!=='RESTORE GODSEYE')return;
+ status.textContent='Validating and restoring backup…';
+ try{const response=await fetch('/api/v1/appliance/backups/import',{method:'POST',headers:{'Content-Type':'application/zip','X-CSRF-Token':csrfToken()},body:file});if(!response.ok)throw new Error(await response.text());const result=await response.json();status.textContent='Restore complete. Safety backup: '+result.safety_backup+'. Restart GODSEYE services, then sign in with an account from the restored backup.'}
+ catch(e){status.textContent='Restore failed: '+e.message}
+}
 async function rotateMetricsKey(){if(!confirm('Rotate the Prometheus API key? Any existing Prometheus configuration will stop working until updated.'))return;try{const r=await json('/api/v1/appliance/prometheus-key',{method:'POST'});metricsKeyOut.textContent='API key (shown once):\n'+r.api_key+'\n\nPrometheus header:\nAuthorization: Bearer '+r.api_key}catch(e){alert(e.message)}}
 
 let STAGED_UPDATE=null;
@@ -10238,6 +10374,102 @@ def restore_existing_backup(req: BackupRestoreRequest, request: Request, user=De
         ensure_ir_schema(c); ensure_hardening_schema(c); migrate_plaintext_secrets(c)
         audit(c,user['username'],'backup_restored',req.filename,f'pre-restore={safety.name}',client_ip(request)); c.commit()
     return {**result,"safety_backup":safety.name,"restart_recommended":True}
+
+
+@app.get(f"{router_prefix}/appliance/backups/export")
+def export_full_backup(request: Request, user=Depends(require_admin)):
+    """Portable database, local encryption key and readable settings snapshot."""
+    source = create_backup(DB_PATH, "portable-export")
+    if not KEY_PATH.exists():
+        raise HTTPException(409, "Appliance encryption key is missing; full export is unavailable")
+    BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+    fd, bundle_name = tempfile.mkstemp(suffix=".zip", prefix="godseye-export-", dir=BACKUP_DIR)
+    os.close(fd)
+    try:
+        with db() as c:
+            config = config_export(c)
+            audit(c, user["username"], "full_backup_exported", source.name, "portable transfer", client_ip(request))
+        manifest = {"format": "godseye-full-backup", "version": 1, "created_at": now(),
+                    "database_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+                    "key_sha256": hashlib.sha256(KEY_PATH.read_bytes()).hexdigest()}
+        with zipfile.ZipFile(bundle_name, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=4) as bundle:
+            bundle.write(source, "database.db")
+            bundle.write(KEY_PATH, "secret.key")
+            bundle.writestr("settings.json", json.dumps(config, indent=2))
+            bundle.writestr("manifest.json", json.dumps(manifest, indent=2))
+        os.chmod(bundle_name, 0o600)
+    except Exception:
+        Path(bundle_name).unlink(missing_ok=True)
+        raise
+    return FileResponse(bundle_name, media_type="application/zip",
+                        filename=f"godseye-full-backup-{dt.datetime.now(dt.timezone.utc):%Y%m%dT%H%M%SZ}.zip",
+                        background=BackgroundTask(lambda: Path(bundle_name).unlink(missing_ok=True)),
+                        headers={"Cache-Control": "no-store"})
+
+
+@app.post(f"{router_prefix}/appliance/backups/import")
+async def import_full_backup(request: Request, user=Depends(require_admin)):
+    """Validate the transfer bundle before changing the live database."""
+    max_size = 256 * 1024 * 1024
+    length = request.headers.get("content-length", "")
+    if length.isdigit() and int(length) > max_size:
+        raise HTTPException(413, "Backup bundle exceeds 256 MB")
+    parts = []
+    size = 0
+    async for part in request.stream():
+        size += len(part)
+        if size > max_size:
+            raise HTTPException(413, "Backup bundle exceeds 256 MB")
+        parts.append(part)
+    if not size:
+        raise HTTPException(400, "Empty backup bundle")
+    try:
+        with zipfile.ZipFile(io.BytesIO(b"".join(parts))) as bundle:
+            if set(bundle.namelist()) != {"manifest.json", "database.db", "secret.key", "settings.json"}:
+                raise ValueError("Unexpected backup bundle contents")
+            manifest = json.loads(bundle.read("manifest.json"))
+            if manifest.get("format") != "godseye-full-backup" or manifest.get("version") != 1:
+                raise ValueError("Unsupported backup bundle")
+            db_info = bundle.getinfo("database.db")
+            if db_info.file_size > max_size or bundle.getinfo("secret.key").file_size > 4096:
+                raise ValueError("Backup bundle contents exceed limits")
+            contents = bundle.read("database.db")
+            key = bundle.read("secret.key")
+            if hashlib.sha256(contents).hexdigest() != manifest.get("database_sha256") or hashlib.sha256(key).hexdigest() != manifest.get("key_sha256"):
+                raise ValueError("Backup checksum mismatch")
+            if not key:
+                raise ValueError("Missing appliance encryption key")
+            json.loads(bundle.read("settings.json"))
+    except (zipfile.BadZipFile, KeyError, ValueError, json.JSONDecodeError) as exc:
+        raise HTTPException(400, f"Invalid backup bundle: {exc}") from exc
+    BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+    stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    filename = f"godseye-{stamp}-import.db"
+    destination = BACKUP_DIR / filename
+    if destination.exists():
+        raise HTTPException(409, "Backup import name collision; retry in a moment")
+    destination.write_bytes(contents)
+    os.chmod(destination, 0o600)
+    sidecar = BACKUP_DIR / (filename + ".key")
+    sidecar.write_bytes(key)
+    os.chmod(sidecar, 0o600)
+    try:
+        source_db = sqlite3.connect(f"file:{destination}?mode=ro", uri=True)
+        try:
+            if source_db.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
+                raise ValueError("Database integrity check failed")
+        finally:
+            source_db.close()
+        safety = create_backup(DB_PATH, "pre-import")
+        result = restore_backup(DB_PATH, filename)
+    except Exception as exc:
+        destination.unlink(missing_ok=True)
+        sidecar.unlink(missing_ok=True)
+        raise HTTPException(400, f"Restore could not complete: {exc}") from exc
+    with db() as c:
+        ensure_ir_schema(c); ensure_hardening_schema(c)
+        audit(c, user["username"], "full_backup_imported", filename, f"pre-import={safety.name}", client_ip(request))
+    return {**result, "safety_backup": safety.name, "restart_recommended": True}
 
 @app.post(f"{router_prefix}/appliance/prometheus-key")
 def rotate_prometheus_key(request: Request, user=Depends(require_admin)):
