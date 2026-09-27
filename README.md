@@ -36,7 +36,7 @@ Use GODSEYE to:
 
 ## See GODSEYE in action
 
-The gallery is based on captures from the running app with representative sample data. Older captures received a visual border refresh; the CRM screen was captured from the running app with a sample customer. Counts, findings, devices, and tickets shown here are examples, not live production results.
+The gallery uses running-app captures with representative sample data; the permissions and full backup panels are interface illustrations. Older captures received a visual border refresh; the CRM screen was captured from the running app with a sample customer. Counts, findings, devices, and tickets shown here are examples, not live production results.
 
 ### Sign in
 
@@ -112,7 +112,7 @@ Only an Admin can change users, roles, or permissions.
 
 ### Full backup and restore
 
-![GODSEYE permissions and restore](docs/screenshots/v431-permissions-restore.png)
+![GODSEYE in-app full backup and server restore preview](docs/screenshots/v431-full-backup-restore.png)
 
 **How it works:** Admins open **System Health** and use **Full Backup & Server Restore**. **Export Full Backup ZIP** downloads the database, settings snapshot, and appliance encryption key. On a replacement server, select that ZIP inside GODSEYE and choose **Restore from ZIP**. GODSEYE validates the archive, creates a pre-restore safety backup, restores the database and key, and records the action in the Audit Log. Restart GODSEYE services after a restore and sign in with an account from the restored backup.
 
