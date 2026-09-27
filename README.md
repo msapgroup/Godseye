@@ -36,7 +36,7 @@ Use GODSEYE to:
 
 ## See GODSEYE in action
 
-The gallery uses running-app captures with representative sample data; the permissions and full backup panels are interface illustrations. Older captures received a visual border refresh; the CRM screen was captured from the running app with a sample customer. Counts, findings, devices, and tickets shown here are examples, not live production results.
+Most gallery images are captures from the running app with representative sample data. The permissions and full backup panels are interface illustrations. Older captures received a visual border refresh; the CRM screen was captured from the running app with a sample customer. Counts, findings, devices, and tickets shown here are examples, not live production results.
 
 ### Sign in
 
