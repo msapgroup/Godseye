@@ -417,13 +417,26 @@ SD-card and hard-drive installations can work, but SSD-class storage is the bett
 
 ### Fresh install
 
-Extract the GODSEYE server package into a working directory:
+Choose either option on a supported Raspberry Pi OS, Debian, or Ubuntu-style Linux host. Run the installer from the directory containing `install.sh`.
+
+**Option 1 — Download the server ZIP:** Download the current [server release](https://github.com/msapgroup/Godseye/releases/latest), then extract it into a working directory:
 
     mkdir -p ~/godseye
     unzip GODSEYE-server*.zip -d ~/godseye
     cd ~/godseye
     chmod +x install.sh
     sudo ./install.sh --fresh
+
+If the release asset has a different filename or extracts into a subfolder, adjust the path so that you run the included `install.sh`.
+
+**Option 2 — Clone the repository:** With Git installed, clone the current `main` branch into a new directory:
+
+    git clone --depth 1 --branch main https://github.com/msapgroup/Godseye.git ~/godseye
+    cd ~/godseye
+    chmod +x install.sh
+    sudo ./install.sh --fresh
+
+The clone follows the latest `main` branch; use the release ZIP when you want a specific packaged release. Use a directory that does not already exist for the clone.
 
 When installation completes, open:
 
