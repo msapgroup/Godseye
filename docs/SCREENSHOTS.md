@@ -66,6 +66,12 @@ Connect a supported mailbox, browse messages, reply, and share generated GODSEYE
 
 Review web service, scanner, database, backups, notifications, integrations, CPU, memory, disk, storage, network activity, uptime, retention, updates, services, and logs.
 
+## Users & Permissions · Reset password
+
+![Admin password reset card](screenshots/v431-user-password-reset.png)
+
+Only an Admin can reset another user's password. Open **Users & Permissions**, choose **Reset password** beside the user, enter and confirm a temporary password, then submit. The card closes after success. Share the temporary password securely; the user's sessions end and they must change it on their next sign-in. MFA remains enabled. For your own password, use **Change Password** in account settings.
+
 ## Remote Access
 
 ![Remote Access](screenshots/v431-remote-access-guide.png)

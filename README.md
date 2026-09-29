@@ -108,6 +108,10 @@ Most gallery images are captures from the running app with representative sample
 
 **How it works:** Admins open **Users & Permissions** to add or remove users, change roles, and control sidebar access. Select **Operator**, **Auditor**, or **Read-Only**, then choose **Full access**, **Read only**, or **No access** for each sidebar item. Save the role permissions when finished. No access hides the item and also blocks direct API requests; Read only opens the page while write actions remain disabled.
 
+**Reset a user's password:** In the Users table, choose **Reset password** on that user's row. Enter a temporary password twice and select **Reset password**. Give it to the user through a secure channel. GODSEYE ends their existing sessions and requires them to set a new password at their next sign-in. This does not reset MFA. To change your own password, use **Change Password** in your account settings.
+
+![GODSEYE admin password reset card](docs/screenshots/v431-user-password-reset.png)
+
 Only an Admin can change users, roles, or permissions.
 
 ### Full backup and restore

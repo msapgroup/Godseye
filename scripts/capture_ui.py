@@ -128,6 +128,28 @@ async def main():
                 )
             await page.screenshot(path=str(OUT / filename), full_page=True)
 
+        # Show the real admin reset card against a sample user, and exercise its close/save path.
+        await page.evaluate("""async () => json('/api/v1/users', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({username: 'sample.tech', display_name: 'Sample Technician',
+                                  password: 'Sample-Technician-2026!', role: 'operator'})
+        })""")
+        await page.evaluate("() => showView('users', true)")
+        await page.locator('#users tr').filter(has_text='sample.tech').wait_for()
+        reset_button = page.locator('#users tr').filter(has_text='sample.tech').get_by_role('button', name='Reset password')
+        await reset_button.scroll_into_view_if_needed()
+        await reset_button.click()
+        await page.locator('#userPasswordResetModal').wait_for(state='visible')
+        await page.screenshot(path=str(OUT / 'v431-user-password-reset.png'))
+        await page.get_by_role('button', name='Cancel', exact=True).click()
+        assert not await page.locator('#userPasswordResetModal').is_visible()
+        await reset_button.click()
+        await page.fill('#userResetPassword', 'Sample-Temporary-2026!')
+        await page.fill('#userResetPasswordConfirm', 'Sample-Temporary-2026!')
+        page.once('dialog', lambda dialog: dialog.accept())
+        await page.locator('#userPasswordResetSubmit').click()
+        await page.locator('#userPasswordResetModal').wait_for(state='hidden')
+
         # Pair a second, seeded GODSEYE over authenticated HTTPS and capture
         # the actual workspace, including remotely loaded devices and tickets.
         private_ip = socket.gethostbyname(socket.gethostname())

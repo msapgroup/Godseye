@@ -1617,17 +1617,20 @@ def create_user(payload: CreateUserRequest, request: Request, admin=Depends(requ
 
 @app.post(f"{router_prefix}/users/{{user_id}}/reset-password")
 def admin_reset_password(user_id: int, payload: ResetPasswordRequest, request: Request, admin=Depends(require_admin)):
+    if user_id == admin["id"]:
+        raise HTTPException(400, "Use Change Password for your own account")
     with db() as c:
         target = c.execute("SELECT * FROM users WHERE id=?", (user_id,)).fetchone()
         if not target:
             raise HTTPException(404, "User not found")
+        check_password_strength(payload.new_password, target["username"])
         check_password_reuse(c, user_id, payload.new_password, target["password_salt"], target["password_hash"])
         record_password_history(c, user_id, target["password_salt"], target["password_hash"])
         salt, hashed = hash_password(payload.new_password)
         c.execute(
             "UPDATE users SET password_hash=?,password_salt=?,must_change_password=1,"
             "must_change_password_by=?,failed_attempts=0,locked_until=NULL,password_changed_at=? WHERE id=?",
-            (hashed, salt, must_change_deadline(), now(), user_id),
+            (hashed, salt, None, now(), user_id),
         )
         c.execute("DELETE FROM sessions WHERE user_id=?", (user_id,))
         audit(c, admin["username"], "password_reset_by_admin", target=target["username"] if target else str(user_id), ip=client_ip(request))
@@ -7695,6 +7698,18 @@ sudo godseye-https-setup godseye.example.com letsencrypt</pre></div></section>
 <form class="userForm" onsubmit="return createUser(event)"><input class="input" id="newUserDisplayName" placeholder="Display name"><input class="input" id="newUsername" placeholder="Username" required><input class="input" id="newUserPassword" type="password" placeholder="Password (min __MIN_PASSWORD_LENGTH__ chars)" required minlength="__MIN_PASSWORD_LENGTH__"><select class="filter" id="newUserRole"><option value="readonly">Read-only</option><option value="auditor">Auditor</option><option value="operator">Operator</option><option value="admin">Admin</option></select><button class="primary" type="submit">Add user</button></form>
 <div style="overflow:auto"><table><thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Created</th><th>Last login</th><th>Password changed</th><th>Must change PW</th><th>MFA</th><th></th></tr></thead><tbody id="users"></tbody></table></div>
 </section>
+<div id="userPasswordResetModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="userPasswordResetTitle" style="display:none" onclick="if(event.target===this)closeUserPasswordReset()">
+  <div class="modal-card">
+    <div class="modal-head"><div><h2 id="userPasswordResetTitle">Reset user password</h2><div class="muted" id="userPasswordResetName"></div></div><button type="button" class="icon-btn" aria-label="Close password reset" onclick="closeUserPasswordReset()">×</button></div>
+    <p class="muted">Set a temporary password and give it to the user securely. Their current sessions will end, and they must change it when they next sign in. MFA stays enabled.</p>
+    <form class="modal-form" onsubmit="return submitUserPasswordReset(event)">
+      <label style="grid-column:1/-1">Temporary password<input class="input" id="userResetPassword" type="password" autocomplete="new-password" minlength="__MIN_PASSWORD_LENGTH__" maxlength="128" required></label>
+      <label style="grid-column:1/-1">Confirm temporary password<input class="input" id="userResetPasswordConfirm" type="password" autocomplete="new-password" minlength="__MIN_PASSWORD_LENGTH__" maxlength="128" required></label>
+      <div class="err" id="userPasswordResetError" role="alert" style="grid-column:1/-1"></div>
+      <div class="modal-actions"><button type="button" class="secondary" onclick="closeUserPasswordReset()">Cancel</button><button type="submit" class="primary" id="userPasswordResetSubmit">Reset password</button></div>
+    </form>
+  </div>
+</div>
 </div>
 
 <div class="view" id="view-audit" style="display:none">
@@ -8936,7 +8951,7 @@ installSidebarNavigation();
 async function doLogin(e){e.preventDefault();const err=document.getElementById('loginErr');err.textContent='';try{let r=await fetch('/api/v1/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:loginUser.value,password:loginPass.value})});if(r.status===423){err.textContent='Account temporarily locked due to repeated failed logins. Try again later.';return false}if(!r.ok){err.textContent='Invalid username or password';return false}let data=await r.json();if(data.mfa_required){PENDING_MFA_TOKEN=data.pending_token;document.getElementById('authOverlay').style.display='none';document.getElementById('mfaLoginOverlay').style.display='grid';return false}if(data.must_change_password){document.getElementById('authOverlay').style.display='none';document.getElementById('pwOverlay').style.display='grid';return false}await boot()}catch(e){err.textContent='Sign-in failed'}return false}
 async function doMfaVerify(e){e.preventDefault();const err=document.getElementById('mfaLoginErr');err.textContent='';try{let r=await fetch('/api/v1/auth/mfa/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pending_token:PENDING_MFA_TOKEN,code:mfaCode.value.trim()})});if(!r.ok){err.textContent='Invalid code';return false}let data=await r.json();PENDING_MFA_TOKEN=null;if(data.must_change_password){document.getElementById('mfaLoginOverlay').style.display='none';document.getElementById('pwOverlay').style.display='grid';return false}await boot()}catch(e){err.textContent='Verification failed'}return false}
 function openChangePassword(){document.getElementById('pwOverlay').style.display='grid'}
-async function doChangePassword(e){e.preventDefault();const err=document.getElementById('pwErr');err.textContent='';try{await json('/api/v1/auth/change-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({current_password:curPass.value,new_password:newPass.value})});await boot()}catch(e){err.textContent='Could not change password — check your current password'}return false}
+async function doChangePassword(e){e.preventDefault();const err=document.getElementById('pwErr');err.textContent='';try{await json('/api/v1/auth/change-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({current_password:curPass.value,new_password:newPass.value})});curPass.value='';newPass.value='';showLogin();loginPass.value='';document.getElementById('loginErr').textContent='Password changed. Sign in with your new password.';loginPass.focus()}catch(e){err.textContent='Could not change password — check your current password'}return false}
 async function logout(){await fetch('/api/v1/auth/logout',{method:'POST',headers:{'X-CSRF-Token':getCookie('godseye_csrf')||''}});showLogin()}
 function csrfToken(){return getCookie('godseye_csrf')||''}
 async function loadUsers(){
@@ -8948,7 +8963,7 @@ async function loadUsers(){
     await loadRoleAccess();
     if(tbody)tbody.innerHTML=rows.length?rows.map(x=>{
       const deadline=x.must_change_password?(x.must_change_password_by?`Yes, by ${esc(new Date(x.must_change_password_by).toLocaleDateString())}`:'Yes'):'No';
-      return `<tr><td>${esc(x.display_name||'—')}</td><td>${esc(x.username)}</td><td>${x.username===ME.username?`<span class="pill">${esc(x.role)}</span>`:`<select class="filter" aria-label="Role for ${esc(x.username)}" onchange="changeUserRole(${x.id},this.value)">${['admin','operator','auditor','readonly'].map(role=>`<option value="${role}" ${x.role===role?'selected':''}>${role==='readonly'?'Read-Only':role[0].toUpperCase()+role.slice(1)}</option>`).join('')}</select>`}</td><td>${x.created_at?esc(new Date(x.created_at).toLocaleDateString()):'—'}</td><td>${x.last_login_at?esc(new Date(x.last_login_at).toLocaleString()):'Never'}</td><td>${x.password_changed_at?esc(new Date(x.password_changed_at).toLocaleDateString()):'—'}</td><td>${deadline}</td><td>${x.mfa_enabled?'Yes':'No'}</td><td>${x.username===ME.username?'':`<button class="link" onclick="removeUser(${x.id},'${esc(x.username)}')">Remove</button>${x.mfa_enabled?` <button class="link" onclick="resetUserMfa(${x.id},'${esc(x.username)}')">Reset MFA</button>`:''}`}</td></tr>`;
+      return `<tr><td>${esc(x.display_name||'—')}</td><td>${esc(x.username)}</td><td>${x.username===ME.username?`<span class="pill">${esc(x.role)}</span>`:`<select class="filter" aria-label="Role for ${esc(x.username)}" onchange="changeUserRole(${x.id},this.value)">${['admin','operator','auditor','readonly'].map(role=>`<option value="${role}" ${x.role===role?'selected':''}>${role==='readonly'?'Read-Only':role[0].toUpperCase()+role.slice(1)}</option>`).join('')}</select>`}</td><td>${x.created_at?esc(new Date(x.created_at).toLocaleDateString()):'—'}</td><td>${x.last_login_at?esc(new Date(x.last_login_at).toLocaleString()):'Never'}</td><td>${x.password_changed_at?esc(new Date(x.password_changed_at).toLocaleDateString()):'—'}</td><td>${deadline}</td><td>${x.mfa_enabled?'Yes':'No'}</td><td>${x.username===ME.username?'':`<button class="link" type="button" onclick="openUserPasswordReset(${x.id},this)">Reset password</button> <button class="link" onclick="removeUser(${x.id},'${esc(x.username)}')">Remove</button>${x.mfa_enabled?` <button class="link" onclick="resetUserMfa(${x.id},'${esc(x.username)}')">Reset MFA</button>`:''}`}</td></tr>`;
     }).join(''):'<tr><td colspan="9" class="empty">No users found.</td></tr>';
   }catch(e){if(tbody)tbody.innerHTML='<tr><td colspan="9" class="empty">Unable to load users.</td></tr>'}
 }
@@ -9082,6 +9097,47 @@ async function confirmMfaDisable(e){
   return false;
 }
 async function resetUserMfa(id,username){if(!confirm('Reset MFA for "'+username+'"?'))return;try{await json('/api/v1/users/'+id+'/mfa/reset',{method:'POST'});await loadUsers()}catch(e){alert(e.message)}}
+let USER_PASSWORD_RESET_ID=null;
+function openUserPasswordReset(id,button){
+  if(!ME||ME.role!=='admin')return;
+  USER_PASSWORD_RESET_ID=id;
+  const username=button.closest('tr').cells[1].textContent;
+  document.getElementById('userPasswordResetName').textContent='Account: '+username;
+  document.getElementById('userResetPassword').value='';
+  document.getElementById('userResetPasswordConfirm').value='';
+  document.getElementById('userPasswordResetError').textContent='';
+  document.getElementById('userPasswordResetModal').style.display='grid';
+  document.getElementById('userResetPassword').focus();
+}
+function closeUserPasswordReset(){
+  USER_PASSWORD_RESET_ID=null;
+  document.getElementById('userPasswordResetModal').style.display='none';
+  document.getElementById('userResetPassword').value='';
+  document.getElementById('userResetPasswordConfirm').value='';
+  document.getElementById('userPasswordResetError').textContent='';
+}
+async function submitUserPasswordReset(e){
+  e.preventDefault();
+  if(USER_PASSWORD_RESET_ID===null)return false;
+  const password=document.getElementById('userResetPassword').value;
+  const confirmPassword=document.getElementById('userResetPasswordConfirm').value;
+  const error=document.getElementById('userPasswordResetError');
+  if(password!==confirmPassword){error.textContent='Passwords do not match.';return false}
+  error.textContent='';
+  const button=document.getElementById('userPasswordResetSubmit');
+  button.disabled=true;
+  try{
+    await json('/api/v1/users/'+USER_PASSWORD_RESET_ID+'/reset-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({new_password:password})});
+    closeUserPasswordReset();
+    await loadUsers();
+    alert('Password reset. Give the temporary password to the user securely. They must change it at the next sign-in.');
+  }catch(ex){
+    let detail=ex.message;
+    try{detail=JSON.parse(detail).detail||detail}catch(_){}
+    error.textContent='Could not reset password: '+(typeof detail==='string'?detail:'Check the password requirements.');
+  }finally{button.disabled=false}
+  return false;
+}
 async function createUser(e){
   e.preventDefault();
   try{
