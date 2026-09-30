@@ -172,9 +172,11 @@ install -m 0755 "$INSTALL_DIR/godseye-apply-update" /usr/local/sbin/godseye-appl
 install -m 0755 "$INSTALL_DIR/godseye-https-setup" /usr/local/sbin/godseye-https-setup
 install -m 0755 "$INSTALL_DIR/godseye-release-audit" /usr/local/sbin/godseye-release-audit
 install -m 0755 "$INSTALL_DIR/godseye-evidence-capture" /usr/local/sbin/godseye-evidence-capture
+install -m 0755 "$INSTALL_DIR/godseye-reboot" /usr/local/sbin/godseye-reboot
 cat >/etc/sudoers.d/godseye-production <<'EOF2'
 godseye ALL=(root) NOPASSWD: /usr/local/sbin/godseye-apply-update *
 godseye ALL=(root) NOPASSWD: /usr/local/sbin/godseye-evidence-capture *
+godseye ALL=(root) NOPASSWD: /usr/local/sbin/godseye-reboot
 EOF2
 chmod 0440 /etc/sudoers.d/godseye-production
 mkdir -p "$DATA_DIR/updates" "$DATA_DIR/config-exports" "$DATA_DIR/tls" "$DATA_DIR/cyber-evidence" "$DATA_DIR/cyber-scan-temp" "$BACKUP_DIR"

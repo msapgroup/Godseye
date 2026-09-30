@@ -1,0 +1,4 @@
+#!/bin/sh
+# The short delay lets the API return before the appliance disconnects.
+sleep 3
+exec /usr/bin/systemctl reboot

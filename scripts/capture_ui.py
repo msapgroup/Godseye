@@ -47,6 +47,9 @@ async def main():
             assert await page.locator("#authOverlay .login-scene-footer").inner_text() == (
                 "GODSEYE\nNetwork Intelligence · Security Operations · MSP Workflow · Self-Hosted Control"
             )
+            login_logo = page.locator("#authOverlay .login-wordmark")
+            await login_logo.evaluate("img => img.decode()")
+            assert await login_logo.evaluate("img => img.complete && img.naturalWidth > 0"), "Login logo did not load"
             await page.screenshot(path=str(OUT / "v431-login.png"), full_page=True)
 
         # Sign in.

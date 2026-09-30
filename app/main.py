@@ -6962,7 +6962,7 @@ html:not([data-theme="dark"]) :is(.v430-global-search,.v430-bell,.user-chip,.aut
 <body>
 <div id="authOverlay" class="overlay" style="display:none">
   <div class="authcard">
-    <div class="login-brand"><div class="login-brand-row">__EYE_LOGO__<img class="godseye-wordmark login-wordmark" src="/assets/godseye-approved.png" alt="GODSEYE"></div><small class="login-build">MSP SECURITY OPERATIONS</small><div class="muted">Network Intelligence · Security Operations · MSP Workflow · Self-Hosted Control</div></div>
+    <div class="login-brand"><div class="login-brand-row">__EYE_LOGO__<img class="godseye-wordmark login-wordmark" src="/assets/godseye-approved.png?v=2" onerror="this.onerror=null;this.src='/assets/godseye-lockup.svg'" alt="GODSEYE"></div><small class="login-build">MSP SECURITY OPERATIONS</small><div class="muted">Network Intelligence · Security Operations · MSP Workflow · Self-Hosted Control</div></div>
     <div id="loginBanner" class="muted" style="white-space:pre-wrap;margin-bottom:14px;__LOGIN_BANNER_DISPLAY__">__LOGIN_BANNER__</div>
     <h2>Welcome Back</h2>
     <div class="muted">Sign in to your GODSEYE account</div>
@@ -7056,6 +7056,7 @@ html:not([data-theme="dark"]) :is(.v430-global-search,.v430-bell,.user-chip,.aut
 <div class="muted" id="whoami"></div>
 <button class="link" onclick="openChangePassword()">Change password</button>
 <button class="link" onclick="logout()">Log out</button>
+<button class="link admin-only" type="button" onclick="rebootAppliance()" aria-label="Reboot GODSEYE server">⏻ Reboot server</button>
 </div>
 </nav>
 <main class="content"><div class="headerbar v430-header"><div class="v430-header-title"><b id="v430PageTitle">Dashboard</b></div><div class="v430-global-search"><span aria-hidden="true">⌕</span><input id="globalSearch" autocomplete="off" placeholder="Search devices, IPs, tickets, or findings…" onkeydown="globalSearchKey(event)"><kbd>Ctrl + K</kbd></div><div class="top-actions"><button class="icon-btn v430-bell" type="button" title="Open Alerts" aria-label="Open Alerts" onclick="showView('findings')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg><span class="v430-notify-dot">3</span></button><button class="user-chip" type="button" onclick="toggleUserMenu()"><span class="avatar">A</span><span id="topUser">admin</span><span aria-hidden="true">⌄</span></button><div id="userMenu" class="user-menu" style="display:none"><button onclick="toggleTheme()"><span id="themeLabel">Appearance</span></button><button onclick="toggleLayoutEditing(event);toggleUserMenu()"><span class="layout-arrange-label">Reorder Page</span></button><button onclick="resetPageLayout(event);toggleUserMenu()">Reset My Layout</button><button onclick="toggleSidebarEditing(event);toggleUserMenu()"><span class="sidebar-arrange-label">Reorder Sidebar</span></button><button onclick="resetSidebarLayout(event);toggleUserMenu()">Reset Sidebar Order</button><button onclick="openChangePassword();toggleUserMenu()">Change password</button><button onclick="logout()">Sign out</button></div><button id="themeToggle" class="theme-toggle v430-hidden-theme" type="button" onclick="toggleTheme()" aria-label="Switch appearance"><span class="theme-icon" id="themeIcon">☀</span></button></div></div><div class="wrap">
@@ -8953,6 +8954,7 @@ async function doMfaVerify(e){e.preventDefault();const err=document.getElementBy
 function openChangePassword(){document.getElementById('pwOverlay').style.display='grid'}
 async function doChangePassword(e){e.preventDefault();const err=document.getElementById('pwErr');err.textContent='';try{await json('/api/v1/auth/change-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({current_password:curPass.value,new_password:newPass.value})});curPass.value='';newPass.value='';showLogin();loginPass.value='';document.getElementById('loginErr').textContent='Password changed. Sign in with your new password.';loginPass.focus()}catch(e){err.textContent='Could not change password — check your current password'}return false}
 async function logout(){await fetch('/api/v1/auth/logout',{method:'POST',headers:{'X-CSRF-Token':getCookie('godseye_csrf')||''}});showLogin()}
+async function rebootAppliance(){if(!confirm('Reboot the GODSEYE server? All users will be disconnected until it starts again.'))return;try{const r=await fetch('/api/v1/appliance/reboot',{method:'POST',headers:{'X-CSRF-Token':getCookie('godseye_csrf')||''}});const data=await r.json();if(!r.ok)throw Error(data.detail||'Reboot request failed');alert('Server reboot scheduled. Reconnect in a few minutes.')}catch(e){alert('Could not reboot server: '+e.message)}}
 function csrfToken(){return getCookie('godseye_csrf')||''}
 async function loadUsers(){
   const panel=document.getElementById('usersPanel'),tbody=document.getElementById('users');
@@ -10410,6 +10412,22 @@ def run_retention(request: Request, user=Depends(require_admin)):
 @app.get(f"{router_prefix}/appliance/backups")
 def backups(user=Depends(require_admin)):
     with db() as c: return list_backups(c)
+
+@app.post(f"{router_prefix}/appliance/reboot")
+def reboot_appliance(request: Request, user=Depends(require_admin)):
+    import subprocess
+    helper = Path('/usr/local/sbin/godseye-reboot')
+    if not helper.is_file():
+        raise HTTPException(503, 'Reboot helper unavailable. Run the installer to enable this action.')
+    if subprocess.run(['sudo','-n','-l',str(helper)],capture_output=True,timeout=5).returncode != 0:
+        raise HTTPException(503, 'Reboot permission unavailable. Run the installer to enable this action.')
+    with db() as c:
+        audit(c,user['username'],'appliance_reboot_requested','server','sidebar',client_ip(request)); c.commit()
+    try:
+        subprocess.Popen(['sudo','-n',str(helper)],stdin=subprocess.DEVNULL,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,start_new_session=True)
+    except OSError as exc:
+        raise HTTPException(503, f'Could not schedule reboot: {exc}') from exc
+    return {'ok':True,'scheduled':True}
 
 @app.post(f"{router_prefix}/appliance/backups")
 def make_backup(request: Request, user=Depends(require_admin)):

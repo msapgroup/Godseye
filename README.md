@@ -44,6 +44,8 @@ Most gallery images are captures from the running app with representative sample
 
 **How it works:** Sign in with your GODSEYE account to manage network devices, investigate security findings, coordinate MSP work, and keep your data on infrastructure you control.
 
+Administrators can use **Reboot server** at the bottom of the sidebar. Confirm the prompt to restart the host; GODSEYE disconnects briefly while it starts again. Run the updated installer once to grant the service the narrow reboot permission.
+
 ### Dashboard
 
 ![GODSEYE Dashboard](docs/screenshots/v431-dashboard-map-logo.png)
