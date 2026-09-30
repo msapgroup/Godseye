@@ -13,6 +13,7 @@ on:
 
 permissions:
   contents: write
+  statuses: write
 
 jobs:
   capture:
@@ -81,3 +82,14 @@ jobs:
           name: GODSEYE-redesigned
           path: GODSEYE-redesigned.zip
           retention-days: 30
+      # The screenshot commit is made with GITHUB_TOKEN, so GitHub does not
+      # start a new push workflow for it. Mark that verified branch tip green.
+      - name: Report successful screenshot commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api -X POST "repos/${GITHUB_REPOSITORY}/statuses/$(git rev-parse HEAD)" \
+            -f state=success \
+            -f context='GODSEYE screenshot capture' \
+            -f description='Screenshots and full source ZIP verified' \
+            -f target_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
