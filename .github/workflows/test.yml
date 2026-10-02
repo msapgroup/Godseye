@@ -13,7 +13,7 @@ jobs:
       - run: python -m compileall app
       # The repository contains historical release-marker tests for archived builds.
       # Run the maintained v4.30/v4.31 contracts here; the Windows packaging
-      # workflow separately validates the 2.4.5 installer and publish artifact.
+      # workflow separately validates the 2.5.0 installer and publish artifact.
       - run: >-
           PYTHONPATH=. pytest -q
           tests/test_v430_remote_access_hardening.py
@@ -21,3 +21,4 @@ jobs:
           tests/test_v431_remote_agent_handoff.py
           tests/test_v431_agent_ticket_and_remote_storage.py
           tests/test_cyber_tools_v431.py
+          tests/test_godseye_edr.py
