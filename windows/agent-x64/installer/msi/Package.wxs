@@ -3,7 +3,7 @@
   <Package
       Name="GODSEYE Windows Agent"
       Manufacturer="MSAPGROUP LLC"
-      Version="2.4.5"
+      Version="2.5.0"
       UpgradeCode="{8FD91243-B37D-4C6C-BFC7-74F833F8C551}"
       Scope="perMachine">
 
@@ -14,7 +14,9 @@
     <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
 
     <StandardDirectory Id="ProgramFiles64Folder">
-      <Directory Id="INSTALLFOLDER" Name="GODSEYE Agent" />
+      <Directory Id="INSTALLFOLDER" Name="GODSEYE Agent">
+        <Directory Id="EDRFOLDER" Name="EDR" />
+      </Directory>
     </StandardDirectory>
 
     <StandardDirectory Id="CommonAppDataFolder">
@@ -27,6 +29,16 @@
       <ComponentRef Id="AgentServiceComponent" />
       <ComponentRef Id="AgentDataFolderComponent" />
     </Feature>
+    <Feature Id="EdrFeature" Title="Godseye EDR (optional)" Level="2">
+      <ComponentRef Id="EdrEngineComponent" />
+    </Feature>
+
+    <Component Id="EdrEngineComponent"
+               Guid="{CD05C568-9F6A-48C2-9E78-9672142E1D30}"
+               Directory="EDRFOLDER">
+      <File Id="YaraXExecutable" Source="..\..\publish\EDR\yr.exe" KeyPath="yes" />
+      <File Id="YaraXLicense" Source="..\..\publish\EDR\YARA-X-LICENSE.txt" />
+    </Component>
 
     <Component Id="AgentServiceComponent"
                Guid="{DFB07F6B-9F67-4A66-A9F7-3CBE18C01DBF}"

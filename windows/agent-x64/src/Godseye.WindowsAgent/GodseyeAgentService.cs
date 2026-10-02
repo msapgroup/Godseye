@@ -92,7 +92,7 @@ namespace Godseye.WindowsAgent
 
     public class GodseyeAgentService : ServiceBase
     {
-        static readonly string AgentVersion = typeof(GodseyeAgentService).Assembly.GetName().Version?.ToString(3) ?? "2.4.5";
+        static readonly string AgentVersion = typeof(GodseyeAgentService).Assembly.GetName().Version?.ToString(3) ?? "2.5.0";
         static readonly JsonCompat Json = new JsonCompat();
         readonly string BaseDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "GODSEYE", "Agent");
         Thread worker;
@@ -104,6 +104,7 @@ namespace Godseye.WindowsAgent
         string remotePipeName;
         int remoteHelperProcessId;
         int trayHelperProcessId;
+        string lastEdrDigest;
         uint trayHelperSessionId = INVALID_SESSION_ID;
 
         string ConfigPath { get { return Path.Combine(BaseDir, "agent.json"); } }
@@ -231,6 +232,7 @@ namespace Godseye.WindowsAgent
 
                     EnsureEnrolled(cfg);
                     Dictionary<string, object> hb = Heartbeat(cfg);
+                    SyncEdrRules(cfg, hb);
                     WriteTrayStatus(cfg);
                     ApplyServerConfig(cfg, hb);
                     ProcessCommands(cfg, hb);
@@ -469,6 +471,7 @@ namespace Godseye.WindowsAgent
                     key.SetValue("Version", AgentVersion, RegistryValueKind.String);
                     key.SetValue("LastCheckIn", DateTime.Now.ToString("g"), RegistryValueKind.String);
                     key.SetValue("RemoteAccess", "Enabled (User Approval)", RegistryValueKind.String);
+                    key.SetValue("EdrRules", !String.IsNullOrWhiteSpace(lastEdrDigest) ? "Ready" : "Unavailable", RegistryValueKind.String);
                 }
             }
             catch (Exception ex) { Log("Could not publish tray status: " + ex.Message); }
@@ -1036,6 +1039,12 @@ namespace Godseye.WindowsAgent
                         result["ok"] = true; result["events"] = 0; result["new_findings"] = 0;
                         result["details"] = RunClamAvScan();
                     }
+                    else if (String.Equals(type, "edr_scan", StringComparison.OrdinalIgnoreCase))
+                    {
+                        Dictionary<string, object> payload = entry.ContainsKey("payload") ? entry["payload"] as Dictionary<string, object> : null;
+                        result["details"] = RunGodseyeEdrScan(cfg, payload);
+                        result["ok"] = true; result["events"] = 0; result["new_findings"] = 0;
+                    }
                     else if (String.Equals(type, "clamav_update", StringComparison.OrdinalIgnoreCase))
                     {
                         result["details"] = UpdateClamAvSignatures();
@@ -1127,6 +1136,113 @@ namespace Godseye.WindowsAgent
                 if (p.ExitCode != 0) throw new Exception("Microsoft Defender: " + (error.Length > 800 ? error.Substring(0, 800) : error));
                 return (output.Length > 3900 ? output.Substring(0, 3900) : output).Trim();
             }
+        }
+
+        string RunGodseyeEdrScan(AgentConfig cfg, Dictionary<string, object> payload)
+        {
+            if (payload == null || !payload.ContainsKey("sha256")) throw new Exception("EDR scan payload is incomplete.");
+            string mode = payload.ContainsKey("scan_type") ? Convert.ToString(payload["scan_type"]) : "quick";
+            if (mode != "quick" && mode != "full") throw new Exception("Unsupported EDR scan mode.");
+            string expected = Convert.ToString(payload["sha256"]);
+            if (expected.Length != 64 || expected.Any(ch => !Uri.IsHexDigit(ch))) throw new Exception("Invalid EDR rule digest.");
+            string engine = Path.Combine(AppContext.BaseDirectory, "EDR", "yr.exe");
+            if (!File.Exists(engine)) throw new Exception("Godseye EDR scanner is not installed on this endpoint.");
+            Dictionary<string, object> pack = Get(cfg, "/api/v1/edr/agent/rules", ReadApiKey());
+            string rules = Convert.ToString(pack["rules"]);
+            byte[] content = Encoding.UTF8.GetBytes(rules);
+            string digest = Convert.ToHexString(SHA256.HashData(content)).ToLowerInvariant();
+            if (!String.Equals(digest, expected, StringComparison.OrdinalIgnoreCase) ||
+                !String.Equals(digest, Convert.ToString(pack["sha256"]), StringComparison.OrdinalIgnoreCase) ||
+                Convert.ToInt32(pack["version"]) != Convert.ToInt32(payload["rule_version"]))
+                throw new Exception("EDR rule version or SHA-256 verification failed. No scan was run.");
+            string rulesDir = Path.Combine(BaseDir, "edr"); Directory.CreateDirectory(rulesDir);
+            string rulesFile = Path.Combine(rulesDir, "rules-" + digest + ".yar");
+            File.WriteAllBytes(rulesFile, content);
+            var locations = new List<string>();
+            if (mode == "full")
+                locations.AddRange(DriveInfo.GetDrives().Where(d => d.IsReady && d.DriveType == DriveType.Fixed).Select(d => d.RootDirectory.FullName));
+            else
+            {
+                string users = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System).Substring(0, 3), "Users");
+                if (Directory.Exists(users)) foreach (string profile in Directory.GetDirectories(users))
+                    foreach (string name in new[] { "Downloads", "Desktop", "AppData\\Local\\Temp", "AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup" })
+                    { string path = Path.Combine(profile, name); if (Directory.Exists(path)) locations.Add(path); }
+                string commonStartup = Environment.GetFolderPath(Environment.SpecialFolder.CommonStartup);
+                if (Directory.Exists(commonStartup)) locations.Add(commonStartup);
+            }
+            if (locations.Count == 0) throw new Exception("No accessible EDR scan locations were found.");
+            var matches = new List<string>(); var errors = new List<string>(); int completed = 0;
+            foreach (string location in locations)
+            {
+                var psi = new ProcessStartInfo { FileName = engine, UseShellExecute = false, CreateNoWindow = true,
+                    RedirectStandardOutput = true, RedirectStandardError = true };
+                psi.ArgumentList.Add("scan"); psi.ArgumentList.Add("--recursive"); psi.ArgumentList.Add("--skip-larger"); psi.ArgumentList.Add("50MB");
+                psi.ArgumentList.Add("--timeout"); psi.ArgumentList.Add("180"); psi.ArgumentList.Add("--output-format"); psi.ArgumentList.Add("ndjson");
+                psi.ArgumentList.Add(rulesFile); psi.ArgumentList.Add(location);
+                using (Process process = Process.Start(psi))
+                {
+                    if (process == null) { errors.Add("Scanner did not start: " + location); continue; }
+                    var stdoutTask = process.StandardOutput.ReadToEndAsync();
+                    var stderrTask = process.StandardError.ReadToEndAsync();
+                    if (!process.WaitForExit(200000)) { process.Kill(true); errors.Add("Timed out: " + location); continue; }
+                    string output = stdoutTask.GetAwaiter().GetResult();
+                    string stderr = stderrTask.GetAwaiter().GetResult();
+                    if (process.ExitCode != 0) { errors.Add("Scanner error at " + location + ": " + stderr.Substring(0, Math.Min(120, stderr.Length))); continue; }
+                    completed++;
+                    foreach (string line in output.Split('\n')) if (!String.IsNullOrWhiteSpace(line) && matches.Count < 20)
+                        matches.Add(line.Trim().Substring(0, Math.Min(160, line.Trim().Length)));
+                }
+            }
+            if (errors.Count > 0) throw new Exception("EDR scan incomplete (" + completed + "/" + locations.Count + " locations). " + String.Join("; ", errors.Take(3)));
+            return "Godseye EDR " + mode + " scan finished with rule pack v" + pack["version"] + ". " +
+                (matches.Count == 0 ? "No YARA rule matches in scanned locations." : matches.Count + " rule match records: " + String.Join("; ", matches)) +
+                " Coverage: " + completed + " locations. A rule match requires investigation.";
+        }
+
+        void SyncEdrRules(AgentConfig cfg, Dictionary<string, object> heartbeat)
+        {
+            string directory = Path.Combine(AppContext.BaseDirectory, "EDR");
+            string current = Path.Combine(directory, "rules.yar");
+            Dictionary<string, object> policy = heartbeat.ContainsKey("edr") ? heartbeat["edr"] as Dictionary<string, object> : null;
+            if (policy == null || !policy.ContainsKey("enabled") || !Convert.ToBoolean(policy["enabled"]))
+            {
+                lastEdrDigest = null;
+                try { if (File.Exists(current)) File.Delete(current); }
+                catch (Exception ex) { Log("Could not remove excluded EDR rules: " + ex.Message); }
+                return;
+            }
+            string engine = Path.Combine(directory, "yr.exe");
+            if (!File.Exists(engine) || !policy.ContainsKey("sha256") || policy["sha256"] == null) { lastEdrDigest = null; return; }
+            string expected = Convert.ToString(policy["sha256"]);
+            if (File.Exists(current) && String.Equals(Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(current))), expected, StringComparison.OrdinalIgnoreCase)) { lastEdrDigest = expected; return; }
+            lastEdrDigest = null;
+            try
+            {
+                Dictionary<string, object> pack = Get(cfg, "/api/v1/edr/agent/rules", ReadApiKey());
+                byte[] raw = Encoding.UTF8.GetBytes(Convert.ToString(pack["rules"]));
+                if (raw.Length > 1024 * 1024 || !String.Equals(Convert.ToHexString(SHA256.HashData(raw)), expected, StringComparison.OrdinalIgnoreCase) ||
+                    !String.Equals(Convert.ToString(pack["sha256"]), expected, StringComparison.OrdinalIgnoreCase) ||
+                    Convert.ToInt32(pack["version"]) != Convert.ToInt32(policy["version"]))
+                    throw new Exception("EDR rule package integrity check failed.");
+                string candidate = Path.Combine(directory, "candidate.yar");
+                File.WriteAllBytes(candidate, raw);
+                try
+                {
+                    var psi = new ProcessStartInfo { FileName = engine, UseShellExecute = false, CreateNoWindow = true,
+                        RedirectStandardOutput = true, RedirectStandardError = true };
+                    psi.ArgumentList.Add("compile"); psi.ArgumentList.Add("--output"); psi.ArgumentList.Add(Path.Combine(directory, "candidate.yarc")); psi.ArgumentList.Add(candidate);
+                    using (Process check = Process.Start(psi))
+                    {
+                        if (check == null || !check.WaitForExit(20000) || check.ExitCode != 0)
+                            throw new Exception("YARA-X rejected the rule pack on this endpoint.");
+                    }
+                    File.Move(candidate, current, true);
+                    lastEdrDigest = expected;
+                    Log("EDR rule pack v" + pack["version"] + " verified and activated.");
+                }
+                finally { if (File.Exists(candidate)) File.Delete(candidate); }
+            }
+            catch (Exception ex) { Log("EDR rule update failed: " + ex.Message); }
         }
 
         object ComProperty(object instance, string name)

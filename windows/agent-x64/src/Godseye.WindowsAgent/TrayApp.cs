@@ -7,6 +7,7 @@ using System.IO.Pipes;
 using System.Text;
 using System.ServiceProcess;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using Microsoft.Win32;
 
@@ -259,6 +260,7 @@ namespace Godseye.WindowsAgent
                 menu.Items.Add("Submit Ticket...", null, (_, __) => ShowSubmitTicket());
                 menu.Items.Add("Open GODSEYE Portal", null, (_, __) => OpenPortal());
                 menu.Items.Add("Check for Updates", null, (_, __) => OpenPortal("/#windows-agents"));
+                menu.Items.Add("Godseye EDR...", null, (_, __) => ShowEdr());
                 menu.Items.Add(new ToolStripSeparator());
                 menu.Items.Add(new ToolStripMenuItem("Remote Access: Enabled (User Approval)") { Enabled = false });
                 menu.Items.Add(new ToolStripSeparator());
@@ -353,6 +355,74 @@ namespace Godseye.WindowsAgent
                 {
                     MessageBox.Show("Could not open the GODSEYE portal: " + ex.Message, "GODSEYE Agent", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 }
+            }
+
+            static void ShowEdr()
+            {
+                using var form = new Form { Text = "Godseye EDR", StartPosition = FormStartPosition.CenterScreen,
+                    Width = 650, Height = 440, BackColor = Color.FromArgb(10, 24, 37), ForeColor = Color.White,
+                    Font = new Font("Segoe UI", 10f), MinimumSize = new Size(550, 360) };
+                var heading = new Label { Left = 20, Top = 20, Width = 590, Height = 28,
+                    Text = "Godseye EDR · On-demand scans", Font = new Font("Segoe UI Semibold", 15f), ForeColor = Color.FromArgb(86, 197, 255) };
+                var status = new Label { Left = 20, Top = 56, Width = 590, Height = 36,
+                    Text = "Checking scanner and server-approved rules...", ForeColor = Color.Gainsboro };
+                var quick = new Button { Text = "Quick Scan", Left = 20, Top = 104, Width = 138, Height = 36,
+                    BackColor = Color.FromArgb(18, 112, 210), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+                var full = new Button { Text = "Full Scan", Left = 170, Top = 104, Width = 138, Height = 36,
+                    BackColor = Color.FromArgb(23, 65, 105), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+                var portal = new Button { Text = "Open Portal", Left = 320, Top = 104, Width = 138, Height = 36,
+                    BackColor = Color.FromArgb(23, 65, 105), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+                var output = new TextBox { Left = 20, Top = 156, Width = 590, Height = 225, Multiline = true,
+                    ReadOnly = true, ScrollBars = ScrollBars.Vertical, Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right,
+                    BackColor = Color.FromArgb(7, 17, 28), ForeColor = Color.White, Text = "Results appear here. Rule matches need administrator review." };
+                string edrDir = Path.Combine(AppContext.BaseDirectory, "EDR");
+                bool ready = File.Exists(Path.Combine(edrDir, "yr.exe")) && File.Exists(Path.Combine(edrDir, "rules.yar")) && ReadStatus("EdrRules", "Unavailable") == "Ready";
+                status.Text = ready ? "Server-approved rules ready. Scans run locally on this computer." : "EDR is excluded, unavailable, or waiting for a verified rule pack. Core agent remains available.";
+                quick.Enabled = full.Enabled = ready;
+                portal.Click += (_, __) => OpenPortal("/#edr");
+                async void Scan(bool deep)
+                {
+                    quick.Enabled = full.Enabled = false;
+                    output.Text = "Scanning...";
+                    try { output.Text = await Task.Run(() => RunLocalEdrScan(deep, edrDir)); }
+                    catch (Exception ex) { output.Text = "Scan could not complete: " + ex.Message; }
+                    finally { quick.Enabled = full.Enabled = ready && !form.IsDisposed; }
+                }
+                quick.Click += (_, __) => Scan(false);
+                full.Click += (_, __) => Scan(true);
+                form.Controls.AddRange(new Control[] { heading, status, quick, full, portal, output });
+                form.ShowDialog();
+            }
+
+            static string RunLocalEdrScan(bool deep, string directory)
+            {
+                string scanner = Path.Combine(directory, "yr.exe"), rules = Path.Combine(directory, "rules.yar");
+                if (!File.Exists(scanner) || !File.Exists(rules)) throw new Exception("Verified scanner or rules are unavailable.");
+                var locations = new List<string>();
+                if (deep) foreach (DriveInfo drive in DriveInfo.GetDrives())
+                { if (drive.IsReady && drive.DriveType == DriveType.Fixed) locations.Add(drive.RootDirectory.FullName); }
+                else foreach (string location in new[] { Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory),
+                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads"),
+                    Path.GetTempPath(), Environment.GetFolderPath(Environment.SpecialFolder.Startup) })
+                { if (Directory.Exists(location)) locations.Add(location); }
+                if (locations.Count == 0) throw new Exception("No accessible scan locations were found.");
+                var findings = new List<string>();
+                foreach (string location in locations)
+                {
+                    var psi = new ProcessStartInfo { FileName = scanner, UseShellExecute = false, CreateNoWindow = true,
+                        RedirectStandardOutput = true, RedirectStandardError = true };
+                    foreach (string argument in new[] { "scan", "--recursive", "--skip-larger", "50MB", "--timeout", "180", "--output-format", "ndjson", rules, location })
+                        psi.ArgumentList.Add(argument);
+                    using var process = Process.Start(psi);
+                    if (process == null) throw new Exception("YARA-X could not start.");
+                    var stdout = process.StandardOutput.ReadToEndAsync(); var stderr = process.StandardError.ReadToEndAsync();
+                    if (!process.WaitForExit(200000)) { process.Kill(true); throw new Exception("Scanner timed out at " + location); }
+                    if (process.ExitCode != 0) throw new Exception("Scanner error at " + location + ": " + stderr.GetAwaiter().GetResult());
+                    foreach (string line in stdout.GetAwaiter().GetResult().Split('\n'))
+                    { if (!String.IsNullOrWhiteSpace(line) && findings.Count < 30) findings.Add(line.Trim()); }
+                }
+                return findings.Count == 0 ? "Completed " + locations.Count + " locations. No YARA rule matches in scanned files. This is not a full antivirus clearance."
+                    : findings.Count + " rule match records. Review in Godseye before acting:\r\n" + String.Join("\r\n", findings).Substring(0, Math.Min(12000, String.Join("\r\n", findings).Length));
             }
 
             static void ShowStatus()
