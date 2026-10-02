@@ -76,12 +76,12 @@ Version 2.4.5 is the current v4.31 remote-support release. Agents on 2.1.x and n
 Agents on 2.0.x require one manual upgrade to 2.1.0 using the current x64 Setup/MSI. That baseline upgrade preserves `%ProgramData%\GODSEYE\Agent`, including enrollment, DPAPI-protected API key, bookmarks, pending queue, logs, and configuration. After that baseline, future agent releases can be upgraded from GODSEYE without another enrollment token.
 
 
-## Endpoint malware response in 2.4.5
+## Endpoint malware response and optional EDR in 2.4.5
 
-The existing consent-based remote support and tray workflow remain in this agent build. Cyber Tools can ask the enrolled agent to review Microsoft Defender status and detections, run a quick scan, and (after an exact PC-name confirmation by a GODSEYE admin) ask Defender to remove active threats. ClamAV can update its signatures with FreshClam and scan Windows user profiles as a second opinion when it is installed on that PC. No arbitrary script or shell command is accepted from the server.
+The existing consent-based remote support and tray workflow remain in this agent build. The integrated installer adds per-user tray startup and optional YARA-X EDR scans with an explicit heartbeat capability flag; Microsoft Defender handles real-time protection and signature updates. Cyber Tools can ask the enrolled agent to review Microsoft Defender status and detections, run a quick scan, and (after an exact PC-name confirmation by a GODSEYE admin) ask Defender to remove active threats. ClamAV can update its signatures with FreshClam and scan Windows user profiles as a second opinion when it is installed on that PC. No arbitrary script or shell command is accepted from the server.
 
 ## Remote support in 2.4.5
 
 Remote support consent, capture, and approved input are owned by the persistent tray application in the signed-in Windows user's active interactive session. The Windows service cannot approve a session on the user's behalf. The server tracks `requested -> waiting_for_tray -> tray_ready -> waiting_for_user -> approved -> capture_started`, and only changes the session to `active` after it receives and validates the first real JPEG frame. Sessions begin view-only. Mouse and keyboard input is accepted only after the operator requests control and the Windows user separately approves it.
 
-The source tree may contain archived pre-2.4.5 build artifacts for reference. They are not release payloads and must not be advertised or served as Windows Agent 2.4.5. A 2.4.5 update manifest is valid only when its canonical `GODSEYE-Windows-Agent-x64.msi` exists and its SHA-256 matches the manifest.
+The source tree contains only the current x64 agent under `windows/agent-x64`. Older agent files and generated build outputs are excluded from the full app package. A 2.4.5 update manifest is valid only when its canonical `GODSEYE-Windows-Agent-x64.msi` exists and its SHA-256 matches the manifest.

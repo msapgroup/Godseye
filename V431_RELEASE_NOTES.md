@@ -7,14 +7,14 @@
 - Open a site card to edit remote device names and classifications, resolve findings, create linked tickets, and create or close remote tickets.
 - The README includes a screenshot captured from two running, paired GODSEYE instances and setup instructions.
 
-## Windows Agent 2.4.4 hotfix
+## Windows Agent 2.4.5 hotfix
 
 - Remote desktop frames now use GODSEYE's configured writable data directory instead of the read-only application directory. This fixes sessions that stalled after the Windows user selected **Share Screen**.
 - Stale remote sessions now fail with a visible diagnostic and a new connection request replaces them instead of reopening an indefinite waiting screen.
 - The Windows tray now includes **Submit Ticket...** with name, department, phone, email, issue notes, and Email, Internet, Phone, Hardware, Software, Security, and Other categories.
 - Tray ticket delivery is authenticated through the enrolled Windows Agent and idempotent, so transient retries cannot create duplicate tickets.
 
-GODSEYE v4.31 includes the current visual design and Windows Agent 2.4.4 for a more reliable, Quick Assist-style remote-support workflow.
+GODSEYE v4.31 includes the current visual design and Windows Agent 2.4.5 for a more reliable, Quick Assist-style remote-support workflow.
 
 ## Remote connection fix
 

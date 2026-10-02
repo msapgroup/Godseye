@@ -1,5 +1,5 @@
 #define MyAppName "GODSEYE Windows Agent"
-#define MyAppVersion "2.5.2"
+#define MyAppVersion "2.4.5"
 #define MyAppPublisher "MSAPGROUP LLC"
 #define MyAppExeName "GODSEYE.Agent.exe"
 #define MyMsiName "GODSEYE-Windows-Agent-x64.msi"
@@ -17,7 +17,7 @@ Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
 OutputDir=output
-OutputBaseFilename=GODSEYE-Windows-Agent-x64-Setup-2.5.2
+OutputBaseFilename=GODSEYE-Windows-Agent-x64-Setup-2.4.5
 SetupLogging=yes
 CloseApplications=no
 RestartApplications=no
@@ -180,9 +180,9 @@ begin
   ExePath := AgentExePath();
   if not GetVersionNumbersString(ExePath, InstalledVersion) then
     RaiseException('GODSEYE Windows Agent was installed, but its version could not be verified.');
-  if Pos('2.5.2', InstalledVersion) <> 1 then
-    RaiseException('The installer expected GODSEYE Windows Agent 2.5.2, but Windows reports version ' + InstalledVersion + '.');
+  if Pos('2.4.5', InstalledVersion) <> 1 then
+    RaiseException('The installer expected GODSEYE Windows Agent 2.4.5, but Windows reports version ' + InstalledVersion + '.');
 
   if MsiResultCode <> 3010 then
-    MsgBox('GODSEYE Windows Agent 2.5.2 was installed and verified successfully.', mbInformation, MB_OK);
+    MsgBox('GODSEYE Windows Agent 2.4.5 was installed and verified successfully.', mbInformation, MB_OK);
 end;

@@ -92,7 +92,7 @@ namespace Godseye.WindowsAgent
 
     public class GodseyeAgentService : ServiceBase
     {
-        static readonly string AgentVersion = typeof(GodseyeAgentService).Assembly.GetName().Version?.ToString(3) ?? "2.5.2";
+        static readonly string AgentVersion = typeof(GodseyeAgentService).Assembly.GetName().Version?.ToString(3) ?? "2.4.5";
         static readonly JsonCompat Json = new JsonCompat();
         readonly string BaseDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "GODSEYE", "Agent");
         Thread worker;
@@ -345,6 +345,7 @@ namespace Godseye.WindowsAgent
             body["architecture"] = Environment.Is64BitOperatingSystem ? "x64" : "x86";
             body["agent_version"] = AgentVersion;
             body["last_error"] = state.LastError ?? "";
+            body["edr_capable"] = true;
             Dictionary<string, object> result = Post(cfg, "/api/v1/windows-agents/heartbeat", body, ReadApiKey());
             state.LastError = ""; SaveState(state);
             return result;

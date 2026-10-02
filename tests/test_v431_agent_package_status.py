@@ -39,12 +39,12 @@ def test_agent_modal_disables_missing_installer_and_handles_download_errors():
     assert "GODSEYE-Windows-Agent-x64-Setup-2.4.5.exe" in source
 
 
-def test_agent_installer_always_explains_enrollment_choice():
-    script = Path("windows/agent-x64/installer/GODSEYE-Agent-x64.nsi").read_text(encoding="utf-8")
-    assert "Page custom EnrollmentPageCreate EnrollmentPageLeave" in script
-    assert "Keep existing GODSEYE enrollment" in script
-    assert "An existing GODSEYE enrollment was found" in script
-    assert 'Delete "$APPDATA\\GODSEYE\\Agent\\agent.key"' in script
+def test_agent_installer_preserves_existing_enrollment():
+    script = Path("windows/agent-x64/installer/GODSEYE-Agent-x64.iss").read_text(encoding="utf-8")
+    assert "ExistingConfig := FileExists(ConfigPath())" in script
+    assert "Result := ExistingConfig" in script
+    assert "Enrollment token:" in script
+    assert "GODSEYE Windows Agent 2.4.5 was installed and verified successfully" in script
 
 
 def test_built_agent_installer_is_reported_and_downloaded(tmp_path):

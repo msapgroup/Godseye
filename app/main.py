@@ -433,6 +433,7 @@ def init_db():
             os_version TEXT DEFAULT '',
             architecture TEXT DEFAULT '',
             agent_version TEXT DEFAULT '',
+            edr_capable INTEGER NOT NULL DEFAULT 0,
             status TEXT NOT NULL DEFAULT 'enrolled',
             enabled INTEGER NOT NULL DEFAULT 1,
             channels_json TEXT NOT NULL DEFAULT '["System","Application"]',
@@ -661,6 +662,7 @@ def init_db():
         CREATE INDEX IF NOT EXISTS idx_backupcodes_user ON mfa_backup_codes(user_id);
         """)
         _add_column_if_missing(c, "users", "failed_attempts", "failed_attempts INTEGER NOT NULL DEFAULT 0")
+        _add_column_if_missing(c, "windows_agents", "edr_capable", "edr_capable INTEGER NOT NULL DEFAULT 0")
         _add_column_if_missing(c, "users", "locked_until", "locked_until TEXT")
         _add_column_if_missing(c, "users", "password_changed_at", "password_changed_at TEXT")
         _add_column_if_missing(c, "users", "must_change_password_by", "must_change_password_by TEXT")
@@ -3563,6 +3565,7 @@ class WindowsAgentHeartbeatRequest(BaseModel):
     os_version: str = ""
     architecture: str = "x64"
     agent_version: str = ""
+    edr_capable: bool = False
     last_error: str = ""
 
 class WindowsAgentEvent(BaseModel):
@@ -3702,8 +3705,8 @@ def windows_agent_heartbeat(req: WindowsAgentHeartbeatRequest, request: Request,
     with db() as c:
         c.execute("""UPDATE windows_agents SET computer_name=CASE WHEN ?<>'' THEN ? ELSE computer_name END,hostname=CASE WHEN ?<>'' THEN ? ELSE hostname END,
                      ip_address=?,os_version=CASE WHEN ?<>'' THEN ? ELSE os_version END,architecture=CASE WHEN ?<>'' THEN ? ELSE architecture END,
-                     agent_version=CASE WHEN ?<>'' THEN ? ELSE agent_version END,status='online',last_heartbeat_at=?,last_error=?,updated_at=? WHERE id=?""",
-                  (req.computer_name,req.computer_name[:255],req.hostname,req.hostname[:255],client_ip(request)[:120],req.os_version,req.os_version[:300],req.architecture,req.architecture[:80],req.agent_version,req.agent_version[:80],ts,req.last_error[:1000],ts,aid))
+                     agent_version=CASE WHEN ?<>'' THEN ? ELSE agent_version END,edr_capable=?,status='online',last_heartbeat_at=?,last_error=?,updated_at=? WHERE id=?""",
+                  (req.computer_name,req.computer_name[:255],req.hostname,req.hostname[:255],client_ip(request)[:120],req.os_version,req.os_version[:300],req.architecture,req.architecture[:80],req.agent_version,req.agent_version[:80],int(req.edr_capable),ts,req.last_error[:1000],ts,aid))
         pending=c.execute("SELECT * FROM windows_agent_rechecks WHERE agent_id=? AND status IN ('pending','delivered') ORDER BY id LIMIT 20",(aid,)).fetchall()
         if pending:
             ids=[r["id"] for r in pending if r["status"]=="pending"]
@@ -3714,7 +3717,7 @@ def windows_agent_heartbeat(req: WindowsAgentHeartbeatRequest, request: Request,
         # The existing fixed defender_review command runs on the agent; no script is sent.
         edr.ensure_schema(c)
         enabled=c.execute("SELECT enabled FROM edr_policies WHERE agent_id=?",(aid,)).fetchone()
-        if enabled and enabled[0] and _agent_version_tuple(req.agent_version or agent["agent_version"]) >= (2,5,0):
+        if enabled and enabled[0] and req.edr_capable:
             last=c.execute("""SELECT requested_at FROM windows_agent_commands
                 WHERE agent_id=? AND command_type='defender_review' ORDER BY id DESC LIMIT 1""",(aid,)).fetchone()
             due=not last
@@ -3945,7 +3948,7 @@ def edr_overview(user=Depends(get_current_user)):
         edr.ensure_schema(c)
         active=c.execute("SELECT version,name,source,sha256,created_at FROM edr_rule_packs WHERE active=1").fetchone()
         packs=[dict(row) for row in c.execute("SELECT version,name,source,sha256,created_at,active FROM edr_rule_packs ORDER BY version DESC LIMIT 20")]
-        agents=[dict(row) for row in c.execute("""SELECT a.id,a.computer_name,a.agent_version,a.last_heartbeat_at,
+        agents=[dict(row) for row in c.execute("""SELECT a.id,a.computer_name,a.agent_version,a.edr_capable,a.last_heartbeat_at,
             COALESCE(p.enabled,0) AS edr_enabled,
             (SELECT w.result_json FROM windows_agent_commands w WHERE w.agent_id=a.id
              AND w.command_type='defender_review' AND w.status='completed' ORDER BY w.id DESC LIMIT 1) AS defender_result_json,
@@ -4026,12 +4029,11 @@ def edr_defender_action(agent_id: int, action: str, request: Request, user=Depen
     command=commands[action]
     with db() as c:
         edr.ensure_schema(c)
-        agent=c.execute("""SELECT a.id,a.agent_version FROM windows_agents a JOIN edr_policies p ON p.agent_id=a.id
+        agent=c.execute("""SELECT a.id,a.agent_version,a.edr_capable FROM windows_agents a JOIN edr_policies p ON p.agent_id=a.id
             WHERE a.id=? AND a.enabled=1 AND a.revoked_at IS NULL AND p.enabled=1""",(agent_id,)).fetchone()
         if not agent: raise HTTPException(409,"Godseye EDR is excluded or the agent is unavailable")
-        minimum=(2,5,1) if action=="update" else (2,5,0)
-        if _agent_version_tuple(agent["agent_version"]) < minimum:
-            raise HTTPException(409,f"Defender {action} requires Windows Agent {'.'.join(map(str,minimum))} or newer")
+        if not agent["edr_capable"]:
+            raise HTTPException(409,"Defender EDR actions require the current Agent 2.4.5 build")
         pending=c.execute("""SELECT id FROM windows_agent_commands WHERE agent_id=? AND command_type=?
             AND status IN ('pending','delivered')""",(agent_id,command)).fetchone()
         if pending: raise HTTPException(409,"This Defender action is already queued")
@@ -4046,10 +4048,10 @@ def edr_scan(agent_id: int, req: EdrScanRequest, request: Request, user=Depends(
     if req.scan_type not in {"quick","full"}: raise HTTPException(400,"Select a quick or full scan")
     with db() as c:
         edr.ensure_schema(c)
-        row=c.execute("""SELECT a.id,a.agent_version FROM windows_agents a JOIN edr_policies p ON p.agent_id=a.id
+        row=c.execute("""SELECT a.id,a.agent_version,a.edr_capable FROM windows_agents a JOIN edr_policies p ON p.agent_id=a.id
             WHERE a.id=? AND a.enabled=1 AND a.revoked_at IS NULL AND p.enabled=1""",(agent_id,)).fetchone()
         if not row: raise HTTPException(409,"EDR is excluded or this agent is unavailable")
-        if _agent_version_tuple(row["agent_version"]) < (2,5,0): raise HTTPException(409,"Godseye EDR requires Windows Agent 2.5.0 or newer")
+        if not row["edr_capable"]: raise HTTPException(409,"Godseye EDR requires the current Agent 2.4.5 build")
         pack=c.execute("SELECT version,sha256 FROM edr_rule_packs WHERE active=1").fetchone()
         if not pack: raise HTTPException(409,"Publish a validated rule pack first")
         existing=c.execute("SELECT id FROM windows_agent_commands WHERE agent_id=? AND command_type='edr_scan' AND status IN ('pending','delivered')",(agent_id,)).fetchone()
@@ -4439,7 +4441,7 @@ def windows_agent_package(user=Depends(require_admin)):
     path=BASE_DIR / "windows" / "agent-x64" / versioned_name
     if path.is_file():
         return FileResponse(path,media_type="application/vnd.microsoft.portable-executable",filename=versioned_name,headers={"Cache-Control":"no-store","X-GODSEYE-Agent-Version":version})
-    return RedirectResponse(f"https://github.com/msapgroup/Godseye/releases/download/v4.31.0-agent-{version}/{versioned_name}",status_code=302,headers={"Cache-Control":"no-store","X-GODSEYE-Agent-Version":version})
+    return RedirectResponse(f"https://github.com/msapgroup/Godseye/releases/download/v4.31.0-agent-2.4.5/{versioned_name}",status_code=302,headers={"Cache-Control":"no-store","X-GODSEYE-Agent-Version":version})
 
 
 @app.get(f"{router_prefix}/windows-agents/package-status")
@@ -7618,7 +7620,7 @@ html:not([data-theme="dark"]) :is(.v430-global-search,.v430-bell,.user-chip,.aut
   <div class="edr-tab-pane" data-edr-pane="scans" hidden><div class="edr-section-heading"><div><h2>Scans &amp; activity</h2><p>Queued commands and reported results from the enrolled Windows Agents.</p></div></div><div id="edrJobs" class="edr-activity"><div class="empty">Loading activity…</div></div></div>
   <div class="edr-tab-pane" data-edr-pane="alerts" hidden><div class="edr-section-heading"><div><h2>Alerts &amp; review</h2><p>Review Defender detections and YARA matches before taking action.</p></div></div><div id="edrAlertList" class="edr-activity"><div class="empty">Loading detections…</div></div></div>
   <div class="edr-tab-pane" data-edr-pane="rules" hidden><div class="edr-section-heading"><div><h2>Rule Center</h2><p>Validate a local YARA file, publish it, or activate an earlier reviewed pack.</p></div></div><div id="edrRules" class="edr-rule-list"><div class="empty">Loading rule packs…</div></div><div class="edr-rule-upload admin-only"><label>Pack name<input id="edrRuleName" class="input" value="Godseye reviewed rules" maxlength="120"></label><label>Source and license notes<input id="edrRuleSource" class="input" placeholder="Rule source and license approval" maxlength="200"></label><label>YARA file, up to 1 MB<input id="edrRuleFile" class="input" type="file" accept=".yar,.yara,text/plain"></label><button class="primary" onclick="publishEdrRules()">Validate &amp; publish</button></div><p id="edrStatus" class="muted" role="status"></p></div>
-  <div class="edr-tab-pane" data-edr-pane="setup" hidden><div class="edr-section-heading"><div><h2>Agent &amp; setup</h2><p>EDR monitoring is optional. Core remote support remains available when EDR is excluded.</p></div></div><div class="edr-setup-grid"><div><b>1 · Enroll the computer</b><p>Install Windows Agent 2.5.2, then confirm it checks in.</p><button class="secondary" onclick="openWindowsAgentModal()">Open Windows Agent setup</button></div><div><b>2 · Select EDR</b><p>In Overview, enable monitoring on the computer. Defender continues to use Microsoft's own security intelligence and protection settings.</p><button class="secondary" onclick="showEdrTab('overview')">View endpoints</button></div><div><b>3 · Add optional YARA scans</b><p>Install the scanner component and publish reviewed YARA rules. Rule matches require technician review.</p><button class="secondary" onclick="showEdrTab('rules')">Open Rule Center</button></div></div></div>
+  <div class="edr-tab-pane" data-edr-pane="setup" hidden><div class="edr-section-heading"><div><h2>Agent &amp; setup</h2><p>EDR monitoring is optional. Core remote support remains available when EDR is excluded.</p></div></div><div class="edr-setup-grid"><div><b>1 · Enroll the computer</b><p>Install the integrated Windows Agent 2.4.5, then confirm it checks in.</p><button class="secondary" onclick="openWindowsAgentModal()">Open Windows Agent setup</button></div><div><b>2 · Select EDR</b><p>In Overview, enable monitoring on the computer. Defender continues to use Microsoft's own security intelligence and protection settings.</p><button class="secondary" onclick="showEdrTab('overview')">View endpoints</button></div><div><b>3 · Add optional YARA scans</b><p>Install the scanner component and publish reviewed YARA rules. Rule matches require technician review.</p><button class="secondary" onclick="showEdrTab('rules')">Open Rule Center</button></div></div></div>
  </div>
 </div>
 
@@ -8963,7 +8965,7 @@ function renderEdrEndpoints(){
  const el=document.getElementById('edrEndpoints');if(!el||!EDR_VIEW_DATA)return;
  const query=(document.getElementById('edrSearch')?.value||'').trim().toLowerCase(),agents=(EDR_VIEW_DATA.agents||[]).filter(a=>!query||String(a.computer_name||'').toLowerCase().includes(query));
  el.innerHTML=agents.length?agents.map(a=>{
-  const version=String(a.agent_version||'0.0.0').split('.').map(Number),ready=version[0]>2||(version[0]===2&&version[1]>=5),updateReady=ready&&(version[0]>2||version[1]>5||version[2]>=1);
+  const ready=!!a.edr_capable,updateReady=ready;
   const fresh=edrFresh(a),active=a.edr_enabled&&fresh&&a.defender?.RealTimeProtectionEnabled===true;
   const detections=edrDetections(a),state=!a.edr_enabled?'EDR excluded':!fresh?'Status unknown':active?'Protected now':'Review protection';
   const status=!a.edr_enabled?'Monitoring is off for this endpoint.':!fresh?'No recent Defender report. Refresh this computer.':active?'Defender real-time protection is active.':'Defender real-time protection is inactive or passive.';
