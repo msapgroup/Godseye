@@ -210,6 +210,17 @@ async def main():
         await page.wait_for_timeout(1000)
         await page.screenshot(path=str(OUT / "v431-cyber-tools-working.png"), full_page=True)
 
+        # Leaving the sign-in screen idle must not keep dashboard polling alive.
+        dashboard_requests = []
+        page.on('request', lambda request: dashboard_requests.append(request.url)
+                if request.url.endswith('/api/v1/health') else None)
+        await page.evaluate("()=>logout()")
+        await page.locator('#authOverlay').wait_for(state='visible')
+        assert await page.evaluate('DASHBOARD_REFRESH_TIMER === null && ME === null')
+        dashboard_requests.clear()
+        await page.wait_for_timeout(11500)
+        assert not dashboard_requests, f'Dashboard requested data after logout: {dashboard_requests}'
+
         await browser.close()
 
 if __name__ == "__main__":

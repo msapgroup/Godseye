@@ -7867,7 +7867,9 @@ let PENDING_MFA_TOKEN=null;
 function getCookie(name){const m=document.cookie.match('(?:^|; )'+name+'=([^;]*)');return m?decodeURIComponent(m[1]):null}
 async function json(url,opt={}){opt.headers=opt.headers||{};if(opt.method&&opt.method!=='GET'){let csrf=getCookie('godseye_csrf');if(!csrf){await fetch('/api/v1/auth/csrf');csrf=getCookie('godseye_csrf')}opt.headers['X-CSRF-Token']=csrf||''}let r=await fetch(url,opt);if(r.status===401){showLogin();throw new Error('unauthenticated')}if(!r.ok){let t=await r.text();throw new Error(t)}return r.status===204?null:r.json()}
 function toggleUserMenu(){const m=document.getElementById("userMenu");if(m)m.style.display=m.style.display==="none"?"block":"none"}
-function showLogin(){document.getElementById('app').style.display='none';document.getElementById('pwOverlay').style.display='none';document.getElementById('mfaLoginOverlay').style.display='none';document.getElementById('setupOverlay').style.display='none';document.getElementById('authOverlay').style.display='grid'}
+let DASHBOARD_REFRESH_TIMER=null;
+let DASHBOARD_REFRESH_BUSY=false;
+function showLogin(){clearInterval(DASHBOARD_REFRESH_TIMER);DASHBOARD_REFRESH_TIMER=null;clearTimeout(REMOTE_POLL_TIMER);REMOTE_POLL_TIMER=null;REMOTE_SESSION=null;ME=null;document.getElementById('app').style.display='none';document.getElementById('pwOverlay').style.display='none';document.getElementById('mfaLoginOverlay').style.display='none';document.getElementById('setupOverlay').style.display='none';document.getElementById('authOverlay').style.display='grid'}
 async function checkInitialSetup(){try{let r=await fetch('/api/v1/auth/setup/status');let d=await r.json();if(d.setup_required){document.getElementById('authOverlay').style.display='none';document.getElementById('setupOverlay').style.display='grid';return true}}catch(e){}return false}
 async function doInitialSetup(e){e.preventDefault();const err=document.getElementById('setupErr');err.textContent='';if(setupPass.value!==setupPass2.value){err.textContent='Passwords do not match';return false}try{let r=await fetch('/api/v1/auth/setup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({current_password:'',new_password:setupPass.value})});if(!r.ok){let t=await r.json().catch(()=>({}));err.textContent=t.detail||'Could not create password';return false}document.getElementById('setupOverlay').style.display='none';document.getElementById('authOverlay').style.display='grid';loginUser.value='admin';loginPass.value='';loginPass.focus()}catch(e){err.textContent='Setup failed'}return false}
 function showApp(){document.getElementById('authOverlay').style.display='none';document.getElementById('pwOverlay').style.display='none';document.getElementById('mfaLoginOverlay').style.display='none';document.getElementById('app').style.display='block'}
@@ -8953,7 +8955,7 @@ async function doLogin(e){e.preventDefault();const err=document.getElementById('
 async function doMfaVerify(e){e.preventDefault();const err=document.getElementById('mfaLoginErr');err.textContent='';try{let r=await fetch('/api/v1/auth/mfa/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pending_token:PENDING_MFA_TOKEN,code:mfaCode.value.trim()})});if(!r.ok){err.textContent='Invalid code';return false}let data=await r.json();PENDING_MFA_TOKEN=null;if(data.must_change_password){document.getElementById('mfaLoginOverlay').style.display='none';document.getElementById('pwOverlay').style.display='grid';return false}await boot()}catch(e){err.textContent='Verification failed'}return false}
 function openChangePassword(){document.getElementById('pwOverlay').style.display='grid'}
 async function doChangePassword(e){e.preventDefault();const err=document.getElementById('pwErr');err.textContent='';try{await json('/api/v1/auth/change-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({current_password:curPass.value,new_password:newPass.value})});curPass.value='';newPass.value='';showLogin();loginPass.value='';document.getElementById('loginErr').textContent='Password changed. Sign in with your new password.';loginPass.focus()}catch(e){err.textContent='Could not change password — check your current password'}return false}
-async function logout(){await fetch('/api/v1/auth/logout',{method:'POST',headers:{'X-CSRF-Token':getCookie('godseye_csrf')||''}});showLogin()}
+async function logout(){try{const response=await fetch('/api/v1/auth/logout',{method:'POST',headers:{'X-CSRF-Token':getCookie('godseye_csrf')||''},signal:AbortSignal.timeout(10000)});if(!response.ok)throw Error('HTTP '+response.status);showLogin()}catch(e){alert('Could not sign out. Check the connection and try again.')}}
 async function rebootAppliance(){if(!confirm('Reboot the GODSEYE server? All users will be disconnected until it starts again.'))return;try{const r=await fetch('/api/v1/appliance/reboot',{method:'POST',headers:{'X-CSRF-Token':getCookie('godseye_csrf')||''}});const data=await r.json();if(!r.ok)throw Error(data.detail||'Reboot request failed');alert('Server reboot scheduled. Reconnect in a few minutes.')}catch(e){alert('Could not reboot server: '+e.message)}}
 function csrfToken(){return getCookie('godseye_csrf')||''}
 async function loadUsers(){
@@ -9731,9 +9733,12 @@ async function boot(){decorateHeaderHelp();
     loadSecurity(),
     ME.role==='admin'?loadRules():Promise.resolve()
   ]);
-  setInterval(()=>{
+  clearInterval(DASHBOARD_REFRESH_TIMER);
+  DASHBOARD_REFRESH_TIMER=setInterval(async()=>{
     const ov=document.getElementById('view-overview');
-    if(ov&&ov.style.display!=='none')loadDashboard();
+    if(!ME||document.getElementById('app').style.display==='none'||document.hidden||!ov||ov.style.display==='none'||DASHBOARD_REFRESH_BUSY)return;
+    DASHBOARD_REFRESH_BUSY=true;
+    try{await loadDashboard()}catch(e){console.warn('Dashboard refresh failed',e)}finally{DASHBOARD_REFRESH_BUSY=false}
   },10000);
 }
 checkInitialSetup().then(required=>{if(!required)boot()});
@@ -9757,7 +9762,7 @@ function remoteCsrf(){const raw=(document.cookie.match('(?:^|; )godseye_csrf=([^
 async function remoteApi(url,opt={}){
  const options={...opt};options.headers={Accept:'application/json',...(opt.headers||{})};const method=String(options.method||'GET').toUpperCase();
  if(method!=='GET'&&method!=='HEAD'){options.headers['X-CSRF-Token']=remoteCsrf();if(options.body&&!options.headers['Content-Type'])options.headers['Content-Type']='application/json'}
- const r=await fetch(url,options);const text=await r.text();if(r.status===401){location.reload();throw new Error('Sign in required')}if(!r.ok)throw new Error(text||('Request failed: '+r.status));if(!text)return{};try{return JSON.parse(text)}catch(_){return{text}}
+ const r=await fetch(url,options);const text=await r.text();if(r.status===401){showLogin();throw new Error('Sign in required')}if(!r.ok)throw new Error(text||('Request failed: '+r.status));if(!text)return{};try{return JSON.parse(text)}catch(_){return{text}}
 }
 
 async function loadRemoteAccess(){
@@ -9814,7 +9819,7 @@ async function pollRemoteSession(){
   const control=String(s.control_status||'view_only').replaceAll('_',' ');const meta=document.getElementById('remoteSessionMeta');if(meta)meta.innerHTML=`<span>Computer: <b>${esc(s.computer_name||'—')}</b></span><span>Screen sharing: <b>${approved?'Approved':(s.status==='denied'?'Denied':'Pending')}</b></span><span>Control: <b>${esc(control)}</b></span><span>Status: <b>${esc(String(s.status||'unknown').replaceAll('_',' '))}</b></span>`;
   if(terminal)return;
  }catch(e){const status=document.getElementById('remoteSessionStatus');if(status)status.textContent='Remote status check failed; retrying…';}
- if(REMOTE_SESSION)REMOTE_POLL_TIMER=setTimeout(pollRemoteSession,650);
+ if(REMOTE_SESSION&&ME&&document.getElementById('app').style.display!=='none')REMOTE_POLL_TIMER=setTimeout(pollRemoteSession,650);
 }
 async function stopRemoteSession(){if(!REMOTE_SESSION)return;try{await remoteApi(`/api/v1/remote-access/sessions/${REMOTE_SESSION.id}/stop`,{method:'POST',body:'{}'});}catch(e){}clearTimeout(REMOTE_POLL_TIMER);REMOTE_SESSION=null;REMOTE_FRAME_SEQ=0;const img=document.getElementById('remoteScreen');img.style.display='none';document.getElementById('remoteEmpty').style.display='flex';document.getElementById('remoteDisconnectBtn').disabled=true;document.getElementById('remoteScreenshotBtn').disabled=true;document.getElementById('remoteSessionStatus').textContent='Session ended';}
 async function requestRemoteControl(){if(!REMOTE_SESSION||REMOTE_SESSION.status!=='active')return;try{await remoteApi(`/api/v1/remote-access/sessions/${REMOTE_SESSION.id}/control/request`,{method:'POST',body:'{}'});document.getElementById('remoteControlBtn').disabled=true;document.getElementById('remoteControlBtn').textContent='Waiting for Control Approval…';}catch(e){alert(e.message||e)}}
