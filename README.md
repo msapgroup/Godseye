@@ -58,6 +58,14 @@ Administrators can use **Reboot server** at the bottom of the sidebar. Confirm t
 
 **How it works:** Search by device or address and filter the inventory by type, status, platform, or site. Open a device to review its identity, classification, first and last seen information, history, findings, and recent activity. Devices that discovery has not found can also be added manually.
 
+### Device icons
+
+![Home and IoT device icons in the picker](docs/screenshots/v431-device-icons-home.png)
+
+![Security device icons in the picker](docs/screenshots/v431-device-icons-security.png)
+
+**How it works:** In **Devices**, open a row's **•••** menu and choose **Change Icon**. Pick a category and an icon, then select **Save Icon**. GODSEYE keeps the existing router, NAS, VoIP phone, and other icons and now includes Roku player, Fire TV Stick, smart plug, Raspberry Pi, Ring and generic video doorbells, plus smart speakers, thermostats, locks, UPS units, POS terminals, badge readers, conference phones, projectors, and more. **Auto** suggests an icon from the device type and recognizable name or vendor; a manually selected icon always takes priority. Brand labels identify device types—the artwork is a device silhouette, not a vendor logo. You can still upload your own PNG, JPEG, or WebP icon (up to 256 KB).
+
 ### Network Map
 
 ![GODSEYE Network Map](docs/screenshots/v431-network-map-card.png)

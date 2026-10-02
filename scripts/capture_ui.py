@@ -71,6 +71,19 @@ async def main():
         for view, filename in CAPTURES:
             await page.evaluate("(v)=>showView(v,true)", view)
             await page.wait_for_timeout(1500)
+            if view == "devices":
+                await page.evaluate("openDeviceIconFromButton(document.querySelector('[data-icon-id]'))")
+                for category, example, image_name in (
+                    ('home', 'roku', 'v431-device-icons-home.png'),
+                    ('security', 'ring-doorbell', 'v431-device-icons-security.png'),
+                ):
+                    await page.evaluate('(category)=>setDeviceIconCategory(category)', category)
+                    icon = page.locator(f'#deviceIconPicker [data-icon-key="{example}"] img')
+                    await icon.wait_for(state='visible')
+                    await icon.evaluate('img => img.decode()')
+                    assert await icon.evaluate('img => img.naturalWidth > 0')
+                    await page.screenshot(path=str(OUT / image_name), full_page=True)
+                await page.evaluate('closeDeviceIcon()')
             if view == "crm":
                 await page.get_by_role('button', name='+ Add Customer').click()
                 await page.fill('#crmCustomerForm [name=name]', 'North Shore Dental')

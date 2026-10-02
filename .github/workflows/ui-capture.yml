@@ -58,6 +58,8 @@ jobs:
           test -s docs/screenshots/v431-dashboard-map-logo.png
           test -s docs/screenshots/v431-login.png
           test -s docs/screenshots/v431-devices-guide.png
+          test -s docs/screenshots/v431-device-icons-home.png
+          test -s docs/screenshots/v431-device-icons-security.png
           test -s docs/screenshots/v431-cyber-tools-overview.png
           test -s docs/screenshots/v431-system-health-guide.png
           test -s docs/screenshots/v431-sites-management.png
