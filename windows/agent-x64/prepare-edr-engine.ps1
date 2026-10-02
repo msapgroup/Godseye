@@ -3,22 +3,17 @@ param([string]$Destination = (Join-Path $PSScriptRoot 'publish\EDR'))
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
-# Pin the release tag and verify the downloaded asset against the digest in
-# GitHub's release metadata before it can enter the MSI.
+# Pin the release tag and its published SHA-256 so builds do not depend on
+# anonymous GitHub API rate limits or a mutable "latest" release.
 $tag = 'v1.21.0'
 $assetName = 'yara-x-v1.21.0-x86_64-pc-windows-msvc.zip'
-$release = Invoke-RestMethod -Uri "https://api.github.com/repos/VirusTotal/yara-x/releases/tags/$tag" -Headers @{ 'User-Agent' = 'GODSEYE-build' }
-$asset = @($release.assets | Where-Object name -eq $assetName)
-if ($asset.Count -ne 1 -or $asset[0].digest -notmatch '^sha256:[0-9a-fA-F]{64}$') {
-  throw 'YARA-X release asset or verified SHA-256 digest is unavailable.'
-}
+$expected = '0e2fc4d2f64df3eaa22129ad5bd074c968a5d80766ddec6183b73175e5c9da25'
 $scratch = Join-Path ([IO.Path]::GetTempPath()) ('godseye-yarax-' + [guid]::NewGuid().ToString('N'))
 New-Item -Path $scratch -ItemType Directory -Force | Out-Null
 try {
   $archive = Join-Path $scratch $assetName
-  Invoke-WebRequest -Uri $asset[0].browser_download_url -OutFile $archive
+  Invoke-WebRequest -Uri "https://github.com/VirusTotal/yara-x/releases/download/$tag/$assetName" -OutFile $archive -TimeoutSec 180
   $actual = (Get-FileHash -Path $archive -Algorithm SHA256).Hash.ToLowerInvariant()
-  $expected = $asset[0].digest.Substring(7).ToLowerInvariant()
   if ($actual -ne $expected) { throw "YARA-X SHA-256 mismatch: $actual" }
   $unpacked = Join-Path $scratch 'unpacked'
   Expand-Archive -LiteralPath $archive -DestinationPath $unpacked
