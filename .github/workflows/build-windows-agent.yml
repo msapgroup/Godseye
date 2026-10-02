@@ -128,7 +128,7 @@ jobs:
             Start-Sleep -Seconds 1
           }
           if (Get-Service -Name 'GODSEYEWindowsAgent' -ErrorAction SilentlyContinue) { throw 'Agent service still exists after uninstall.' }
-          $trayAfterRemove = Get-ItemPropertyValue 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Run' -Name 'GODSEYE Windows Agent Tray' -ErrorAction SilentlyContinue
+          $trayAfterRemove = Get-ItemProperty 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Run' -Name 'GODSEYE Windows Agent Tray' -ErrorAction Ignore
           if ($trayAfterRemove) { throw 'Tray sign-in startup remains registered after uninstall.' }
           if (-not (Test-Path $sentinel)) { throw 'ProgramData state was removed; enrollment/state must survive upgrade/uninstall.' }
           Remove-Item $sentinel -Force
