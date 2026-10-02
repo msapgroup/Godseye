@@ -248,6 +248,8 @@ Alert rules can be used for conditions such as device bursts, offline duration, 
 
 The GODSEYE Windows Agent is the recommended way to connect supported Windows workstations and servers.
 
+For consent-based Remote Access, use the [verified Agent 2.4.5 release](https://github.com/msapgroup/Godseye/releases/tag/v4.31.0-agent-2.4.5). If its service runs but no tray icon appears, follow the [2.4.5 tray startup repair](docs/WINDOWS_AGENT.md#windows-service-and-tray). Agent 2.5.x adds EDR features; its automated installer checks have not verified live interactive Remote Access.
+
 Enrollment uses a one-time token created from GODSEYE. After enrollment, the agent keeps its identity and protected credentials on the Windows computer so normal reinstall or upgrade operations can preserve the enrolled system.
 
 The agent communicates outbound to GODSEYE over HTTPS and can support:
