@@ -9,6 +9,10 @@ The endpoint must have Agent 2.5.0 or newer for status, quick scans, and YARA sc
 
 ## How to use it
 
+![Godseye EDR endpoint cards with Defender status and actions, using labeled demo data](screenshots/v431-godseye-edr-defender-guide.png)
+
+*Screenshot uses labeled demonstration endpoints; live values come from each Windows Agent.*
+
 1. Open **Godseye EDR** as an administrator and choose **Enable EDR** on the Windows endpoint. Defender status is requested automatically at most once every five minutes while the endpoint is connected. A stale or missing result reads **unknown**.
 2. Read **Defender real-time active**, **inactive or passive**, or **unknown** in the endpoint card. Check the running mode, last signature update, recent detection IDs, and the time Godseye checked. Choose **Refresh status** to request another reading.
 3. On Agent 2.5.1 or newer, choose **Update signatures** to ask Defender to update its security intelligence. **Defender quick scan** runs an on-demand scan only when real-time protection was reported active. Results appear under **Scan jobs and findings**. For a reported detection, **Review & remove threats** asks for confirmation before calling Defender's removal command. Review the following status and Defender's protection history to verify the action.
