@@ -13,6 +13,16 @@ The endpoint must have Agent 2.5.0 or newer for status, quick scans, and YARA sc
 
 *Screenshot uses labeled demonstration endpoints; live values come from each Windows Agent.*
 
+The page follows the approved EDR workspace layout: summary numbers at the top and separate **Overview**, **Scans & activity**, **Alerts & review**, **Rule Center**, and **Agent & setup** tabs. The counts and cards are populated from enrolled computers rather than fixed demonstration data. Search in Overview filters the endpoint cards by computer name.
+
+![Godseye EDR alerts and review](screenshots/v431-godseye-edr-alerts-guide.png)
+
+**Alerts & review** lists recent Defender detections and reported YARA matches. The **Review & remove** action uses Defender's removal command after confirmation; the page does not claim to have a separate Godseye quarantine engine. **Scans & activity** shows each queued action and a readable result instead of raw command JSON.
+
+![Godseye EDR Rule Center](screenshots/v431-godseye-edr-rules-guide.png)
+
+**Rule Center** accepts a local reviewed YARA file, checks it with the server validator, and keeps earlier validated packs available for activation or rollback. **Agent & setup** links to the existing Windows Agent enrollment flow and explains the optional scanner component.
+
 1. Open **Godseye EDR** as an administrator and choose **Enable EDR** on the Windows endpoint. Defender status is requested automatically at most once every five minutes while the endpoint is connected. A stale or missing result reads **unknown**.
 2. Read **Defender real-time active**, **inactive or passive**, or **unknown** in the endpoint card. Check the running mode, last signature update, recent detection IDs, and the time Godseye checked. Choose **Refresh status** to request another reading.
 3. When enabled, Godseye also asks the Agent to read warning and error events from the Windows Defender Operational log. These flow into **Windows Event Findings** using the existing Defender event classification. Disabling EDR removes that channel from the Agent's server-managed list on its next heartbeat. Defender's own protection remains controlled by Windows.
