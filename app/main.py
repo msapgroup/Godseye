@@ -3710,6 +3710,20 @@ def windows_agent_heartbeat(req: WindowsAgentHeartbeatRequest, request: Request,
             if ids:
                 marks=','.join('?' for _ in ids)
                 c.execute(f"UPDATE windows_agent_rechecks SET status='delivered',delivered_at=? WHERE id IN ({marks})",[ts]+ids)
+        # Refresh Defender telemetry at most every five minutes for EDR-enabled agents.
+        # The existing fixed defender_review command runs on the agent; no script is sent.
+        edr.ensure_schema(c)
+        enabled=c.execute("SELECT enabled FROM edr_policies WHERE agent_id=?",(aid,)).fetchone()
+        if enabled and enabled[0] and _agent_version_tuple(req.agent_version or agent["agent_version"]) >= (2,5,0):
+            last=c.execute("""SELECT requested_at FROM windows_agent_commands
+                WHERE agent_id=? AND command_type='defender_review' ORDER BY id DESC LIMIT 1""",(aid,)).fetchone()
+            due=not last
+            if last:
+                try: due=(dt.datetime.now(dt.timezone.utc)-dt.datetime.fromisoformat(last["requested_at"])).total_seconds() >= 300
+                except (TypeError,ValueError): due=True
+            if due:
+                c.execute("""INSERT INTO windows_agent_commands(agent_id,command_type,payload_json,status,requested_by,requested_at)
+                    VALUES(?,'defender_review','{}','pending','system',?)""",(aid,ts))
         pending_commands=c.execute("SELECT * FROM windows_agent_commands WHERE agent_id=? AND status IN ('pending','delivered') ORDER BY id LIMIT 20",(aid,)).fetchall()
         if pending_commands:
             ids=[r["id"] for r in pending_commands if r["status"]=="pending"]
@@ -3928,14 +3942,27 @@ def edr_overview(user=Depends(get_current_user)):
         active=c.execute("SELECT version,name,source,sha256,created_at FROM edr_rule_packs WHERE active=1").fetchone()
         packs=[dict(row) for row in c.execute("SELECT version,name,source,sha256,created_at,active FROM edr_rule_packs ORDER BY version DESC LIMIT 20")]
         agents=[dict(row) for row in c.execute("""SELECT a.id,a.computer_name,a.agent_version,a.last_heartbeat_at,
-            COALESCE(p.enabled,0) AS edr_enabled FROM windows_agents a
-            LEFT JOIN edr_policies p ON p.agent_id=a.id WHERE a.revoked_at IS NULL ORDER BY a.computer_name""")]
-        jobs=[dict(row) for row in c.execute("""SELECT w.id,w.agent_id,a.computer_name,w.status,w.requested_at,w.completed_at,w.result_json,w.payload_json
+            COALESCE(p.enabled,0) AS edr_enabled,
+            (SELECT w.result_json FROM windows_agent_commands w WHERE w.agent_id=a.id
+             AND w.command_type='defender_review' AND w.status='completed' ORDER BY w.id DESC LIMIT 1) AS defender_result_json,
+            (SELECT w.completed_at FROM windows_agent_commands w WHERE w.agent_id=a.id
+             AND w.command_type='defender_review' AND w.status='completed' ORDER BY w.id DESC LIMIT 1) AS defender_checked_at
+            FROM windows_agents a LEFT JOIN edr_policies p ON p.agent_id=a.id
+            WHERE a.revoked_at IS NULL ORDER BY a.computer_name""")]
+        for item in agents:
+            raw=item.pop("defender_result_json")
+            try:
+                snapshot=json.loads(json.loads(raw or "{}").get("details") or "{}")
+                if not isinstance(snapshot,dict): snapshot={}
+            except (TypeError,ValueError,AttributeError): snapshot={}
+            item["defender"]=snapshot
+        jobs=[dict(row) for row in c.execute("""SELECT w.id,w.agent_id,a.computer_name,w.command_type,w.status,w.requested_at,w.completed_at,w.result_json,w.payload_json
             FROM windows_agent_commands w JOIN windows_agents a ON a.id=w.agent_id
-            WHERE w.command_type='edr_scan' ORDER BY w.id DESC LIMIT 50""")]
+            WHERE w.command_type IN ('edr_scan','defender_review','defender_quick_scan','defender_update','defender_remediate') ORDER BY w.id DESC LIMIT 50""")]
     for job in jobs:
         job["result"]=json.loads(job.pop("result_json") or "{}")
         job["scan_type"]=json.loads(job.pop("payload_json") or "{}").get("scan_type","quick")
+
     return {"active_pack":dict(active) if active else None,"packs":packs,"agents":agents,"jobs":jobs,
             "engine":"YARA-X","engine_ready":bool(__import__('shutil').which(os.environ.get('GODSEYE_YARAX_CLI','yr')))}
 
@@ -3986,6 +4013,28 @@ def edr_agent_rules(agent=Depends(_agent_auth)):
         pack=c.execute("SELECT version,sha256,rules FROM edr_rule_packs WHERE active=1").fetchone()
     if not pack: raise HTTPException(409,"No validated rule pack is active")
     return dict(pack)
+
+
+@app.post(f"{router_prefix}/edr/agents/{{agent_id}}/defender/{{action}}")
+def edr_defender_action(agent_id: int, action: str, request: Request, user=Depends(require_permission("operate"))):
+    commands={"refresh":"defender_review","quick":"defender_quick_scan","update":"defender_update","remediate":"defender_remediate"}
+    if action not in commands: raise HTTPException(400,"Unsupported Defender action")
+    command=commands[action]
+    with db() as c:
+        edr.ensure_schema(c)
+        agent=c.execute("""SELECT a.id,a.agent_version FROM windows_agents a JOIN edr_policies p ON p.agent_id=a.id
+            WHERE a.id=? AND a.enabled=1 AND a.revoked_at IS NULL AND p.enabled=1""",(agent_id,)).fetchone()
+        if not agent: raise HTTPException(409,"Godseye EDR is excluded or the agent is unavailable")
+        minimum=(2,5,1) if action=="update" else (2,5,0)
+        if _agent_version_tuple(agent["agent_version"]) < minimum:
+            raise HTTPException(409,f"Defender {action} requires Windows Agent {'.'.join(map(str,minimum))} or newer")
+        pending=c.execute("""SELECT id FROM windows_agent_commands WHERE agent_id=? AND command_type=?
+            AND status IN ('pending','delivered')""",(agent_id,command)).fetchone()
+        if pending: raise HTTPException(409,"This Defender action is already queued")
+        cid=c.execute("""INSERT INTO windows_agent_commands(agent_id,command_type,payload_json,status,requested_by,requested_at)
+            VALUES(?,?,'{}','pending',?,?)""",(agent_id,command,user["username"],now())).lastrowid
+        audit(c,user["username"],"edr_defender_"+action,str(agent_id),str(cid),client_ip(request))
+    return {"ok":True,"command_id":cid,"status":"pending"}
 
 
 @app.post(f"{router_prefix}/edr/agents/{{agent_id}}/scan")
@@ -7532,9 +7581,9 @@ html:not([data-theme="dark"]) :is(.v430-global-search,.v430-bell,.user-chip,.aut
 </div>
 
 <div class="view" id="view-edr" style="display:none">
-  <div class="hero"><div><h1>Godseye EDR</h1><div class="muted">Optional on-demand endpoint scans with reviewed YARA-X rules. Continuous protection and quarantine are not available in this release.</div></div><div class="actions"><button class="secondary" onclick="loadEdr()">↻ Refresh</button></div></div>
-  <div class="cards"><div class="card"><div class="label">EDR selected</div><div class="num green" id="edrProtected">—</div></div><div class="card"><div class="label">Pending jobs</div><div class="num" id="edrPending">—</div></div><div class="card"><div class="label">Active rule pack</div><div class="num" id="edrPack">—</div></div></div>
-  <section class="panel"><div class="table-head"><div><h2>Endpoints</h2><div class="muted">Enable EDR per endpoint. The existing agent and remote support continue when EDR is excluded.</div></div></div><div id="edrEndpoints" class="empty">Loading…</div></section>
+  <div class="hero"><div><h1>Godseye EDR</h1><div class="muted">Defender protection status, security intelligence updates, and quick scans alongside optional YARA-X rule scans. Godseye reports the protection actually running on each endpoint.</div></div><div class="actions"><button class="secondary" onclick="loadEdr()">↻ Refresh</button></div></div>
+  <div class="cards"><div class="card"><div class="label">Defender active</div><div class="num green" id="edrProtected">—</div></div><div class="card"><div class="label">Pending jobs</div><div class="num" id="edrPending">—</div></div><div class="card"><div class="label">Active rule pack</div><div class="num" id="edrPack">—</div></div></div>
+  <section class="panel"><div class="table-head"><div><h2>Endpoints</h2><div class="muted">Enable Godseye monitoring per endpoint. Defender supplies real-time protection when active. The existing agent and remote support continue when Godseye EDR is excluded.</div></div></div><div id="edrEndpoints" class="empty">Loading…</div></section>
   <section class="panel"><div class="table-head"><div><h2>Scan jobs and findings</h2><div class="muted">A rule match needs review. A scan error is shown as an error, never as a clean result.</div></div></div><div id="edrJobs" class="empty">Loading…</div></section>
   <section class="panel"><div class="table-head"><div><h2>Rule Center</h2><div class="muted">Review licenses and source before publishing. Rule packs are checked by YARA-X on the server.</div></div></div><div id="edrRules" class="empty">Loading…</div><div class="admin-only"><label>Pack name<input id="edrRuleName" class="input" value="Godseye reviewed rules" maxlength="120"></label><label>Source / license notes<input id="edrRuleSource" class="input" placeholder="Source name and license approval" maxlength="200"></label><label>YARA rule file (up to 1 MB)<input id="edrRuleFile" class="input" type="file" accept=".yar,.yara,text/plain"></label><div class="actions"><button class="primary" onclick="publishEdrRules()">Validate and publish</button></div></div><div id="edrStatus" class="muted" role="status"></div></section>
 </div>
@@ -8860,15 +8909,20 @@ async function loadEdr(){
   const target=document.getElementById('edrEndpoints');if(!target)return;
   try{
     const d=await json('/api/v1/edr/overview'),agents=d.agents||[],jobs=d.jobs||[];
-    document.getElementById('edrProtected').textContent=agents.filter(a=>a.edr_enabled).length+' / '+agents.length;
+    document.getElementById('edrProtected').textContent=agents.filter(a=>a.edr_enabled&&a.defender?.RealTimeProtectionEnabled===true&&a.defender_checked_at&&Date.now()-Date.parse(a.defender_checked_at)<10*60*1000).length+' / '+agents.filter(a=>a.edr_enabled).length;
     document.getElementById('edrPending').textContent=jobs.filter(j=>['pending','delivered'].includes(j.status)).length;
     document.getElementById('edrPack').textContent=d.active_pack?'v'+d.active_pack.version:'None';
-    target.innerHTML=agents.length?agents.map(a=>{const capable=(a.agent_version||'').split('.').map(Number);const ready=capable[0]>2||(capable[0]===2&&capable[1]>=5);return `<div class="panel" style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px;align-items:center"><div><b>${esc(a.computer_name)}</b><div class="muted">Agent ${esc(a.agent_version||'unknown')} · ${ready?(a.edr_enabled?'EDR selected':'EDR excluded'):'Agent 2.5.0 required'} · last check-in ${esc(a.last_heartbeat_at||'never')}</div></div><div class="actions"><button class="secondary admin-only" ${ready?'':'disabled'} onclick="setEdrPolicy(${a.id},${a.edr_enabled?0:1})">${a.edr_enabled?'Exclude EDR':'Enable EDR'}</button><button class="secondary" ${ready&&a.edr_enabled&&d.active_pack?'':'disabled'} onclick="queueEdrScan(${a.id},'quick')">Quick scan</button><button class="secondary" ${ready&&a.edr_enabled&&d.active_pack?'':'disabled'} onclick="queueEdrScan(${a.id},'full')">Full scan</button></div></div>`}).join(''):'<div class="empty">No enrolled Windows Agents.</div>';
-    document.getElementById('edrJobs').innerHTML=jobs.length?jobs.map(j=>`<div class="panel"><b>${esc(j.computer_name)} · ${esc(j.scan_type)} scan</b><div class="muted">${esc(j.status)} · ${esc(j.requested_at)} ${j.completed_at?'· completed '+esc(j.completed_at):''}</div><div>${esc(j.result?.details||'Waiting for agent check-in')}</div></div>`).join(''):'<div class="empty">No scans queued yet.</div>';
+    target.innerHTML=agents.length?agents.map(a=>{const capable=(a.agent_version||'').split('.').map(Number);const ready=capable[0]>2||(capable[0]===2&&capable[1]>=5),updateReady=ready&&(capable[0]>2||capable[1]>5||capable[2]>=1);
+      const fresh=a.defender_checked_at&&Date.now()-Date.parse(a.defender_checked_at)<10*60*1000;const state=!a.edr_enabled?'Godseye monitoring excluded':!fresh?'Defender status unknown or stale':a.defender?.RealTimeProtectionEnabled===true?'Defender real-time active':'Defender real-time inactive or passive';
+      const detections=Array.isArray(a.defender?.RecentDetections)?a.defender.RecentDetections:(a.defender?.RecentDetections?[a.defender.RecentDetections]:[]);
+      const details=a.edr_enabled&&a.defender_checked_at?`<div class="muted">Mode ${esc(a.defender?.AMRunningMode||'unknown')} · signatures ${esc(a.defender?.SignatureLastUpdated||'unknown')} · checked ${esc(a.defender_checked_at)}</div><div class="muted">Recent detections: ${detections.length?detections.map(x=>esc(String(x.ThreatID||'unknown')+' ('+(x.ActionSuccess?'action succeeded':'review action')+')')).join(', '):'none reported'}</div>`:'';
+      return `<div class="panel" style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px;align-items:center"><div><b>${esc(a.computer_name)}</b><div class="muted">Agent ${esc(a.agent_version||'unknown')} · ${esc(state)} · last check-in ${esc(a.last_heartbeat_at||'never')}</div>${details}</div><div class="actions"><button class="secondary admin-only" ${ready?'':'disabled'} onclick="setEdrPolicy(${a.id},${a.edr_enabled?0:1})">${a.edr_enabled?'Exclude EDR':'Enable EDR'}</button><button class="secondary" ${ready&&a.edr_enabled?'':'disabled'} onclick="queueDefender(${a.id},'refresh')">Refresh status</button><button class="secondary" ${updateReady&&a.edr_enabled?'':'disabled'} onclick="queueDefender(${a.id},'update')">Update signatures</button><button class="secondary" ${ready&&a.edr_enabled&&a.defender?.RealTimeProtectionEnabled===true?'':'disabled'} onclick="queueDefender(${a.id},'quick')">Defender quick scan</button><button class="secondary" ${ready&&a.edr_enabled&&detections.length?'':'disabled'} onclick="queueDefender(${a.id},'remediate')">Review &amp; remove threats</button><button class="secondary" ${ready&&a.edr_enabled&&d.active_pack?'':'disabled'} onclick="queueEdrScan(${a.id},'quick')">YARA quick scan</button><button class="secondary" ${ready&&a.edr_enabled&&d.active_pack?'':'disabled'} onclick="queueEdrScan(${a.id},'full')">YARA full scan</button></div></div>`}).join(''):'<div class="empty">No enrolled Windows Agents.</div>';
+    document.getElementById('edrJobs').innerHTML=jobs.length?jobs.map(j=>`<div class="panel"><b>${esc(j.computer_name)} · ${esc(j.command_type==='edr_scan'?j.scan_type+' YARA scan':j.command_type.replaceAll('_',' '))}</b><div class="muted">${esc(j.status)} · ${esc(j.requested_at)} ${j.completed_at?'· completed '+esc(j.completed_at):''}</div><div>${esc(j.result?.details||'Waiting for agent check-in')}</div></div>`).join(''):'<div class="empty">No scans queued yet.</div>';
     document.getElementById('edrRules').innerHTML=(d.packs||[]).length?d.packs.map(p=>`<div class="panel"><b>v${p.version} · ${esc(p.name)}</b> ${p.active?'<span class="badge">Active</span>':`<button class="secondary admin-only" onclick="activateEdrRules(${p.version})">Activate / rollback</button>`}<div class="muted">${esc(p.source)} · SHA-256 ${esc(p.sha256.slice(0,16))}… · ${esc(p.created_at)}</div></div>`).join(''):'<div class="empty">No rule pack published. Scans remain unavailable.</div>';
     document.getElementById('edrStatus').textContent=d.engine_ready?'Server rule validator ready.':'Server YARA-X validator unavailable; publishing is disabled until installed.';
   }catch(e){target.textContent='Could not load EDR: '+e.message}
 }
+async function queueDefender(id,action){if(action==='remediate'&&!confirm('Ask Microsoft Defender to remove detected threats on this computer? Review its results after completion.'))return;try{await json('/api/v1/edr/agents/'+id+'/defender/'+action,{method:'POST'});loadEdr()}catch(e){alert('Could not queue Defender action: '+e.message)}}
 async function setEdrPolicy(id,enabled){try{await json('/api/v1/edr/agents/'+id+'/policy',{method:'POST',body:JSON.stringify({enabled:!!enabled})});loadEdr()}catch(e){alert('Could not save EDR policy: '+e.message)}}
 async function queueEdrScan(id,scan_type){try{await json('/api/v1/edr/agents/'+id+'/scan',{method:'POST',body:JSON.stringify({scan_type})});loadEdr()}catch(e){alert('Could not queue EDR scan: '+e.message)}}
 async function publishEdrRules(){const file=document.getElementById('edrRuleFile').files[0];if(!file||file.size>1048576){alert('Choose a .yar or .yara file under 1 MB.');return}if(!/\.yara?$/i.test(file.name)){alert('Choose a YARA rule file.');return}try{await json('/api/v1/edr/rules',{method:'POST',body:JSON.stringify({name:document.getElementById('edrRuleName').value,source:document.getElementById('edrRuleSource').value,rules:await file.text()})});loadEdr()}catch(e){alert('Could not publish rules: '+e.message)}}

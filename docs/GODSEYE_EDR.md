@@ -1,35 +1,27 @@
-# Godseye EDR integration status
+# Godseye EDR
 
-The Godseye EDR sidebar provides per-agent opt in, server-side rule validation,
-versioned rule packs, rollback, queued quick/full scans, and reported results.
-Existing Windows Agent remote access and the separate ClamAV integration are
-unchanged. New agents default to EDR excluded.
+Godseye's EDR page manages two complementary Windows capabilities:
 
-## Using the page
+- **Microsoft Defender Antivirus:** when active on the PC, Defender provides real-time antivirus protection and its own security intelligence updates and remediation. Godseye displays the reported state and recent detection history; it does not supply Defender's signatures.
+- **Optional YARA-X:** approved rule packs support on-demand quick and full scans. Rule matches require technician review. YARA scanning is not continuous antivirus protection.
 
-1. An administrator opens **Godseye EDR** and checks that the server validator
-   shows ready. It requires the YARA-X `yr` CLI on the Godseye server.
-2. Review the rule source and its redistribution license. Select a `.yar` or
-   `.yara` file, provide the source notes, and choose **Validate and publish**.
-   The server compiles the rules before activating them and records a SHA-256.
-3. Enable EDR on a compatible endpoint. The core agent remains installed if
-   EDR is excluded. Queue a quick or full scan; the command result appears in
-   **Scan jobs and findings**. An administrator can reactivate an older rule
-   pack to roll back.
+The endpoint must have Agent 2.5.0 or newer for status, quick scans, and YARA scans. Agent 2.5.1 adds a queued **Update signatures** command. The core remote-support agent remains available if Godseye EDR is excluded. The server does not mark an agent protected merely because EDR is selected; Defender real-time protection must report active in a recent check-in.
 
-## Release gate
+## How to use it
 
-The current Windows Agent 2.4.5 package does **not** contain the YARA-X
-executable. Agent 2.5.0 builds on the 2.4.5 source, keeping its Defender,
-ClamAV update, ticket, and user-approved remote access paths. The server
-rejects EDR scans from agents older than 2.5.0. The updated service looks for
-`C:\Program Files\GODSEYE Agent\EDR\yr.exe`, verifies the server rule pack
-version and SHA-256, and reports scan errors rather than a clean result.
+![Godseye EDR endpoint cards with Defender status and actions, using labeled demo data](screenshots/v431-godseye-edr-defender-guide.png)
 
-The optional component is selected in the guided Setup; a core-only MSI install
-omits YARA-X. The Windows build retrieves YARA-X v1.21.0 from its official
-release and verifies the published SHA-256 before packaging it. Validate the
-Windows MSI upgrade from 2.4.5 and the EDR tray GUI before rollout. This
-release provides **on-demand YARA scanning**; continuous behavior protection
-and quarantine remain future work. An endpoint selected in the sidebar is not
-described as protected solely on that basis.
+*Screenshot uses labeled demonstration endpoints; live values come from each Windows Agent.*
+
+1. Open **Godseye EDR** as an administrator and choose **Enable EDR** on the Windows endpoint. Defender status is requested automatically at most once every five minutes while the endpoint is connected. A stale or missing result reads **unknown**.
+2. Read **Defender real-time active**, **inactive or passive**, or **unknown** in the endpoint card. Check the running mode, last signature update, recent detection IDs, and the time Godseye checked. Choose **Refresh status** to request another reading.
+3. On Agent 2.5.1 or newer, choose **Update signatures** to ask Defender to update its security intelligence. **Defender quick scan** runs an on-demand scan only when real-time protection was reported active. Results appear under **Scan jobs and findings**. For a reported detection, **Review & remove threats** asks for confirmation before calling Defender's removal command. Review the following status and Defender's protection history to verify the action.
+4. For additional YARA checks, install the optional scanner feature in the guided Agent setup. Put the YARA-X `yr` CLI on the Godseye server, review the rule source and license, upload a `.yar` or `.yara` file and select **Validate and publish**. The server compiles the rule and records its SHA-256. Select **YARA quick scan** or **YARA full scan** on a monitored endpoint; read the job result. An administrator can reactivate an older validated pack to roll back.
+
+Commands are fixed actions; the server cannot supply a PowerShell script. The agent reports command failures and scan errors rather than a clean result. If another antivirus makes Defender passive, Godseye reports that state and does not claim Defender real-time protection.
+
+## Packaging and upgrade
+
+The optional YARA-X component can be omitted from the MSI, and a core-only Agent still supports Defender status and controls. Agent 2.5.1 builds on 2.5.0, which was built from the published 2.4.5 source. The Windows workflow installs the verified 2.4.5 MSI and tests the upgrade to 2.5.1, core-only and optional scanner installation, uninstall, and a benign YARA match. YARA-X v1.21.0 is fetched from its official release and checked against its pinned published SHA-256.
+
+The endpoint results shown by the page are Godseye's reports of Defender state and command output. Godseye's YARA layer does not add behavior blocking, kernel monitoring, or its own quarantine engine.

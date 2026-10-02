@@ -10,10 +10,15 @@ on:
       - 'app/**'
       - 'scripts/capture_ui.py'
       - '.github/workflows/ui-capture.yml'
+  pull_request:
+    paths:
+      - 'app/**'
+      - 'scripts/capture_ui.py'
+      - 'scripts/seed_screenshot_data.py'
+      - '.github/workflows/ui-capture.yml'
 
 permissions:
   contents: write
-  statuses: write
 
 jobs:
   capture:
@@ -58,14 +63,13 @@ jobs:
           test -s docs/screenshots/v431-dashboard-map-logo.png
           test -s docs/screenshots/v431-login.png
           test -s docs/screenshots/v431-devices-guide.png
-          test -s docs/screenshots/v431-device-icons-home.png
-          test -s docs/screenshots/v431-device-icons-security.png
           test -s docs/screenshots/v431-cyber-tools-overview.png
           test -s docs/screenshots/v431-system-health-guide.png
+          test -s docs/screenshots/v431-godseye-edr-defender-guide.png
           test -s docs/screenshots/v431-sites-management.png
-          test -s docs/screenshots/v431-user-password-reset.png
           test -s docs/screenshots/godseye-about.png
       - name: Commit refreshed screenshots
+        if: github.event_name != 'pull_request'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -84,14 +88,3 @@ jobs:
           name: GODSEYE-redesigned
           path: GODSEYE-redesigned.zip
           retention-days: 30
-      # The screenshot commit is made with GITHUB_TOKEN, so GitHub does not
-      # start a new push workflow for it. Mark that verified branch tip green.
-      - name: Report successful screenshot commit
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh api -X POST "repos/${GITHUB_REPOSITORY}/statuses/$(git rev-parse HEAD)" \
-            -f state=success \
-            -f context='GODSEYE screenshot capture' \
-            -f description='Screenshots and full source ZIP verified' \
-            -f target_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"

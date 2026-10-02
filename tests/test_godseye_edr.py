@@ -45,3 +45,36 @@ def test_edr_policy_rules_scan_and_agent_checkin(tmp_path, monkeypatch):
             assert client.get("/api/v1/edr/agent/rules", headers={"Authorization": "Bearer edr-test-key"}).status_code == 403
     finally:
         main.DB_PATH, main.BASE_DIR = old_db, old_base
+
+
+def test_defender_status_and_version_gated_update(tmp_path):
+    old_db, old_base = main.DB_PATH, main.BASE_DIR
+    main.DB_PATH, main.BASE_DIR = tmp_path / "defender.db", tmp_path
+    try:
+        main.init_db()
+        with TestClient(main.app) as client:
+            password = "Godseye-Defender-Integration!Test"
+            assert client.post("/api/v1/auth/setup", json={"current_password": "", "new_password": password}).status_code == 200
+            assert client.post("/api/v1/auth/login", json={"username": "admin", "password": password}).status_code == 200
+            headers = {"X-CSRF-Token": client.cookies[main.CSRF_COOKIE]}
+            with main.db() as c:
+                agent_id = c.execute("""INSERT INTO windows_agents(agent_uuid,api_key_hash,computer_name,agent_version,enrolled_at,updated_at)
+                    VALUES(?,?,?,?,?,?)""", ("defender-test-agent", token_hash("defender-test-key"), "PC-DEF", "2.5.0", main.now(), main.now())).lastrowid
+            assert client.post(f"/api/v1/edr/agents/{agent_id}/policy", headers=headers, json={"enabled": True}).status_code == 200
+            agent_headers = {"Authorization": "Bearer defender-test-key"}
+            heartbeat = client.post("/api/v1/windows-agents/heartbeat", headers=agent_headers, json={"agent_version": "2.5.0"})
+            assert heartbeat.status_code == 200, heartbeat.text
+            review = [x for x in heartbeat.json()["commands"] if x["type"] == "defender_review"]
+            assert len(review) == 1
+            assert client.post("/api/v1/windows-agents/heartbeat", headers=agent_headers, json={"agent_version": "2.5.0"}).json()["commands"][0]["command_id"] == review[0]["command_id"]
+            result = {"ok": True, "details": '{"AntivirusEnabled":true,"AMRunningMode":"Normal","RealTimeProtectionEnabled":true,"RecentDetections":[]}' }
+            assert client.post(f"/api/v1/windows-agents/commands/{review[0]['command_id']}/result", headers=agent_headers, json=result).status_code == 200
+            overview = client.get("/api/v1/edr/overview").json()
+            assert overview["agents"][0]["defender"]["RealTimeProtectionEnabled"] is True
+            assert client.post(f"/api/v1/edr/agents/{agent_id}/defender/update", headers=headers).status_code == 409
+            assert client.post(f"/api/v1/edr/agents/{agent_id}/defender/quick", headers=headers).status_code == 200
+            with main.db() as c:
+                c.execute("UPDATE windows_agents SET agent_version='2.5.1' WHERE id=?", (agent_id,))
+            assert client.post(f"/api/v1/edr/agents/{agent_id}/defender/update", headers=headers).status_code == 200
+    finally:
+        main.DB_PATH, main.BASE_DIR = old_db, old_base

@@ -9,6 +9,8 @@ os.environ.setdefault("GODSEYE_DB", "/tmp/godseye-ui-capture.db")
 
 from app import main
 from app.intelligence import ensure_schema as ensure_intelligence_schema
+from app.windows_agent import token_hash
+from app.godseye_edr import ensure_schema as ensure_edr_schema
 
 
 def iso(minutes_ago: int = 0) -> str:
@@ -70,6 +72,23 @@ def seed() -> None:
     with sqlite3.connect(path) as c:
         c.row_factory = sqlite3.Row
         ensure_intelligence_schema(c)
+        ensure_edr_schema(c)
+
+        # Clearly labeled demo endpoints for reproducible feature screenshots.
+        for idx, (name, active, detections) in enumerate([
+            ("Demo PC-07", True, []),
+            ("Demo FS01", True, [{"ThreatID": 2147727109, "ActionSuccess": True}]),
+            ("Demo Design PC", False, []),
+        ], 1):
+            ts = iso(idx)
+            agent_id = c.execute("""INSERT INTO windows_agents(agent_uuid,api_key_hash,computer_name,agent_version,enrolled_at,updated_at,last_heartbeat_at)
+                VALUES(?,?,?,?,?,?,?)""", (f"demo-edr-{idx}", token_hash(f"demo-edr-key-{idx}"), name, "2.5.1", ts, ts, ts)).lastrowid
+            c.execute("INSERT INTO edr_policies(agent_id,enabled,updated_at,updated_by) VALUES(?,1,?,'screenshot-seed')", (agent_id, ts))
+            details = json.dumps({"AntivirusEnabled": True, "AMRunningMode": "Normal" if active else "SxS Passive Mode",
+                "RealTimeProtectionEnabled": active, "SignatureLastUpdated": ts, "RecentDetections": detections})
+            c.execute("""INSERT INTO windows_agent_commands(agent_id,command_type,payload_json,status,requested_by,requested_at,completed_at,result_json)
+                VALUES(?,'defender_review','{}','completed','screenshot-seed',?,?,?)""",
+                (agent_id, ts, ts, json.dumps({"ok": True, "details": details})))
 
         for i, d in enumerate(devices):
             mac, ip, hostname, vendor, name, dtype, icon, status, classification, trusted = d
