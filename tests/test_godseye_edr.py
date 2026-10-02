@@ -3,6 +3,7 @@ import hashlib
 from fastapi.testclient import TestClient
 
 import app.main as main
+from app.windows_agent import token_hash
 
 
 def test_edr_policy_rules_scan_and_agent_checkin(tmp_path, monkeypatch):
@@ -21,7 +22,7 @@ def test_edr_policy_rules_scan_and_agent_checkin(tmp_path, monkeypatch):
             headers = {"X-CSRF-Token": client.cookies[main.CSRF_COOKIE]}
             with main.db() as c:
                 agent_id = c.execute("""INSERT INTO windows_agents(agent_uuid,api_key_hash,computer_name,agent_version,enrolled_at,updated_at)
-                    VALUES(?,?,?,?,?,?)""", ("edr-test-agent", main.token_hash("edr-test-key"), "PC-EDR", "2.5.0", main.now(), main.now())).lastrowid
+                    VALUES(?,?,?,?,?,?)""", ("edr-test-agent", token_hash("edr-test-key"), "PC-EDR", "2.5.0", main.now(), main.now())).lastrowid
             rule = 'rule godseye_test { strings: $marker = "GODSEYE_TEST" condition: $marker }'
             published = client.post("/api/v1/edr/rules", headers=headers,
                 json={"name": "Test rules", "source": "Local test", "rules": rule})
