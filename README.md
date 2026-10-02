@@ -2,7 +2,7 @@
 
 **Network intelligence, security operations, monitoring, reporting, and remote support — in one self-hosted platform.**
 
-**Godseye EDR candidate:** Agent 2.5.0 adds an optional YARA-X scanner and on-demand tray scans. The server admin page manages reviewed rule packs and scan jobs. [Setup and release status](docs/GODSEYE_EDR.md). Continuous protection and quarantine are not in this release.
+**Godseye EDR:** The Windows Agent reports Microsoft Defender real-time status and recent detections, with managed signature updates and quick scans. Optional YARA-X adds reviewed on-demand rule scans. [See the EDR setup and how-to](docs/GODSEYE_EDR.md). Godseye's YARA layer does not itself provide continuous protection or quarantine.
 
 GODSEYE is built for **small and mid-sized MSPs, IT providers, and organizations** that need strong visibility and useful security tooling without taking on the cost and complexity of a large enterprise stack.
 
