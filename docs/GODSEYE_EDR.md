@@ -33,6 +33,6 @@ Commands are fixed actions; the server cannot supply a PowerShell script. The ag
 
 ## Packaging and upgrade
 
-The optional YARA-X component can be omitted from the MSI, and a core-only Agent still supports Defender status and controls. Agent 2.5.1 builds on 2.5.0, which was built from the published 2.4.5 source. The Windows workflow installs the verified 2.4.5 MSI and tests the upgrade to 2.5.1, core-only and optional scanner installation, uninstall, and a benign YARA match. YARA-X v1.21.0 is fetched from its official release and checked against its pinned published SHA-256.
+The optional YARA-X component can be omitted from the MSI, and a core-only Agent still supports Defender status and controls. Agent 2.5.2 adds reliable tray startup for signed-in users. The Windows workflow tests upgrades from both 2.4.5 and 2.5.1 to 2.5.2, verifies the sign-in startup entry, core-only and optional scanner installation, uninstall, and a benign YARA match. YARA-X v1.21.0 is fetched from its official release and checked against its pinned published SHA-256.
 
 The endpoint results shown by the page are Godseye's reports of Defender state and command output. Godseye's YARA layer does not add behavior blocking, kernel monitoring, or its own quarantine engine.

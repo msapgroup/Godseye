@@ -92,7 +92,7 @@ namespace Godseye.WindowsAgent
 
     public class GodseyeAgentService : ServiceBase
     {
-        static readonly string AgentVersion = typeof(GodseyeAgentService).Assembly.GetName().Version?.ToString(3) ?? "2.5.1";
+        static readonly string AgentVersion = typeof(GodseyeAgentService).Assembly.GetName().Version?.ToString(3) ?? "2.5.2";
         static readonly JsonCompat Json = new JsonCompat();
         readonly string BaseDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "GODSEYE", "Agent");
         Thread worker;
@@ -223,8 +223,8 @@ namespace Godseye.WindowsAgent
                 int wait = 60;
                 try
                 {
-                    AgentConfig cfg = LoadConfig();
                     EnsureTrayProcess();
+                    AgentConfig cfg = LoadConfig();
                     if (cfg.SkipTlsVerify)
                         ServicePointManager.ServerCertificateValidationCallback = delegate { return true; };
                     else
@@ -498,7 +498,13 @@ namespace Godseye.WindowsAgent
                     trayHelperSessionId = INVALID_SESSION_ID;
                 }
                 IntPtr token = IntPtr.Zero;
-                if (!WTSQueryUserToken(sessionId, out token) || token == IntPtr.Zero) return;
+                if (!WTSQueryUserToken(sessionId, out token) || token == IntPtr.Zero)
+                {
+                    Log("Could not obtain the signed-in user's tray token for session " + sessionId +
+                        ". WTSQueryUserToken=" + Marshal.GetLastWin32Error() +
+                        ". The per-user startup entry will launch the tray at the next sign-in.");
+                    return;
+                }
                 try
                 {
                     string exe = Process.GetCurrentProcess().MainModule?.FileName ?? Environment.ProcessPath ?? "";

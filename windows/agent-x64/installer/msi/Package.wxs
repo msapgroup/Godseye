@@ -3,7 +3,7 @@
   <Package
       Name="GODSEYE Windows Agent"
       Manufacturer="MSAPGROUP LLC"
-      Version="2.5.1"
+      Version="2.5.2"
       UpgradeCode="{8FD91243-B37D-4C6C-BFC7-74F833F8C551}"
       Scope="perMachine">
 
@@ -27,6 +27,7 @@
 
     <Feature Id="MainFeature" Title="GODSEYE Windows Agent" Level="1">
       <ComponentRef Id="AgentServiceComponent" />
+      <ComponentRef Id="TrayStartupComponent" />
       <ComponentRef Id="AgentDataFolderComponent" />
     </Feature>
     <Feature Id="EdrFeature" Title="Godseye EDR (optional)" Level="2">
@@ -71,6 +72,20 @@
           Stop="both"
           Remove="uninstall"
           Wait="yes" />
+    </Component>
+
+    <!-- Starts the visible tray in every signed-in user's desktop, including
+         users who sign in after the service has already started. The tray
+         mutex prevents a duplicate when the service also launches it. -->
+    <Component Id="TrayStartupComponent"
+               Guid="{BE207909-5407-4E3F-B2D2-AFD463776625}"
+               Directory="INSTALLFOLDER">
+      <RegistryValue Root="HKLM"
+                     Key="Software\Microsoft\Windows\CurrentVersion\Run"
+                     Name="GODSEYE Windows Agent Tray"
+                     Type="string"
+                     Value="&quot;[INSTALLFOLDER]GODSEYE.Agent.exe&quot; --tray"
+                     KeyPath="yes" />
     </Component>
 
     <Component Id="AgentDataFolderComponent"

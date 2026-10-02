@@ -1,6 +1,6 @@
-# GODSEYE Windows Agent 2.4.0
+# GODSEYE Windows Agent 2.5.2
 
-The **GODSEYE Windows Agent 2.4.0** is the recommended Windows integration for Event Findings, management commands, and user-approved Remote Access. It is a self-contained x64 .NET 8 application with a native guided installer.
+The **GODSEYE Windows Agent 2.5.2** is the recommended Windows integration for Event Findings, management commands, optional EDR scans, and user-approved Remote Access. It is a self-contained x64 .NET 8 application with a native guided installer.
 
 ## Install and enroll
 
@@ -30,10 +30,18 @@ Persistent state includes `agent.json`, the DPAPI-protected API key, Event Log b
 - Service: `GODSEYEWindowsAgent`
 - Startup: Automatic
 - Service account: LocalSystem
-- Tray application: runs in the active signed-in user's interactive session
+- Tray application: starts in each signed-in user's interactive session after sign-in; guided Setup also launches it immediately
 - Remote Access: local approval for viewing and a separate approval for control
 
 The service and tray communicate through a per-session named pipe. The service cannot approve Remote Access on behalf of the user.
+
+If the service is running but the tray icon is missing, look under **Show hidden icons** in the Windows notification area. You can start it without reinstalling:
+
+```powershell
+Start-Process 'C:\Program Files\GODSEYE Agent\GODSEYE.Agent.exe' -ArgumentList '--tray'
+```
+
+Run that command in the signed-in user's PowerShell window, not a service or SYSTEM prompt. The tray should appear for that user and Remote Access should reach the approval prompt. The MSI registers a Windows sign-in startup entry for future sessions. If the tray still does not start, check `C:\ProgramData\GODSEYE\Agent\agent.log` for “Could not launch tray helper” or “Could not obtain the signed-in user's tray token.”
 
 ## Remote Access state flow
 
@@ -43,7 +51,7 @@ GODSEYE tracks explicit session phases:
 
 `active` is server-controlled. The server promotes a session to active only after it receives a JPEG frame, decodes it successfully, verifies it with Pillow, records the real frame dimensions, and stores it atomically. A malformed image cannot activate the session.
 
-Agent 2.4.0 captures the Windows virtual desktop, including multi-monitor layouts, through a dedicated per-session helper in the signed-in user's session. Pointer coordinates are mapped to that same virtual desktop. Browser mouse, keyboard, and wheel events are accepted only after the user separately approves control and are delivered once in order.
+The current agent captures the Windows virtual desktop, including multi-monitor layouts, through the signed-in user's tray session. Pointer coordinates are mapped to that same virtual desktop. Browser mouse, keyboard, and wheel events are accepted only after the user separately approves control and are delivered once in order.
 
 There is no arbitrary remote shell, PowerShell command, unrestricted process execution, registry command, or unrestricted file command in the Remote Access channel.
 
@@ -55,7 +63,7 @@ The agent reads configured Windows Event Log channels locally and selects Critic
 
 ## Upgrades
 
-Existing Agent 2.1+ installations can use GODSEYE's authenticated Agent update command after a validated 2.4.0 MSI has been installed on the server. The service downloads only GODSEYE's fixed MSI endpoint, verifies the advertised SHA-256, and invokes Windows Installer. The update payload cannot provide an arbitrary URL or command.
+Existing Agent 2.1+ installations can use GODSEYE's authenticated Agent update command after the validated 2.5.2 MSI has been installed on the server. The service downloads only GODSEYE's fixed MSI endpoint, verifies the advertised SHA-256, and invokes Windows Installer. The update payload cannot provide an arbitrary URL or command.
 
 The guided Setup EXE detects an existing `agent.json` and skips enrollment pages. Existing enrollment, API key, configuration, bookmarks and pending queues are preserved.
 
@@ -69,4 +77,4 @@ Get-Content C:\ProgramData\GODSEYE\Agent\agent.log -Tail 50
 
 ## Legacy Agent and WinRM
 
-The pre-2.x PowerShell package remains available only as a legacy migration path. New endpoints should use the 2.4.0 x64 Setup. WinRM remains available when installing an agent is not desired; both sources feed the same Event Findings and Ticket Portal workflows.
+New endpoints should use the current x64 Setup. WinRM remains available when installing an agent is not desired; both sources feed the same Event Findings and Ticket Portal workflows.
