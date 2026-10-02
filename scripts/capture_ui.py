@@ -92,7 +92,29 @@ async def main():
                 assert await page.locator("#view-about .about-tagline").inner_text() == (
                     "Network Intelligence · Security Operations · MSP Workflow · Self-Hosted Control"
                 )
+            if view == "edr":
+                await page.locator("#edrEndpoints .edr-endpoint").first.wait_for()
+                assert await page.locator("#edrEndpoints .edr-endpoint").count() == 3
+                assert await page.locator("#edrProtected").inner_text() == "2 / 3"
             await page.screenshot(path=str(OUT / filename), full_page=True)
+            if view == "edr":
+                await page.get_by_role("tab", name="Alerts & review").click()
+                await page.locator("#edrAlertList .edr-activity-row").first.wait_for()
+                await page.screenshot(path=str(OUT / "v431-godseye-edr-alerts-guide.png"), full_page=True)
+                await page.get_by_role("tab", name="Rule Center").click()
+                await page.screenshot(path=str(OUT / "v431-godseye-edr-rules-guide.png"), full_page=True)
+                # Exercise the live endpoint filter and command path after the captures.
+                await page.get_by_role("tab", name="Overview").click()
+                await page.fill("#edrSearch", "FS01")
+                assert await page.locator("#edrEndpoints .edr-endpoint").count() == 1
+                await page.locator("#edrEndpoints .edr-endpoint").get_by_role(
+                    "button", name="Defender quick scan"
+                ).click()
+                await page.wait_for_function(
+                    "() => document.getElementById('edrPending').textContent === '1'"
+                )
+                await page.get_by_role("tab", name="Scans & activity").click()
+                assert "pending" in (await page.locator("#edrJobs").inner_text()).lower()
 
         # Pair a second, seeded GODSEYE over authenticated HTTPS and capture
         # the actual workspace, including remotely loaded devices and tickets.
