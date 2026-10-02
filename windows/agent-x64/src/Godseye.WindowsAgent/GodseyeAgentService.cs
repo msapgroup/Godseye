@@ -92,7 +92,7 @@ namespace Godseye.WindowsAgent
 
     public class GodseyeAgentService : ServiceBase
     {
-        static readonly string AgentVersion = typeof(GodseyeAgentService).Assembly.GetName().Version?.ToString(3) ?? "2.5.0";
+        static readonly string AgentVersion = typeof(GodseyeAgentService).Assembly.GetName().Version?.ToString(3) ?? "2.5.1";
         static readonly JsonCompat Json = new JsonCompat();
         readonly string BaseDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "GODSEYE", "Agent");
         Thread worker;
@@ -1050,7 +1050,7 @@ namespace Godseye.WindowsAgent
                         result["details"] = UpdateClamAvSignatures();
                         result["ok"] = true; result["events"] = 0; result["new_findings"] = 0;
                     }
-                    else if (type == "defender_review" || type == "defender_quick_scan" || type == "defender_remediate")
+                    else if (type == "defender_review" || type == "defender_quick_scan" || type == "defender_update" || type == "defender_remediate")
                     {
                         result["details"] = RunDefenderCommand(type);
                         result["ok"] = true; result["events"] = 0; result["new_findings"] = 0;
@@ -1111,15 +1111,17 @@ namespace Godseye.WindowsAgent
 
         string RunDefenderCommand(string action)
         {
-            // Only these three fixed scripts can run. Never accept a script or command from the server.
+            // Only these fixed scripts can run. Never accept a script or command from the server.
             string preamble = "$ErrorActionPreference='Stop'; Import-Module Defender -ErrorAction Stop; ";
             string script;
             if (action == "defender_quick_scan")
-                script = preamble + "if(-not (Get-MpComputerStatus).AntivirusEnabled){throw 'Microsoft Defender Antivirus is not enabled'}; Start-MpScan -ScanType QuickScan -ErrorAction Stop; 'Quick scan completed. Review detections for Defender actions.'";
+                script = preamble + "if(-not (Get-MpComputerStatus).RealTimeProtectionEnabled){throw 'Microsoft Defender real-time protection is not active'}; Start-MpScan -ScanType QuickScan -ErrorAction Stop; 'Quick scan completed. Review detections for Defender actions.'";
+            else if (action == "defender_update")
+                script = preamble + "Update-MpSignature -ErrorAction Stop; 'Microsoft Defender security intelligence update completed.'";
             else if (action == "defender_remediate")
                 script = preamble + "if(-not (Get-MpComputerStatus).AntivirusEnabled){throw 'Microsoft Defender Antivirus is not enabled'}; Remove-MpThreat -ErrorAction Stop; 'Defender removal command completed. Review detections again to verify the result.'";
             else if (action == "defender_review")
-                script = preamble + "$s=Get-MpComputerStatus; $d=@(Get-MpThreatDetection -ErrorAction SilentlyContinue | Select-Object -First 10 ThreatID,ActionSuccess,InitialDetectionTime,Resources); [pscustomobject]@{AntivirusEnabled=$s.AntivirusEnabled;RealTimeProtectionEnabled=$s.RealTimeProtectionEnabled;SignatureLastUpdated=$s.AntivirusSignatureLastUpdated;QuickScanEndTime=$s.QuickScanEndTime;RecentDetections=$d} | ConvertTo-Json -Compress -Depth 4";
+                script = preamble + "$s=Get-MpComputerStatus; $d=@(Get-MpThreatDetection -ErrorAction SilentlyContinue | Sort-Object InitialDetectionTime -Descending | Select-Object -First 10 ThreatID,ActionSuccess,InitialDetectionTime,Resources); [pscustomobject]@{AntivirusEnabled=$s.AntivirusEnabled;AMRunningMode=$s.AMRunningMode;RealTimeProtectionEnabled=$s.RealTimeProtectionEnabled;SignatureLastUpdated=$s.AntivirusSignatureLastUpdated;QuickScanEndTime=$s.QuickScanEndTime;RecentDetections=$d} | ConvertTo-Json -Compress -Depth 4";
             else throw new Exception("Unsupported Defender action.");
             string exe = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "WindowsPowerShell", "v1.0", "powershell.exe");
             string encoded = Convert.ToBase64String(Encoding.Unicode.GetBytes(script));
@@ -1128,7 +1130,7 @@ namespace Godseye.WindowsAgent
             {
                 if (p == null) throw new Exception("Microsoft Defender could not be started.");
                 string output = p.StandardOutput.ReadToEnd(); string error = p.StandardError.ReadToEnd();
-                if (!p.WaitForExit(action == "defender_quick_scan" ? 1200000 : 60000))
+                if (!p.WaitForExit(action == "defender_quick_scan" ? 1200000 : 120000))
                 {
                     try { p.Kill(); } catch { }
                     throw new Exception("Microsoft Defender command timed out.");
