@@ -82,7 +82,7 @@ async def main():
                     await icon.wait_for(state='visible')
                     await icon.evaluate('img => img.decode()')
                     assert await icon.evaluate('img => img.naturalWidth > 0')
-                    await page.screenshot(path=str(OUT / image_name), full_page=True)
+                    await page.screenshot(path=str(OUT / image_name), full_page=False)
                 await page.evaluate('closeDeviceIcon()')
             if view == "crm":
                 await page.get_by_role('button', name='+ Add Customer').click()
