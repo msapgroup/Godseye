@@ -169,7 +169,7 @@ After a run, review the structured result and scan history. Where supported, res
 
 ![GODSEYE About](docs/screenshots/godseye-about.png)
 
-**How it works:** About GODSEYE explains the four parts of the platform: network discovery and device intelligence, security investigation, day-to-day MSP workflows, and self-hosted control of your operational data. The repository and documentation links provide setup and technical details.
+**How it works:** About GODSEYE explains the four parts of the platform: network discovery and device intelligence, security investigation, day-to-day MSP workflows, and self-hosted control of your operational data. Select **GODSEYE Wiki** or **Open Wiki** to open the setup, configuration, and feature guides in a new tab while keeping the app open.
 
 ---
 
