@@ -130,6 +130,14 @@ jobs:
           if (-not (Test-Path $yr)) { throw 'Optional EDR install did not include yr.exe.' }
           & $yr --version
           if ($LASTEXITCODE -ne 0) { throw 'Packaged YARA-X scanner did not start.' }
+          $rule = Join-Path $env:RUNNER_TEMP 'godseye-edr-ci.yar'
+          $sample = Join-Path $env:RUNNER_TEMP 'godseye-edr-ci.txt'
+          Set-Content -Path $rule -Value 'rule godseye_ci { strings: $marker = "GODSEYE_EDR_CI" condition: $marker }' -Encoding ascii
+          Set-Content -Path $sample -Value 'GODSEYE_EDR_CI' -Encoding ascii
+          & $yr compile --output (Join-Path $env:RUNNER_TEMP 'godseye-edr-ci.yarc') $rule
+          if ($LASTEXITCODE -ne 0) { throw 'Packaged YARA-X could not compile a known-good rule.' }
+          $scanResult = & $yr scan $rule $sample
+          if ($LASTEXITCODE -ne 0 -or ($scanResult -join ' ') -notmatch 'godseye_ci') { throw 'Packaged YARA-X scan did not detect the CI test marker.' }
           $edrUninstall = Start-Process msiexec.exe -ArgumentList @('/x', "`"$msi`"", '/qn', '/norestart') -Wait -PassThru
           if ($edrUninstall.ExitCode -notin @(0,3010)) { throw "Optional EDR uninstall failed with code $($edrUninstall.ExitCode)." }
 
