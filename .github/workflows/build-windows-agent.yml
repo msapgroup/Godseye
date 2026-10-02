@@ -11,6 +11,7 @@ on:
       - 'windows/agent-x64/prepare-edr-engine.ps1'
       - 'install.sh'
       - 'doctor.sh'
+      - 'app/main.py'
       - 'docs/screenshots/v431-godseye-edr-defender-guide.png'
   pull_request:
     paths:
