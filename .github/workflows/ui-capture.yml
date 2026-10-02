@@ -10,6 +10,12 @@ on:
       - 'app/**'
       - 'scripts/capture_ui.py'
       - '.github/workflows/ui-capture.yml'
+  pull_request:
+    paths:
+      - 'app/**'
+      - 'scripts/capture_ui.py'
+      - 'scripts/seed_screenshot_data.py'
+      - '.github/workflows/ui-capture.yml'
 
 permissions:
   contents: write
@@ -63,6 +69,7 @@ jobs:
           test -s docs/screenshots/v431-sites-management.png
           test -s docs/screenshots/godseye-about.png
       - name: Commit refreshed screenshots
+        if: github.event_name != 'pull_request'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
