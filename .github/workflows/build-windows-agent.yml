@@ -189,6 +189,7 @@ jobs:
 
           git archive --format=zip --output=$archive HEAD
           Expand-Archive -Path $archive -DestinationPath $stage -Force
+          if (Test-Path (Join-Path $stage 'windows/agent')) { throw 'Legacy Windows Agent files must not ship in the full package.' }
           # Normalize staged shell scripts so Bash installers never contain CRLF.
           foreach ($script in @('install.sh','doctor.sh')) {
             $scriptPath = Join-Path $stage $script

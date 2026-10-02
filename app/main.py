@@ -3787,7 +3787,7 @@ def _windows_agent_update_manifest():
         # Release packages are stored as GitHub Release assets rather than in
         # the server repository. Keep managed updates available on fresh
         # server installs even when the optional local MSI is absent.
-        return {"version":"2.4.4","sha256":"C9C513F5020FDBD1D9309578F7610EBC3D8605E542D700791673AC4CE6E04299","filename":"GODSEYE-Windows-Agent-x64.msi","url":"https://github.com/msapgroup/Godseye/releases/download/v4.31.0-agent-2.4.4/GODSEYE-Windows-Agent-x64.msi"}
+        return {"version":"2.4.5","sha256":"74F37423A4B3D91FCDBBCE92BFBA9F25FFD9D670930EB3FCE33B514F3A05C609","filename":"GODSEYE-Windows-Agent-x64.msi","url":"https://github.com/msapgroup/Godseye/releases/download/v4.31.0-agent-2.4.5/GODSEYE-Windows-Agent-x64.msi"}
 
 
 @app.get(f"{router_prefix}/windows-agents/update-info")
@@ -4253,7 +4253,7 @@ def windows_agent_msi_package(agent=Depends(_agent_auth)):
 
 @app.get(f"{router_prefix}/windows-agents/package")
 def windows_agent_package(user=Depends(require_admin)):
-    version="2.4.4"
+    version="2.4.5"
     versioned_name=f"GODSEYE-Windows-Agent-x64-Setup-{version}.exe"
     path=BASE_DIR / "windows" / "agent-x64" / versioned_name
     if not path.is_file():
@@ -4263,7 +4263,7 @@ def windows_agent_package(user=Depends(require_admin)):
     # Release builds are published as GitHub Release assets because the installer
     # exceeds GitHub's repository file-size limit. Fresh installs use that asset.
     return RedirectResponse(
-        "https://github.com/msapgroup/Godseye/releases/download/v4.31.0-agent-2.4.4/GODSEYE-Windows-Agent-x64-Setup-2.4.4.exe",
+        "https://github.com/msapgroup/Godseye/releases/download/v4.31.0-agent-2.4.5/GODSEYE-Windows-Agent-x64-Setup-2.4.5.exe",
         status_code=302,
         headers={"Cache-Control":"no-store, no-cache, must-revalidate, max-age=0","Pragma":"no-cache","Expires":"0","X-GODSEYE-Agent-Version":version},
     )
@@ -4273,7 +4273,7 @@ def windows_agent_package(user=Depends(require_admin)):
 def windows_agent_package_status(user=Depends(require_admin)):
     setup=BASE_DIR / "windows" / "agent-x64" / "GODSEYE-Windows-Agent-x64-Setup.exe"
     msi=BASE_DIR / "windows" / "agent-x64" / "GODSEYE-Windows-Agent-x64.msi"
-    manifest={"version":"2.4.4","status":"pending_build"}
+    manifest={"version":"2.4.5","status":"pending_build"}
     manifest_path=BASE_DIR / "windows" / "agent-x64" / "update-manifest.json"
     try:
         if manifest_path.is_file(): manifest.update(json.loads(manifest_path.read_text(encoding="utf-8")))
@@ -4281,17 +4281,15 @@ def windows_agent_package_status(user=Depends(require_admin)):
     return {
         "available":True,
         "msi_available":msi.is_file(),
-        "version":manifest.get("version","2.4.4"),
+        "version":manifest.get("version","2.4.5"),
         "status":manifest.get("status","ready"),
-        "message":"Windows Agent 2.4.4 installer is ready from the local package or GitHub Release."
+        "message":"Windows Agent 2.4.5 installer is ready from the local package or GitHub Release."
     }
 
 
 @app.get(f"{router_prefix}/windows-agents/package/legacy")
 def windows_agent_legacy_package(user=Depends(require_admin)):
-    path=BASE_DIR / "windows" / "agent" / "GODSEYE-Windows-Agent.zip"
-    if not path.exists(): raise HTTPException(404,"Legacy Windows Agent package is not installed")
-    return FileResponse(path,media_type="application/zip",filename="GODSEYE-Windows-Agent-Legacy.zip")
+    raise HTTPException(410,"Legacy Windows Agent packages are no longer supported. Install Agent 2.4.5 from the Windows Agents page.")
 
 
 # ---------------------------------------------------------------------------
@@ -7368,7 +7366,7 @@ html:not([data-theme="dark"]) :is(.v430-global-search,.v430-bell,.user-chip,.aut
       <div><b>Agent enrollment</b><div class="muted">Generate a one-time token, download the permanent x64 Windows installer, and run Setup as Administrator. Future agent upgrades preserve enrollment automatically.</div></div>
       <div class="actions"><button class="secondary" type="button" onclick="checkWindowsAgentUpdates()">↻ Check for Updates</button><button class="primary operate-only" type="button" onclick="pullAllWindowsAgentsNow()">⟳ Pull All Online</button><button id="windowsAgentDownloadBtn" class="secondary admin-only" type="button" onclick="downloadWindowsAgentPackage()">↓ Download x64 Installer</button><button class="primary admin-only" type="button" onclick="createWindowsAgentEnrollment()">＋ Create Enrollment Token</button></div>
     </div>
-    <div id="windowsAgentPackageStatus" class="calendar-integration-note">Checking Agent 2.4.4 installer availability…</div>
+    <div id="windowsAgentPackageStatus" class="calendar-integration-note">Checking Agent 2.4.5 installer availability…</div>
     <div id="windowsAgentEnrollment" class="agent-enrollment-result" style="display:none">
       <div class="agent-token-head"><b>One-time enrollment token</b><span id="windowsAgentEnrollmentExpiry" class="muted"></span></div>
       <div class="agent-token-row"><code id="windowsAgentEnrollmentToken"></code><button class="secondary" onclick="copyAgentEnrollmentToken()">Copy Token</button></div>
@@ -7547,7 +7545,7 @@ html:not([data-theme="dark"]) :is(.v430-global-search,.v430-bell,.user-chip,.aut
 
 
 <div class="view" id="view-remote-access" style="display:none">
-<div class="hero remote-hero"><div><h1>Remote Access</h1><div class="muted">Quick Assist-style support for GODSEYE Windows Agent 2.4.4. Screen sharing and remote control require separate approval.</div></div><div class="remote-stats"><span><b id="remoteOnlineCount">0</b> Online</span><span><b id="remoteOfflineCount">0</b> Offline</span><span><b id="remoteTotalCount">0</b> Agents</span></div></div>
+<div class="hero remote-hero"><div><h1>Remote Access</h1><div class="muted">Quick Assist-style support for GODSEYE Windows Agent 2.4.5. Screen sharing and remote control require separate approval.</div></div><div class="remote-stats"><span><b id="remoteOnlineCount">0</b> Online</span><span><b id="remoteOfflineCount">0</b> Offline</span><span><b id="remoteTotalCount">0</b> Agents</span></div></div>
 <div class="remote-layout">
 <section class="panel remote-computers"><div class="table-head"><h2>Agent Computers</h2><button class="secondary" type="button" onclick="loadRemoteAccess()">↻ Refresh</button></div><div class="remote-filter"><input id="remoteSearch" class="input" placeholder="Search computers…" oninput="renderRemoteAgents()"></div><div id="remoteAgentList" class="remote-agent-list"><div class="empty">Loading Windows Agents…</div></div></section>
 <section class="panel remote-session-panel">
@@ -8462,9 +8460,9 @@ async function loadWindowsAgentPackageStatus(){
 }
 async function downloadWindowsAgentPackage(){
  try{
-  const response=await fetch('/api/v1/windows-agents/package?v=2.4.4&fresh='+Date.now(),{credentials:'same-origin',cache:'no-store'});
+  const response=await fetch('/api/v1/windows-agents/package?v=2.4.5&fresh='+Date.now(),{credentials:'same-origin',cache:'no-store'});
   if(!response.ok){let message='Windows Agent installer is unavailable.';try{message=(await response.json()).detail||message}catch(_){}throw new Error(message)}
-  const blob=await response.blob(),url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download='GODSEYE-Windows-Agent-x64-Setup-2.4.4.exe';document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
+  const blob=await response.blob(),url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download='GODSEYE-Windows-Agent-x64-Setup-2.4.5.exe';document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
  }catch(e){alert(e.message||'Windows Agent installer is unavailable.');await loadWindowsAgentPackageStatus()}
 }
 async function pullWindowsAgentNow(id){
