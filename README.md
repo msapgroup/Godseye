@@ -2,6 +2,8 @@
 
 **Network intelligence, security operations, monitoring, reporting, and remote support — in one self-hosted platform.**
 
+**Godseye EDR candidate:** Agent 2.5.0 adds an optional YARA-X scanner and on-demand tray scans. The server admin page manages reviewed rule packs and scan jobs. [Setup and release status](docs/GODSEYE_EDR.md). Continuous protection and quarantine are not in this release.
+
 GODSEYE is built for **small and mid-sized MSPs, IT providers, and organizations** that need strong visibility and useful security tooling without taking on the cost and complexity of a large enterprise stack.
 
 The goal is simple: bring the tools you use every day into one practical platform that you control.

@@ -8,14 +8,14 @@ PAGES = {
     "integrations": "Integrations", "reports": "Reports", "calendar": "Calendar",
     "email": "Email", "event-findings": "Event Findings",
     "remote-access": "Remote Access", "windows-updates": "Windows Updates",
-    "windows-agent": "Windows Agent", "antivirus": "Antivirus",
+    "windows-agent": "Windows Agent", "antivirus": "Antivirus", "edr": "Godseye EDR",
     "tickets": "Ticket Portal", "health": "System Health",
     "rules": "Alert Rules", "audit": "Audit Log", "security": "Settings",
     "about": "About",
 }
 GROUPS = {
     "Monitoring": ["overview", "devices", "network", "sites", "crm", "monitoring", "findings"],
-    "Operations": ["tools", "cyber-tools", "integrations", "reports", "calendar", "email", "event-findings", "remote-access", "windows-updates", "windows-agent", "antivirus", "tickets"],
+    "Operations": ["tools", "cyber-tools", "integrations", "reports", "calendar", "email", "event-findings", "remote-access", "windows-updates", "windows-agent", "antivirus", "edr", "tickets"],
     "Administration": ["health", "rules", "audit", "security", "about"],
 }
 API_PREFIXES = (
@@ -32,7 +32,7 @@ API_PREFIXES = (
     ("/windows-agent", "windows-agent"),
     ("/windows-remote", "remote-access"),
     ("/windows-updates", "windows-updates"),
-    ("/antivirus", "antivirus"), ("/tickets", "tickets"),
+    ("/antivirus", "antivirus"), ("/edr", "edr"), ("/tickets", "tickets"),
     ("/appliance", "health"), ("/rules", "rules"),
     ("/audit", "audit"), ("/config", "health"),
     ("/traffic", "monitoring"),
@@ -59,13 +59,13 @@ def default_access(role, page):
     if role == "admin":
         return "full"
     if role == "operator":
-        if page in {"rules", "remote-access", "windows-agent"}:
+        if page in {"rules", "remote-access", "windows-agent", "edr"}:
             return "none"
         return "read" if page in {"audit", "security"} else "full"
     if role == "auditor":
-        return "none" if page in {"rules", "remote-access", "windows-agent", "security"} else "read"
+        return "none" if page in {"rules", "remote-access", "windows-agent", "edr", "security"} else "read"
     if role == "readonly":
-        return "none" if page in {"rules", "remote-access", "windows-agent", "security", "cyber-tools"} else "read"
+        return "none" if page in {"rules", "remote-access", "windows-agent", "edr", "security", "cyber-tools"} else "read"
     return "none"
 
 

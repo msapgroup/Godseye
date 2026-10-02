@@ -8,6 +8,7 @@ on:
       - '.github/workflows/build-windows-agent.yml'
       - 'windows/agent-x64/src/**'
       - 'windows/agent-x64/installer/**'
+      - 'windows/agent-x64/prepare-edr-engine.ps1'
       - 'install.sh'
       - 'doctor.sh'
   pull_request:
@@ -15,6 +16,7 @@ on:
       - '.github/workflows/build-windows-agent.yml'
       - 'windows/agent-x64/src/**'
       - 'windows/agent-x64/installer/**'
+      - 'windows/agent-x64/prepare-edr-engine.ps1'
       - 'install.sh'
       - 'doctor.sh'
 
@@ -39,7 +41,7 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      - name: Publish self-contained x64 Agent 2.4.5
+      - name: Publish self-contained x64 Agent 2.5.0
         shell: pwsh
         run: |
           $project = 'windows/agent-x64/src/Godseye.WindowsAgent/Godseye.WindowsAgent.csproj'
@@ -50,7 +52,13 @@ jobs:
           $agent = Join-Path $publish 'GODSEYE.Agent.exe'
           if (-not (Test-Path $agent)) { throw 'Published GODSEYE.Agent.exe was not created.' }
           $fileVersion = (Get-Item $agent).VersionInfo.FileVersion
-          if ($fileVersion -notlike '2.4.5*') { throw "Unexpected Agent file version: $fileVersion" }
+          if ($fileVersion -notlike '2.5.0*') { throw "Unexpected Agent file version: $fileVersion" }
+
+      - name: Stage verified optional YARA-X engine
+        shell: pwsh
+        run: |
+          & 'windows/agent-x64/prepare-edr-engine.ps1'
+          if (-not (Test-Path 'windows/agent-x64/publish/EDR/yr.exe')) { throw 'YARA-X scanner was not staged.' }
 
       - name: Build x64 MSI package
         shell: pwsh
@@ -68,7 +76,7 @@ jobs:
 
           [xml]$projectXml = Get-Content 'windows/agent-x64/src/Godseye.WindowsAgent/Godseye.WindowsAgent.csproj'
           $agentVersion = [string]$projectXml.Project.PropertyGroup.Version
-          if ($agentVersion -ne '2.4.5') { throw "Expected Agent 2.4.5, found '$agentVersion'." }
+          if ($agentVersion -ne '2.5.0') { throw "Expected Agent 2.5.0, found '$agentVersion'." }
           $manifest = [ordered]@{
             status = 'ready'
             version = $agentVersion
@@ -97,6 +105,8 @@ jobs:
           if ($service.PathName -notlike '*\GODSEYE Agent\GODSEYE.Agent.exe*') {
             throw "Service executable path is unexpected: $($service.PathName)"
           }
+          $yr = Join-Path $env:ProgramFiles 'GODSEYE Agent\EDR\yr.exe'
+          if (Test-Path $yr) { throw 'Default core-only install unexpectedly included the optional EDR scanner.' }
 
           $sentinel = Join-Path $env:ProgramData 'GODSEYE\Agent\ci-preserve-test.txt'
           New-Item -ItemType Directory -Path (Split-Path $sentinel) -Force | Out-Null
@@ -115,37 +125,52 @@ jobs:
           if (-not (Test-Path $sentinel)) { throw 'ProgramData state was removed; enrollment/state must survive upgrade/uninstall.' }
           Remove-Item $sentinel -Force
 
-      - name: Smoke-test upgrade from Agent 2.4.4 to 2.4.5
+          $edrInstall = Start-Process msiexec.exe -ArgumentList @('/i', "`"$msi`"", 'ADDLOCAL=MainFeature,EdrFeature', '/qn', '/norestart') -Wait -PassThru
+          if ($edrInstall.ExitCode -notin @(0,3010)) { throw "Optional EDR install failed with code $($edrInstall.ExitCode)." }
+          if (-not (Test-Path $yr)) { throw 'Optional EDR install did not include yr.exe.' }
+          & $yr --version
+          if ($LASTEXITCODE -ne 0) { throw 'Packaged YARA-X scanner did not start.' }
+          $rule = Join-Path $env:RUNNER_TEMP 'godseye-edr-ci.yar'
+          $sample = Join-Path $env:RUNNER_TEMP 'godseye-edr-ci.txt'
+          Set-Content -Path $rule -Value 'rule godseye_ci { strings: $marker = "GODSEYE_EDR_CI" condition: $marker }' -Encoding ascii
+          Set-Content -Path $sample -Value 'GODSEYE_EDR_CI' -Encoding ascii
+          & $yr compile --output (Join-Path $env:RUNNER_TEMP 'godseye-edr-ci.yarc') $rule
+          if ($LASTEXITCODE -ne 0) { throw 'Packaged YARA-X could not compile a known-good rule.' }
+          $scanResult = & $yr scan $rule $sample
+          if ($LASTEXITCODE -ne 0 -or ($scanResult -join ' ') -notmatch 'godseye_ci') { throw 'Packaged YARA-X scan did not detect the CI test marker.' }
+          $edrUninstall = Start-Process msiexec.exe -ArgumentList @('/x', "`"$msi`"", '/qn', '/norestart') -Wait -PassThru
+          if ($edrUninstall.ExitCode -notin @(0,3010)) { throw "Optional EDR uninstall failed with code $($edrUninstall.ExitCode)." }
+
+      - name: Smoke-test upgrade from Agent 2.4.5 to 2.5.0
         shell: pwsh
         run: |
-          $oldMsi = Join-Path $env:RUNNER_TEMP 'GODSEYE-Windows-Agent-x64-2.4.4.msi'
+          $oldMsi = Join-Path $env:RUNNER_TEMP 'GODSEYE-Windows-Agent-x64-2.4.5.msi'
           $newMsi = (Resolve-Path 'windows/agent-x64/GODSEYE-Windows-Agent-x64.msi').Path
-          $oldUrl = 'https://github.com/msapgroup/Godseye/releases/download/v4.31.0-agent-2.4.4/GODSEYE-Windows-Agent-x64.msi'
-          Write-Host 'Downloading verified Agent 2.4.4 release MSI for upgrade test.'
+          $oldUrl = 'https://github.com/msapgroup/Godseye/releases/download/v4.31.0-agent-2.4.5/GODSEYE-Windows-Agent-x64.msi'
           Invoke-WebRequest -Uri $oldUrl -OutFile $oldMsi -TimeoutSec 180
-          if ((Get-Item $oldMsi).Length -lt 1000000) { throw 'Previous Agent MSI download is incomplete.' }
+          if ((Get-Item $oldMsi).Length -lt 1000000) { throw 'Agent 2.4.5 MSI download is incomplete.' }
+          $oldHash = (Get-FileHash $oldMsi -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($oldHash -ne '502d863bf1508420e4d9ea5bba597eaf2ea2c0bc2f25786bafb32168904c3531') { throw 'Agent 2.4.5 prerequisite MSI SHA-256 mismatch.' }
 
-          Write-Host 'Installing Agent 2.4.4.'
           $oldInstall = Start-Process msiexec.exe -ArgumentList @('/i', "`"$oldMsi`"", '/qn', '/norestart') -PassThru
-          if (-not $oldInstall.WaitForExit(180000)) { Stop-Process -Id $oldInstall.Id -Force; throw 'Previous Agent MSI install timed out.' }
-          if (($oldInstall.ExitCode -ne 0) -and ($oldInstall.ExitCode -ne 3010)) { throw "Agent 2.4.4 prerequisite install failed with exit code $($oldInstall.ExitCode)." }
+          if (-not $oldInstall.WaitForExit(180000)) { Stop-Process -Id $oldInstall.Id -Force; throw 'Agent 2.4.5 install timed out.' }
+          if (($oldInstall.ExitCode -ne 0) -and ($oldInstall.ExitCode -ne 3010)) { throw "Agent 2.4.5 prerequisite install failed with exit code $($oldInstall.ExitCode)." }
           $installedExe = Join-Path $env:ProgramFiles 'GODSEYE Agent\GODSEYE.Agent.exe'
           $before = (Get-Item $installedExe).VersionInfo.FileVersion
-          if ($before -notlike '2.4.4*') { throw "Upgrade test expected 2.4.4 before upgrade, found '$before'." }
+          if ($before -notlike '2.4.5*') { throw "Upgrade test expected 2.4.5 before upgrade, found '$before'." }
 
-          Write-Host 'Upgrading Agent 2.4.4 to 2.4.5.'
           $upgrade = Start-Process msiexec.exe -ArgumentList @('/i', "`"$newMsi`"", '/qn', '/norestart') -PassThru
-          if (-not $upgrade.WaitForExit(180000)) { Stop-Process -Id $upgrade.Id -Force; throw 'Agent upgrade timed out.' }
-          if (($upgrade.ExitCode -ne 0) -and ($upgrade.ExitCode -ne 3010)) { throw "Agent 2.4.5 upgrade failed with exit code $($upgrade.ExitCode)." }
+          if (-not $upgrade.WaitForExit(180000)) { Stop-Process -Id $upgrade.Id -Force; throw 'Agent 2.5.0 upgrade timed out.' }
+          if (($upgrade.ExitCode -ne 0) -and ($upgrade.ExitCode -ne 3010)) { throw "Agent 2.5.0 upgrade failed with exit code $($upgrade.ExitCode)." }
           $after = (Get-Item $installedExe).VersionInfo.FileVersion
-          if ($after -notlike '2.4.5*') { throw "Agent upgrade left version '$after' installed instead of 2.4.5." }
+          if ($after -notlike '2.5.0*') { throw "Agent upgrade left version '$after' installed instead of 2.5.0." }
 
           $display = Get-ItemProperty 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*' -ErrorAction SilentlyContinue |
             Where-Object DisplayName -eq 'GODSEYE Windows Agent' |
             Select-Object -First 1 -ExpandProperty DisplayVersion
-          if ($display -ne '2.4.5') { throw "Windows installed-app version is '$display', expected 2.4.5." }
+          if ($display -ne '2.5.0') { throw "Windows installed-app version is '$display', expected 2.5.0." }
 
-          Write-Host 'Uninstalling upgraded Agent 2.4.5.'
+          Write-Host 'Uninstalling upgraded Agent 2.5.0.'
           $uninstall = Start-Process msiexec.exe -ArgumentList @('/x', "`"$newMsi`"", '/qn', '/norestart') -PassThru
           if (-not $uninstall.WaitForExit(180000)) { Stop-Process -Id $uninstall.Id -Force; throw 'Agent uninstall after upgrade timed out.' }
           if (($uninstall.ExitCode -ne 0) -and ($uninstall.ExitCode -ne 3010)) { throw "Post-upgrade uninstall failed with exit code $($uninstall.ExitCode)." }
@@ -166,16 +191,16 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
           $agent = 'windows/agent-x64/publish/GODSEYE.Agent.exe'
-          $setup = 'windows/agent-x64/installer/output/GODSEYE-Windows-Agent-x64-Setup-2.4.5.exe'
+          $setup = 'windows/agent-x64/installer/output/GODSEYE-Windows-Agent-x64-Setup-2.5.0.exe'
           if (-not (Test-Path $setup)) { throw 'Inno Setup did not create the guided setup EXE.' }
           $setupVersion = (Get-Item $setup).VersionInfo.ProductVersion
-          if ($setupVersion -notlike '2.4.5*') { throw "Guided Setup version is '$setupVersion', expected 2.4.5." }
+          if ($setupVersion -notlike '2.5.0*') { throw "Guided Setup version is '$setupVersion', expected 2.5.0." }
           Copy-Item $agent 'windows/agent-x64/GODSEYE.Agent.exe' -Force
-          Copy-Item $setup 'windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup-2.4.5.exe' -Force
+          Copy-Item $setup 'windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup-2.5.0.exe' -Force
           Copy-Item $setup 'windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe' -Force
           $hash = (Get-FileHash 'windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe' -Algorithm SHA256).Hash.ToUpperInvariant()
           Set-Content -Path 'windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe.sha256' -Value $hash -Encoding ascii
-          Set-Content -Path 'windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup-2.4.5.exe.sha256' -Value $hash -Encoding ascii
+          Set-Content -Path 'windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup-2.5.0.exe.sha256' -Value $hash -Encoding ascii
 
       - name: Build GODSEYE v4.31.0 source + Agent candidate ZIP
         shell: pwsh
@@ -207,8 +232,8 @@ jobs:
             'GODSEYE-Windows-Agent-x64.msi',
             'GODSEYE-Windows-Agent-x64.msi.sha256',
             'update-manifest.json',
-            'GODSEYE-Windows-Agent-x64-Setup-2.4.5.exe',
-            'GODSEYE-Windows-Agent-x64-Setup-2.4.5.exe.sha256',
+            'GODSEYE-Windows-Agent-x64-Setup-2.5.0.exe',
+            'GODSEYE-Windows-Agent-x64-Setup-2.5.0.exe.sha256',
             'GODSEYE-Windows-Agent-x64-Setup.exe',
             'GODSEYE-Windows-Agent-x64-Setup.exe.sha256'
           ) | ForEach-Object {
@@ -221,18 +246,18 @@ jobs:
           $zipHash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToUpperInvariant()
           Set-Content -Path "$zip.sha256" -Value $zipHash -Encoding ascii
 
-      - name: Upload Windows Agent 2.4.5 packages
+      - name: Upload Windows Agent 2.5.0 packages
         uses: actions/upload-artifact@v4
         with:
-          name: GODSEYE-Windows-Agent-x64-2.4.5
+          name: GODSEYE-Windows-Agent-x64-2.5.0
           path: |
             windows/agent-x64/GODSEYE.Agent.exe
             windows/agent-x64/publish/GODSEYE.Agent.exe
             windows/agent-x64/GODSEYE-Windows-Agent-x64.msi
             windows/agent-x64/GODSEYE-Windows-Agent-x64.msi.sha256
             windows/agent-x64/update-manifest.json
-            windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup-2.4.5.exe
-            windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup-2.4.5.exe.sha256
+            windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup-2.5.0.exe
+            windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup-2.5.0.exe.sha256
             windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe
             windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe.sha256
 
@@ -248,10 +273,10 @@ jobs:
         if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v4.31.0-agent-2.4.5
-          name: GODSEYE v4.31.0 Windows Agent 2.4.5
+          tag_name: v4.31.0-agent-2.5.0
+          name: GODSEYE v4.31.0 Windows Agent 2.5.0
           body: |
-            GODSEYE v4.31.0 server source with Windows Agent 2.4.5.
+            GODSEYE v4.31.0 server source with Windows Agent 2.5.0.
 
             Includes the guided Windows installer, MSI, agent executable, checksums, and full source candidate ZIP.
           draft: false
@@ -261,8 +286,8 @@ jobs:
             windows/agent-x64/GODSEYE.Agent.exe
             windows/agent-x64/GODSEYE-Windows-Agent-x64.msi
             windows/agent-x64/GODSEYE-Windows-Agent-x64.msi.sha256
-            windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup-2.4.5.exe
-            windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup-2.4.5.exe.sha256
+            windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup-2.5.0.exe
+            windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup-2.5.0.exe.sha256
             windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe
             windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe.sha256
             windows/agent-x64/update-manifest.json

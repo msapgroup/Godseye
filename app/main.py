@@ -52,6 +52,7 @@ from .cyber_tools import (CyberScheduleManager, SCHEDULABLE_TOOLS, capabilities 
                           utcnow as cyber_utcnow)
 from .site_federation import ensure_schema as ensure_site_schema, register_routes as register_site_routes
 from .crm import ensure_schema as ensure_crm_schema, register_routes as register_crm_routes
+from . import godseye_edr as edr
 from . import access_control as acl
 from .appliance_hardening import BACKUP_DIR, KEY_PATH
 
@@ -852,6 +853,7 @@ async def lifespan(app):
         ensure_production_schema(c)
         ensure_device_traffic_schema(c)
         ensure_cyber_schema(c)
+        edr.ensure_schema(c)
         migrate_plaintext_secrets(c)
     traffic_collector = TrafficCollector(db, int(os.environ.get('GODSEYE_TRAFFIC_SAMPLE_SECONDS','10')))
     app.state.traffic_collector = traffic_collector
@@ -978,6 +980,8 @@ router_prefix = "/api/v1"
 @app.middleware("http")
 async def sidebar_access_boundary(request: Request, call_next):
     """Enforce page visibility and writes at the API, including direct requests."""
+    if request.url.path == "/api/v1/edr/agent/rules":
+        return await call_next(request)  # authenticated with the enrolled agent API key
     page = acl.page_for_path(request.url.path)
     if page:
         try:
@@ -3723,7 +3727,11 @@ def windows_agent_heartbeat(req: WindowsAgentHeartbeatRequest, request: Request,
             try: payload=json.loads(r["payload_json"] or "{}")
             except Exception: payload={}
             agent_commands.append({"command_id":r["id"],"type":r["command_type"],"payload":payload})
-    return {"ok":True,"server_time":ts,"channels":json.loads(fresh["channels_json"]),"poll_interval_seconds":fresh["poll_interval_seconds"],"enabled":bool(fresh["enabled"]),"rechecks":rechecks,"commands":agent_commands}
+        edr.ensure_schema(c)
+        edr_policy=c.execute("SELECT enabled FROM edr_policies WHERE agent_id=?",(aid,)).fetchone()
+        edr_pack=c.execute("SELECT version,sha256 FROM edr_rule_packs WHERE active=1").fetchone()
+    return {"ok":True,"server_time":ts,"channels":json.loads(fresh["channels_json"]),"poll_interval_seconds":fresh["poll_interval_seconds"],"enabled":bool(fresh["enabled"]),"rechecks":rechecks,"commands":agent_commands,
+            "edr":{"enabled":bool(edr_policy and edr_policy[0]),"version":edr_pack["version"] if edr_pack else None,"sha256":edr_pack["sha256"] if edr_pack else None}}
 
 
 @app.post(f"{router_prefix}/windows-agents/events")
@@ -3897,6 +3905,107 @@ def windows_agent_clamav_scan(agent_id: int, request: Request, user=Depends(requ
         cid=cur.lastrowid
         audit(c,user["username"],"windows_agent_clamav_scan_requested",str(agent_id),json.dumps({"command_id":cid,"computer_name":agent["computer_name"]}),client_ip(request))
     return {"ok":True,"queued":True,"command_id":cid,"status":"pending","message":"ClamAV scan queued. The agent will run clamscan when it next checks in."}
+
+
+class EdrPolicyRequest(BaseModel):
+    enabled: bool
+
+
+class EdrRuleRequest(BaseModel):
+    name: str
+    source: str = "Administrator upload"
+    rules: str
+
+
+class EdrScanRequest(BaseModel):
+    scan_type: str = "quick"
+
+
+@app.get(f"{router_prefix}/edr/overview")
+def edr_overview(user=Depends(get_current_user)):
+    with db() as c:
+        edr.ensure_schema(c)
+        active=c.execute("SELECT version,name,source,sha256,created_at FROM edr_rule_packs WHERE active=1").fetchone()
+        packs=[dict(row) for row in c.execute("SELECT version,name,source,sha256,created_at,active FROM edr_rule_packs ORDER BY version DESC LIMIT 20")]
+        agents=[dict(row) for row in c.execute("""SELECT a.id,a.computer_name,a.agent_version,a.last_heartbeat_at,
+            COALESCE(p.enabled,0) AS edr_enabled FROM windows_agents a
+            LEFT JOIN edr_policies p ON p.agent_id=a.id WHERE a.revoked_at IS NULL ORDER BY a.computer_name""")]
+        jobs=[dict(row) for row in c.execute("""SELECT w.id,w.agent_id,a.computer_name,w.status,w.requested_at,w.completed_at,w.result_json,w.payload_json
+            FROM windows_agent_commands w JOIN windows_agents a ON a.id=w.agent_id
+            WHERE w.command_type='edr_scan' ORDER BY w.id DESC LIMIT 50""")]
+    for job in jobs:
+        job["result"]=json.loads(job.pop("result_json") or "{}")
+        job["scan_type"]=json.loads(job.pop("payload_json") or "{}").get("scan_type","quick")
+    return {"active_pack":dict(active) if active else None,"packs":packs,"agents":agents,"jobs":jobs,
+            "engine":"YARA-X","engine_ready":bool(__import__('shutil').which(os.environ.get('GODSEYE_YARAX_CLI','yr')))}
+
+
+@app.post(f"{router_prefix}/edr/agents/{{agent_id}}/policy")
+def edr_set_policy(agent_id: int, req: EdrPolicyRequest, request: Request, user=Depends(require_admin)):
+    with db() as c:
+        edr.ensure_schema(c)
+        agent=c.execute("SELECT id FROM windows_agents WHERE id=? AND enabled=1 AND revoked_at IS NULL",(agent_id,)).fetchone()
+        if not agent: raise HTTPException(404,"Enrolled agent not found")
+        c.execute("INSERT INTO edr_policies(agent_id,enabled,updated_at,updated_by) VALUES(?,?,?,?) ON CONFLICT(agent_id) DO UPDATE SET enabled=excluded.enabled,updated_at=excluded.updated_at,updated_by=excluded.updated_by",
+                  (agent_id,int(req.enabled),now(),user["username"]))
+        audit(c,user["username"],"edr_policy_changed",str(agent_id),str(req.enabled),client_ip(request))
+    return {"ok":True,"enabled":req.enabled}
+
+
+@app.post(f"{router_prefix}/edr/rules")
+def edr_publish_rules(req: EdrRuleRequest, request: Request, user=Depends(require_admin)):
+    try: digest=edr.validate_rule_text(req.rules)
+    except ValueError as exc: raise HTTPException(400,str(exc))
+    with db() as c:
+        edr.ensure_schema(c)
+        version=c.execute("SELECT COALESCE(MAX(version),0)+1 FROM edr_rule_packs").fetchone()[0]
+        c.execute("UPDATE edr_rule_packs SET active=0")
+        c.execute("INSERT INTO edr_rule_packs(version,name,source,sha256,rules,created_at,created_by,active) VALUES(?,?,?,?,?,?,?,1)",
+                  (version,req.name.strip()[:120],req.source.strip()[:200],digest,req.rules,now(),user["username"]))
+        audit(c,user["username"],"edr_rule_pack_published",str(version),digest,client_ip(request))
+    return {"ok":True,"version":version,"sha256":digest}
+
+
+@app.post(f"{router_prefix}/edr/rules/{{version}}/activate")
+def edr_activate_rules(version: int, request: Request, user=Depends(require_admin)):
+    with db() as c:
+        edr.ensure_schema(c)
+        if not c.execute("SELECT 1 FROM edr_rule_packs WHERE version=?",(version,)).fetchone(): raise HTTPException(404,"Rule pack not found")
+        c.execute("UPDATE edr_rule_packs SET active=0")
+        c.execute("UPDATE edr_rule_packs SET active=1 WHERE version=?",(version,))
+        audit(c,user["username"],"edr_rule_pack_activated",str(version),"rollback or activation",client_ip(request))
+    return {"ok":True,"version":version}
+
+
+@app.get(f"{router_prefix}/edr/agent/rules")
+def edr_agent_rules(agent=Depends(_agent_auth)):
+    with db() as c:
+        edr.ensure_schema(c)
+        enabled=c.execute("SELECT enabled FROM edr_policies WHERE agent_id=?",(agent["id"],)).fetchone()
+        if not enabled or not enabled[0]: raise HTTPException(403,"EDR is excluded on this endpoint")
+        pack=c.execute("SELECT version,sha256,rules FROM edr_rule_packs WHERE active=1").fetchone()
+    if not pack: raise HTTPException(409,"No validated rule pack is active")
+    return dict(pack)
+
+
+@app.post(f"{router_prefix}/edr/agents/{{agent_id}}/scan")
+def edr_scan(agent_id: int, req: EdrScanRequest, request: Request, user=Depends(require_permission("operate"))):
+    if req.scan_type not in {"quick","full"}: raise HTTPException(400,"Select a quick or full scan")
+    with db() as c:
+        edr.ensure_schema(c)
+        row=c.execute("""SELECT a.id,a.agent_version FROM windows_agents a JOIN edr_policies p ON p.agent_id=a.id
+            WHERE a.id=? AND a.enabled=1 AND a.revoked_at IS NULL AND p.enabled=1""",(agent_id,)).fetchone()
+        if not row: raise HTTPException(409,"EDR is excluded or this agent is unavailable")
+        if _agent_version_tuple(row["agent_version"]) < (2,5,0): raise HTTPException(409,"Godseye EDR requires Windows Agent 2.5.0 or newer")
+        pack=c.execute("SELECT version,sha256 FROM edr_rule_packs WHERE active=1").fetchone()
+        if not pack: raise HTTPException(409,"Publish a validated rule pack first")
+        existing=c.execute("SELECT id FROM windows_agent_commands WHERE agent_id=? AND command_type='edr_scan' AND status IN ('pending','delivered')",(agent_id,)).fetchone()
+        if existing: raise HTTPException(409,"An EDR scan is already queued")
+        payload=json.dumps({"scan_type":req.scan_type,"rule_version":pack["version"],"sha256":pack["sha256"]})
+        cid=c.execute("INSERT INTO windows_agent_commands(agent_id,command_type,payload_json,status,requested_by,requested_at) VALUES(?,'edr_scan',?,'pending',?,?)",
+                      (agent_id,payload,user["username"],now())).lastrowid
+        audit(c,user["username"],"edr_scan_queued",str(agent_id),payload,client_ip(request))
+    return {"ok":True,"command_id":cid,"status":"pending"}
 
 
 @app.get(f"{router_prefix}/windows-agents")
@@ -4271,36 +4380,23 @@ def windows_agent_msi_package(agent=Depends(_agent_auth)):
 
 @app.get(f"{router_prefix}/windows-agents/package")
 def windows_agent_package(user=Depends(require_admin)):
-    version="2.4.5"
+    try: version=_windows_agent_update_manifest()["version"]
+    except HTTPException: version="2.4.5"
     versioned_name=f"GODSEYE-Windows-Agent-x64-Setup-{version}.exe"
     path=BASE_DIR / "windows" / "agent-x64" / versioned_name
     if path.is_file():
-        return FileResponse(path,media_type="application/vnd.microsoft.portable-executable",filename=versioned_name,headers={"Cache-Control":"no-store, no-cache, must-revalidate, max-age=0","Pragma":"no-cache","Expires":"0","X-GODSEYE-Agent-Version":version})
-    # Release builds are published as GitHub Release assets because the installer
-    # exceeds GitHub's repository file-size limit. Fresh installs use that asset.
-    return RedirectResponse(
-        "https://github.com/msapgroup/Godseye/releases/download/v4.31.0-agent-2.4.5/GODSEYE-Windows-Agent-x64-Setup-2.4.5.exe",
-        status_code=302,
-        headers={"Cache-Control":"no-store, no-cache, must-revalidate, max-age=0","Pragma":"no-cache","Expires":"0","X-GODSEYE-Agent-Version":version},
-    )
+        return FileResponse(path,media_type="application/vnd.microsoft.portable-executable",filename=versioned_name,headers={"Cache-Control":"no-store","X-GODSEYE-Agent-Version":version})
+    return RedirectResponse(f"https://github.com/msapgroup/Godseye/releases/download/v4.31.0-agent-{version}/{versioned_name}",status_code=302,headers={"Cache-Control":"no-store","X-GODSEYE-Agent-Version":version})
 
 
 @app.get(f"{router_prefix}/windows-agents/package-status")
 def windows_agent_package_status(user=Depends(require_admin)):
-    setup=BASE_DIR / "windows" / "agent-x64" / "GODSEYE-Windows-Agent-x64-Setup.exe"
-    msi=BASE_DIR / "windows" / "agent-x64" / "GODSEYE-Windows-Agent-x64.msi"
-    manifest={"version":"2.4.5","status":"ready"}
-    manifest_path=BASE_DIR / "windows" / "agent-x64" / "update-manifest.json"
-    try:
-        if manifest_path.is_file(): manifest.update(json.loads(manifest_path.read_text(encoding="utf-8")))
-    except (OSError,ValueError,json.JSONDecodeError): pass
-    return {
-        "available":True,
-        "msi_available":msi.is_file(),
-        "version":manifest.get("version","2.4.5"),
-        "status":"ready",
-        "message":"Windows Agent 2.4.5 installer is ready from the local package or GitHub Release."
-    }
+    try: manifest=_windows_agent_update_manifest()
+    except HTTPException: manifest={"version":"2.4.5"}
+    version=manifest["version"]
+    setup=BASE_DIR / "windows" / "agent-x64" / f"GODSEYE-Windows-Agent-x64-Setup-{version}.exe"
+    return {"available":True,"msi_available":(BASE_DIR / "windows" / "agent-x64" / "GODSEYE-Windows-Agent-x64.msi").is_file(),
+            "version":version,"status":"ready","message":f"Windows Agent {version} installer is available from the validated package or GitHub Release."}
 
 
 @app.get(f"{router_prefix}/windows-agents/package/legacy")
@@ -7057,6 +7153,7 @@ html:not([data-theme="dark"]) :is(.v430-global-search,.v430-bell,.user-chip,.aut
 <button type="button" class="navitem operate-only" data-view="windows-updates"><span class="navicon"><svg viewBox="0 0 24 24"><path d="M4 5h7v7H4ZM13 5h7v7h-7ZM4 14h7v5H4ZM13 14h7v5h-7Z"/></svg></span><span>Windows Updates</span></button>
 <button type="button" class="navitem admin-only" onclick="openWindowsAgentModal();event.preventDefault()"><span class="navicon"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/><circle cx="17" cy="8" r="2.2"/><path d="M17 4.8v1M17 10.2v1M13.8 8h1M19.2 8h1"/></svg></span><span>Windows Agent</span></button>
 <button type="button" class="navitem admin-only" data-view="antivirus"><span class="navicon"><svg viewBox="0 0 24 24"><path d="M12 3 20 6v6c0 5-3.2 8-8 9-4.8-1-8-4-8-9V6Z"/><path d="m8.5 12 2.2 2.2 4.8-5"/></svg></span><span>Antivirus</span></button>
+<button type="button" class="navitem admin-only" data-view="edr"><span class="navicon"><svg viewBox="0 0 24 24"><path d="M12 2 21 6v6c0 5-3.6 8.7-9 10-5.4-1.3-9-5-9-10V6z"/><path d="M8 12h8m-4-4v8"/></svg></span><span>Godseye EDR</span></button>
 <button type="button" class="navitem" data-view="tickets"><span class="navicon"><svg viewBox="0 0 24 24"><path d="M4 6h16v4a2 2 0 0 0 0 4v4H4v-4a2 2 0 0 0 0-4Z"/><path d="M12 8v8"/></svg></span><span>Ticket Portal</span><span class="badge" id="ticketBadge">0</span></button>
 <div class="navsection">Administration</div>
 <button type="button" class="navitem" data-view="health"><span class="navicon"><svg viewBox="0 0 24 24"><path d="M3 12h4l2-5 4 10 2-5h6"/><path d="M20.5 5.5a5 5 0 0 0-7.1 0L12 7l-1.4-1.5a5 5 0 0 0-7.1 7L12 21l8.5-8.5a5 5 0 0 0 0-7Z"/></svg></span><span>System Health</span></button>
@@ -7432,6 +7529,14 @@ html:not([data-theme="dark"]) :is(.v430-global-search,.v430-bell,.user-chip,.aut
 <div class="view" id="view-antivirus" style="display:none">
 <div class="hero"><div><h1>Antivirus</h1><div class="muted">ClamAV is free and open source. Install ClamAV on each Windows computer, then run an approved scan from GODSEYE.</div></div><div class="actions"><button class="secondary" onclick="loadClamAvAgents()">↻ Refresh</button></div></div>
 <section class="panel"><div class="table-head"><div><h2>Managed Windows protection</h2><div class="muted">Scans run locally on the enrolled computer and return a result to the agent portal.</div></div></div><div id="clamavAgentList" class="empty">Loading Windows Agents…</div></section>
+</div>
+
+<div class="view" id="view-edr" style="display:none">
+  <div class="hero"><div><h1>Godseye EDR</h1><div class="muted">Optional on-demand endpoint scans with reviewed YARA-X rules. Continuous protection and quarantine are not available in this release.</div></div><div class="actions"><button class="secondary" onclick="loadEdr()">↻ Refresh</button></div></div>
+  <div class="cards"><div class="card"><div class="label">EDR selected</div><div class="num green" id="edrProtected">—</div></div><div class="card"><div class="label">Pending jobs</div><div class="num" id="edrPending">—</div></div><div class="card"><div class="label">Active rule pack</div><div class="num" id="edrPack">—</div></div></div>
+  <section class="panel"><div class="table-head"><div><h2>Endpoints</h2><div class="muted">Enable EDR per endpoint. The existing agent and remote support continue when EDR is excluded.</div></div></div><div id="edrEndpoints" class="empty">Loading…</div></section>
+  <section class="panel"><div class="table-head"><div><h2>Scan jobs and findings</h2><div class="muted">A rule match needs review. A scan error is shown as an error, never as a clean result.</div></div></div><div id="edrJobs" class="empty">Loading…</div></section>
+  <section class="panel"><div class="table-head"><div><h2>Rule Center</h2><div class="muted">Review licenses and source before publishing. Rule packs are checked by YARA-X on the server.</div></div></div><div id="edrRules" class="empty">Loading…</div><div class="admin-only"><label>Pack name<input id="edrRuleName" class="input" value="Godseye reviewed rules" maxlength="120"></label><label>Source / license notes<input id="edrRuleSource" class="input" placeholder="Source name and license approval" maxlength="200"></label><label>YARA rule file (up to 1 MB)<input id="edrRuleFile" class="input" type="file" accept=".yar,.yara,text/plain"></label><div class="actions"><button class="primary" onclick="publishEdrRules()">Validate and publish</button></div></div><div id="edrStatus" class="muted" role="status"></div></section>
 </div>
 
 <div class="view" id="view-tickets" style="display:none">
@@ -8476,9 +8581,9 @@ async function loadWindowsAgentPackageStatus(){
 }
 async function downloadWindowsAgentPackage(){
  try{
-  const response=await fetch('/api/v1/windows-agents/package?v=2.4.5&fresh='+Date.now(),{credentials:'same-origin',cache:'no-store'});
-  if(!response.ok){let message='Windows Agent installer is unavailable.';try{message=(await response.json()).detail||message}catch(_){}throw new Error(message)}
-  const blob=await response.blob(),url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download='GODSEYE-Windows-Agent-x64-Setup-2.4.5.exe';document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
+  const info=await json('/api/v1/windows-agents/package-status');
+  if(!info.available)throw new Error('Windows Agent installer is unavailable.');
+  window.location.assign('/api/v1/windows-agents/package?v='+encodeURIComponent(info.version)+'&fresh='+Date.now());
  }catch(e){alert(e.message||'Windows Agent installer is unavailable.');await loadWindowsAgentPackageStatus()}
 }
 async function pullWindowsAgentNow(id){
@@ -8751,6 +8856,23 @@ async function closeCurrentTicket(){
 }
 async function loadClamAvAgents(){const el=document.getElementById('clamavAgentList');if(!el)return;try{const rows=await json('/api/v1/windows-agents');const agents=Array.isArray(rows)?rows:[];el.innerHTML=agents.length?agents.map(a=>`<div class="panel" style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin:8px 0"><div><b>${esc(a.computer_name||a.hostname||'Windows Agent')}</b><div class="muted">${esc(a.agent_version||'unknown')} · ${a.online?'Online':'Offline'} · ClamAV runs locally</div></div><button class="primary" ${a.online?'':'disabled'} onclick="queueClamAvScan(${a.id})">Scan with ClamAV</button></div>`).join(''):'<div class="empty">No enrolled Windows Agents.</div>'}catch(e){el.textContent='Unable to load Windows Agents: '+e.message}}
 async function queueClamAvScan(id){try{const r=await json('/api/v1/windows-agents/'+id+'/clamav-scan',{method:'POST'});alert(r.message||'ClamAV scan queued.')}catch(e){alert('Could not queue ClamAV scan: '+e.message)}}
+async function loadEdr(){
+  const target=document.getElementById('edrEndpoints');if(!target)return;
+  try{
+    const d=await json('/api/v1/edr/overview'),agents=d.agents||[],jobs=d.jobs||[];
+    document.getElementById('edrProtected').textContent=agents.filter(a=>a.edr_enabled).length+' / '+agents.length;
+    document.getElementById('edrPending').textContent=jobs.filter(j=>['pending','delivered'].includes(j.status)).length;
+    document.getElementById('edrPack').textContent=d.active_pack?'v'+d.active_pack.version:'None';
+    target.innerHTML=agents.length?agents.map(a=>{const capable=(a.agent_version||'').split('.').map(Number);const ready=capable[0]>2||(capable[0]===2&&capable[1]>=5);return `<div class="panel" style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px;align-items:center"><div><b>${esc(a.computer_name)}</b><div class="muted">Agent ${esc(a.agent_version||'unknown')} · ${ready?(a.edr_enabled?'EDR selected':'EDR excluded'):'Agent 2.5.0 required'} · last check-in ${esc(a.last_heartbeat_at||'never')}</div></div><div class="actions"><button class="secondary admin-only" ${ready?'':'disabled'} onclick="setEdrPolicy(${a.id},${a.edr_enabled?0:1})">${a.edr_enabled?'Exclude EDR':'Enable EDR'}</button><button class="secondary" ${ready&&a.edr_enabled&&d.active_pack?'':'disabled'} onclick="queueEdrScan(${a.id},'quick')">Quick scan</button><button class="secondary" ${ready&&a.edr_enabled&&d.active_pack?'':'disabled'} onclick="queueEdrScan(${a.id},'full')">Full scan</button></div></div>`}).join(''):'<div class="empty">No enrolled Windows Agents.</div>';
+    document.getElementById('edrJobs').innerHTML=jobs.length?jobs.map(j=>`<div class="panel"><b>${esc(j.computer_name)} · ${esc(j.scan_type)} scan</b><div class="muted">${esc(j.status)} · ${esc(j.requested_at)} ${j.completed_at?'· completed '+esc(j.completed_at):''}</div><div>${esc(j.result?.details||'Waiting for agent check-in')}</div></div>`).join(''):'<div class="empty">No scans queued yet.</div>';
+    document.getElementById('edrRules').innerHTML=(d.packs||[]).length?d.packs.map(p=>`<div class="panel"><b>v${p.version} · ${esc(p.name)}</b> ${p.active?'<span class="badge">Active</span>':`<button class="secondary admin-only" onclick="activateEdrRules(${p.version})">Activate / rollback</button>`}<div class="muted">${esc(p.source)} · SHA-256 ${esc(p.sha256.slice(0,16))}… · ${esc(p.created_at)}</div></div>`).join(''):'<div class="empty">No rule pack published. Scans remain unavailable.</div>';
+    document.getElementById('edrStatus').textContent=d.engine_ready?'Server rule validator ready.':'Server YARA-X validator unavailable; publishing is disabled until installed.';
+  }catch(e){target.textContent='Could not load EDR: '+e.message}
+}
+async function setEdrPolicy(id,enabled){try{await json('/api/v1/edr/agents/'+id+'/policy',{method:'POST',body:JSON.stringify({enabled:!!enabled})});loadEdr()}catch(e){alert('Could not save EDR policy: '+e.message)}}
+async function queueEdrScan(id,scan_type){try{await json('/api/v1/edr/agents/'+id+'/scan',{method:'POST',body:JSON.stringify({scan_type})});loadEdr()}catch(e){alert('Could not queue EDR scan: '+e.message)}}
+async function publishEdrRules(){const file=document.getElementById('edrRuleFile').files[0];if(!file||file.size>1048576){alert('Choose a .yar or .yara file under 1 MB.');return}if(!/\.yara?$/i.test(file.name)){alert('Choose a YARA rule file.');return}try{await json('/api/v1/edr/rules',{method:'POST',body:JSON.stringify({name:document.getElementById('edrRuleName').value,source:document.getElementById('edrRuleSource').value,rules:await file.text()})});loadEdr()}catch(e){alert('Could not publish rules: '+e.message)}}
+async function activateEdrRules(version){try{await json('/api/v1/edr/rules/'+version+'/activate',{method:'POST'});loadEdr()}catch(e){alert('Could not activate rules: '+e.message)}}
 async function loadMicrosoftWindowsUpdatesView(){
  const el=document.getElementById('microsoftWindowsUpdatesList');if(!el)return;
  try{const agents=await json('/api/v1/windows-agents');el.innerHTML=agents.length?agents.map(a=>'<div class="windows-agent-row"><span class="windows-agent-icon">W</span><div><b>'+esc(a.computer_name||a.hostname||'Windows computer')+'</b><small>'+esc(a.os_version||'Windows')+' · '+esc(a.status||'unknown')+' · Agent '+esc(a.agent_version||'—')+'</small><div id="mswu-status-'+a.id+'" class="muted">Ready to scan.</div></div><div class="actions"><button class="primary" onclick="scanWindowsUpdatesView('+a.id+')">Scan Microsoft Updates</button></div></div>').join(''):'<div class="empty">No enrolled Windows computers.</div>'}catch(e){el.innerHTML='<div class="empty">Could not load Windows computers: '+esc(e.message)+'</div>'}
@@ -8811,6 +8933,7 @@ const VIEW_LOADERS={
   'event-findings':()=>loadEventFindings(),
   'remote-access':()=>loadRemoteAccess(),
   antivirus:()=>loadClamAvAgents(),
+  edr:()=>loadEdr(),
   'cyber-tools':()=>loadCyberTools(),
   tickets:()=>loadTickets(),
   health:()=>loadHealth(),
@@ -8959,7 +9082,7 @@ function showView(name,updateHash=true){
   document.querySelectorAll('.navitem[data-view]').forEach(b=>{b.classList.remove('active');b.removeAttribute('aria-current')});
   const btn=document.querySelector('.navitem[data-view="'+name+'"]');
   if(btn){btn.classList.add('active');btn.setAttribute('aria-current','page')}
-  const pageTitles={overview:'Dashboard',devices:'Devices',network:'Network Map',sites:'Sites',crm:'CRM',kb:'Knowledge Base',monitoring:'Monitoring',findings:'Findings',tools:'Tools','cyber-tools':'Cyber Tools','windows-updates':'Microsoft Windows Updates',integrations:'Integrations',reports:'Reports',calendar:'Calendar',email:'Email','event-findings':'Event Findings','remote-access':'Remote Access',antivirus:'Antivirus',tickets:'Ticket Portal',health:'System Health',security:'Settings',about:'About GODSEYE',rules:'Alert Rules',users:'Users',audit:'Audit Log',activity:'Activity'};const pageTitle=document.getElementById('v430PageTitle');if(pageTitle)pageTitle.textContent=pageTitles[name]||'GODSEYE';
+  const pageTitles={overview:'Dashboard',devices:'Devices',network:'Network Map',sites:'Sites',crm:'CRM',kb:'Knowledge Base',monitoring:'Monitoring',findings:'Findings',tools:'Tools','cyber-tools':'Cyber Tools','windows-updates':'Microsoft Windows Updates',integrations:'Integrations',reports:'Reports',calendar:'Calendar',email:'Email','event-findings':'Event Findings','remote-access':'Remote Access',antivirus:'Antivirus',edr:'Godseye EDR',tickets:'Ticket Portal',health:'System Health',security:'Settings',about:'About GODSEYE',rules:'Alert Rules',users:'Users',audit:'Audit Log',activity:'Activity'};const pageTitle=document.getElementById('v430PageTitle');if(pageTitle)pageTitle.textContent=pageTitles[name]||'GODSEYE';
   if(updateHash && location.hash!=='#'+name){history.replaceState(null,'','#'+name)}
   if(updateHash)window.scrollTo(0,0);
   const loader=VIEW_LOADERS[name];
@@ -10842,3 +10965,4 @@ def remediation_history(limit:int=100,user=Depends(require_admin)):
 
 register_site_routes(app, __import__(__name__, fromlist=["app"]))
 register_crm_routes(app, __import__(__name__, fromlist=["app"]))
+

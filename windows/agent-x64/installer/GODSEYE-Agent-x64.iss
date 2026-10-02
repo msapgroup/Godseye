@@ -1,5 +1,5 @@
 #define MyAppName "GODSEYE Windows Agent"
-#define MyAppVersion "2.4.5"
+#define MyAppVersion "2.5.0"
 #define MyAppPublisher "MSAPGROUP LLC"
 #define MyAppExeName "GODSEYE.Agent.exe"
 #define MyMsiName "GODSEYE-Windows-Agent-x64.msi"
@@ -17,7 +17,7 @@ Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
 OutputDir=output
-OutputBaseFilename=GODSEYE-Windows-Agent-x64-Setup-2.4.5
+OutputBaseFilename=GODSEYE-Windows-Agent-x64-Setup-2.5.0
 SetupLogging=yes
 CloseApplications=no
 RestartApplications=no
@@ -30,6 +30,7 @@ Source: "..\{#MyMsiName}"; Flags: dontcopy
 var
   ConfigPage: TInputQueryWizardPage;
   TlsPage: TInputOptionWizardPage;
+  EdrPage: TInputOptionWizardPage;
   ExistingConfig: Boolean;
 
 function DataDir(): String;
@@ -66,6 +67,13 @@ begin
     True, False);
   TlsPage.Add('Verify the GODSEYE HTTPS certificate (recommended)');
   TlsPage.SelectedValueIndex := 0;
+
+  EdrPage := CreateInputOptionPage(TlsPage.ID,
+    'Optional Godseye EDR', 'Choose endpoint scan components',
+    'The core Windows Agent and approved remote support work with either choice. Select Godseye EDR only when you want its on-demand YARA-X scans.',
+    True, False);
+  EdrPage.Add('Install Godseye EDR scanner (YARA-X)');
+  EdrPage.Values[0] := FileExists(ExpandConstant('{autopf64}\GODSEYE Agent\EDR\yr.exe'));
 end;
 
 function ShouldSkipPage(PageID: Integer): Boolean;
@@ -130,6 +138,10 @@ begin
   { The MSI is the sole owner of files, service registration, repair, upgrades,
     and uninstall. This bootstrapper only supplies first-install enrollment UI. }
   Params := '/i "' + MsiPath + '" /qn /norestart';
+  if EdrPage.Values[0] then
+    Params := Params + ' ADDLOCAL=MainFeature,EdrFeature'
+  else
+    Params := Params + ' ADDLOCAL=MainFeature REMOVE=EdrFeature';
   if not Exec(ExpandConstant('{sys}\msiexec.exe'), Params, '', SW_SHOW, ewWaitUntilTerminated, MsiResultCode) or
      ((MsiResultCode <> 0) and (MsiResultCode <> 3010)) then
     RaiseException('Windows Installer could not install GODSEYE Windows Agent. msiexec exit code: ' + IntToStr(MsiResultCode));
@@ -163,9 +175,9 @@ begin
   ExePath := AgentExePath();
   if not GetVersionNumbersString(ExePath, InstalledVersion) then
     RaiseException('GODSEYE Windows Agent was installed, but its version could not be verified.');
-  if Pos('2.4.5', InstalledVersion) <> 1 then
-    RaiseException('The installer expected GODSEYE Windows Agent 2.4.5, but Windows reports version ' + InstalledVersion + '.');
+  if Pos('2.5.0', InstalledVersion) <> 1 then
+    RaiseException('The installer expected GODSEYE Windows Agent 2.5.0, but Windows reports version ' + InstalledVersion + '.');
 
   if MsiResultCode <> 3010 then
-    MsgBox('GODSEYE Windows Agent 2.4.5 was installed and verified successfully.', mbInformation, MB_OK);
+    MsgBox('GODSEYE Windows Agent 2.5.0 was installed and verified successfully.', mbInformation, MB_OK);
 end;
