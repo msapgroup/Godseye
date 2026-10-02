@@ -6934,6 +6934,7 @@ html[data-theme="dark"] .badge{box-shadow:none!important}
 .about-actions{display:flex;justify-content:center;gap:9px;flex-wrap:wrap}.about-button{display:inline-flex;align-items:center;justify-content:center;min-height:36px;padding:0 16px;border-radius:7px;text-decoration:none;font-size:10px;font-weight:750}
 .about-feature-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:12px}.about-feature{padding:18px!important;min-height:190px!important;text-align:center}.about-feature-icon{width:45px;height:45px;margin:0 auto 12px;border-radius:11px;display:grid;place-items:center;background:#102f49;color:#4fc7ff;font-size:22px;border:1px solid #23506c}.about-feature h3{font-size:12px!important;margin:0 0 8px}.about-feature p{font-size:9px!important;line-height:1.6;color:#829fb3!important;margin:0}
 .about-info-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}.about-info{min-height:190px}.about-info-body{padding:17px}.about-info-body p{font-size:10px!important;line-height:1.6}.about-principles{display:grid;grid-template-columns:1fr 1fr;gap:12px;color:#b7d2e3}.about-principles span{font-size:9px;padding:9px 10px;background:#081824;border:1px solid #193b52;border-radius:7px}.about-footer{text-align:center;padding:18px 0 4px;font-size:9px!important}
+.about-wiki{margin-top:12px;padding:20px 24px;display:flex;align-items:center;justify-content:space-between;gap:18px}.about-wiki h2{font-size:14px;margin:0 0 7px}.about-wiki p{font-size:11px;color:#9bb4c6;line-height:1.6;margin:0;max-width:720px}.about-wiki .about-button{flex:none}@media(max-width:620px){.about-wiki{align-items:flex-start;flex-direction:column}}
 @media(max-width:1000px){.about-feature-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.about-info-grid{grid-template-columns:1fr}}@media(max-width:620px){.about-feature-grid{grid-template-columns:1fr}.about-brand-lockup{flex-direction:column}.about-wordmark{width:210px}.about-principles{grid-template-columns:1fr}}
 
 .about-page-heading{margin-bottom:12px!important;text-align:left}.about-page-heading h1{margin:0 0 4px!important}
@@ -7645,7 +7646,7 @@ sudo godseye-https-setup godseye.example.com letsencrypt</pre></div></section>
     <p>Discover and track devices, investigate security findings, monitor important services, and manage tickets and remote support from one self-hosted workspace. GODSEYE keeps operational data under your control.</p>
     <div class="about-actions">
       <a class="primary about-button" href="https://github.com/msapgroup/Godseye" target="_blank" rel="noopener">GitHub Repository</a>
-      <a class="secondary about-button" href="https://github.com/msapgroup/Godseye/wiki" target="_blank" rel="noopener">Documentation</a>
+      <a class="secondary about-button" href="https://github.com/msapgroup/Godseye/wiki" target="_blank" rel="noopener noreferrer">GODSEYE Wiki</a>
     </div>
   </div>
 
@@ -7671,6 +7672,11 @@ sudo godseye-https-setup godseye.example.com letsencrypt</pre></div></section>
       </div>
     </section>
   </div>
+
+  <section class="panel about-wiki" aria-labelledby="aboutWikiTitle">
+    <div><h2 id="aboutWikiTitle">GODSEYE Wiki</h2><p>Open the setup, configuration, and feature guides for help using GODSEYE. The wiki opens in a new tab so you can keep your place in the app.</p></div>
+    <a class="primary about-button" href="https://github.com/msapgroup/Godseye/wiki" target="_blank" rel="noopener noreferrer" aria-label="Open GODSEYE Wiki in a new tab">Open Wiki ↗</a>
+  </section>
 
   <div class="about-footer muted">GODSEYE · Built by MSAPGROUP LLC</div>
 </div>
