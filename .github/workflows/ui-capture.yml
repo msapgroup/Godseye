@@ -27,6 +27,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -69,7 +71,6 @@ jobs:
           test -s docs/screenshots/v431-sites-management.png
           test -s docs/screenshots/godseye-about.png
       - name: Commit refreshed screenshots
-        if: github.event_name != 'pull_request'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -78,7 +79,7 @@ jobs:
             echo "Screenshots already current."
           else
             git commit -m "Refresh screenshots from redesigned running app [skip ci]"
-            git push
+            git push origin HEAD:${{ github.head_ref || github.ref_name }}
           fi
       - name: Build downloadable source ZIP
         run: |
