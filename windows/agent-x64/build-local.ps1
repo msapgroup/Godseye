@@ -27,12 +27,12 @@ function Require-Command([string]$Name) {
 $dotnet = Require-Command 'dotnet'
 $dotnetInfo = & $dotnet --version
 if ($LASTEXITCODE -ne 0 -or $dotnetInfo -notmatch '^8\.') {
-  throw "GODSEYE Agent 2.5.0 requires the .NET 8 SDK. Found: $dotnetInfo"
+  throw "GODSEYE Agent 2.5.1 requires the .NET 8 SDK. Found: $dotnetInfo"
 }
 
 [xml]$projectXml = Get-Content $Project
 $AgentVersion = [string]$projectXml.Project.PropertyGroup.Version
-if ($AgentVersion -ne '2.5.0') { throw "Expected Agent 2.5.0, found '$AgentVersion'." }
+if ($AgentVersion -ne '2.5.1') { throw "Expected Agent 2.5.1, found '$AgentVersion'." }
 
 Write-Host "Publishing GODSEYE Agent $AgentVersion (win-x64)..." -ForegroundColor Cyan
 Remove-Item $Publish -Recurse -Force -ErrorAction SilentlyContinue
@@ -41,7 +41,7 @@ if ($LASTEXITCODE -ne 0) { throw 'dotnet publish failed.' }
 $PublishedAgent = Join-Path $Publish 'GODSEYE.Agent.exe'
 if (-not (Test-Path $PublishedAgent)) { throw 'GODSEYE.Agent.exe was not produced.' }
 $fileVersion = (Get-Item $PublishedAgent).VersionInfo.FileVersion
-if ($fileVersion -notlike '2.5.0*') { throw "Unexpected Agent file version: $fileVersion" }
+if ($fileVersion -notlike '2.5.1*') { throw "Unexpected Agent file version: $fileVersion" }
 Copy-Item $PublishedAgent $AgentOut -Force
 
 & (Join-Path $Root 'prepare-edr-engine.ps1')
@@ -104,7 +104,7 @@ $readyManifest = [ordered]@{
 Set-Content -Path $Manifest -Value $readyManifest -Encoding utf8
 
 Write-Host ''
-Write-Host 'GODSEYE Windows Agent 2.5.0 build complete.' -ForegroundColor Green
+Write-Host 'GODSEYE Windows Agent 2.5.1 build complete.' -ForegroundColor Green
 Write-Host "Agent: $AgentOut"
 Write-Host "MSI:   $MsiOut"
 Write-Host "Setup: $SetupOut"
