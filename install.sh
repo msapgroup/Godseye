@@ -7,6 +7,7 @@ trap 'echo "GODSEYE installer failed at line $LINENO. Command: $BASH_COMMAND"; e
 
 APP_USER="godseye"
 APP_GROUP="godseye"
+PYTHON_BIN="/usr/bin/python3"
 INSTALL_DIR="/opt/godseye"
 DATA_DIR="/var/lib/godseye"
 ENV_FILE="/etc/godseye.env"
@@ -37,6 +38,7 @@ case "${1:-}" in
     echo "GODSEYE installer diagnostics"
     command -v python3 || true
     python3 --version || true
+    "$PYTHON_BIN" --version || true
     echo "Installed version: $(cat "$INSTALL_DIR/VERSION" 2>/dev/null || echo 'not installed')"
     echo "Release version:   $(cat "$SRC_DIR/VERSION" 2>/dev/null || echo 'unknown')"
     ls -ld "$INSTALL_DIR" 2>/dev/null || true
@@ -94,6 +96,19 @@ getent group "$APP_GROUP" >/dev/null 2>&1 || groupadd --system "$APP_GROUP"
 id "$APP_USER" >/dev/null 2>&1 || useradd --system --home "$INSTALL_DIR" --shell /usr/sbin/nologin -g "$APP_GROUP" "$APP_USER"
 mkdir -p "$INSTALL_DIR" "$DATA_DIR" "$BACKUP_DIR"
 
+# The distribution's python3-venv package matches /usr/bin/python3. A custom
+# /usr/local/bin/python3 can be first in PATH but lack matching ensurepip files.
+# Check on the target filesystem before stopping an existing installation.
+VENV_PROBE="$(mktemp -d "$INSTALL_DIR/.venv-probe.XXXXXX")"
+if ! "$PYTHON_BIN" -m venv "$VENV_PROBE/check"; then
+  rm -rf "$VENV_PROBE"
+  echo "Could not create a Python virtual environment with $PYTHON_BIN." >&2
+  echo "Check free space with: df -h $INSTALL_DIR" >&2
+  echo "Reinstall the matching package: apt-get install --reinstall python3-venv" >&2
+  exit 1
+fi
+rm -rf "$VENV_PROBE"
+
 # On upgrade, stop services and create a database + version snapshot first.
 if [[ $EXISTING -eq 1 ]]; then
   systemctl stop godseye-web.service 2>/dev/null || true
@@ -112,6 +127,7 @@ fi
 if [[ "$(readlink -f "$SRC_DIR")" != "$(readlink -f "$INSTALL_DIR")" ]]; then
   rsync -a --delete \
     --exclude '.venv/' \
+    --exclude '.venv-previous/' \
     --exclude '__pycache__/' \
     --exclude '.pytest_cache/' \
     --exclude '.git/' \
@@ -119,11 +135,23 @@ if [[ "$(readlink -f "$SRC_DIR")" != "$(readlink -f "$INSTALL_DIR")" ]]; then
 fi
 rm -rf "$INSTALL_DIR/__pycache__" "$INSTALL_DIR/app/__pycache__" "$INSTALL_DIR/.pytest_cache"
 
-# Rebuild the isolated Python environment to make upgrades deterministic.
-rm -rf "$INSTALL_DIR/.venv"
-python3 -m venv "$INSTALL_DIR/.venv"
-"$INSTALL_DIR/.venv/bin/pip" install --upgrade pip
-"$INSTALL_DIR/.venv/bin/pip" install -r "$INSTALL_DIR/requirements.txt"
+# Keep the previous environment available until the replacement is complete.
+if [[ -d "$INSTALL_DIR/.venv" ]]; then
+  rm -rf "$INSTALL_DIR/.venv-previous"
+  mv "$INSTALL_DIR/.venv" "$INSTALL_DIR/.venv-previous"
+fi
+restore_previous_venv() {
+  rm -rf "$INSTALL_DIR/.venv"
+  if [[ -d "$INSTALL_DIR/.venv-previous" ]]; then
+    mv "$INSTALL_DIR/.venv-previous" "$INSTALL_DIR/.venv"
+    systemctl start godseye-web.service godseye-scanner.service 2>/dev/null || true
+  fi
+  echo "Python environment setup failed; the previous environment was restored." >&2
+  exit 1
+}
+"$PYTHON_BIN" -m venv "$INSTALL_DIR/.venv" || restore_previous_venv
+"$INSTALL_DIR/.venv/bin/pip" install --upgrade pip || restore_previous_venv
+"$INSTALL_DIR/.venv/bin/pip" install -r "$INSTALL_DIR/requirements.txt" || restore_previous_venv
 
 # Persistent runtime data belongs to the service account. Application code is
 # readable by the service but remains owned by root after deployment.
@@ -199,6 +227,7 @@ systemctl is-active --quiet godseye-scanner.service || {
   journalctl -u godseye-scanner.service -n 80 --no-pager
   exit 1
 }
+rm -rf "$INSTALL_DIR/.venv-previous"
 
 echo
 echo "GODSEYE $([[ $EXISTING -eq 1 ]] && echo upgrade || echo installation) completed."

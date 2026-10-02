@@ -461,6 +461,15 @@ Extract the new GODSEYE server package into a temporary directory and run:
 
 The upgrade process preserves the GODSEYE data and configuration directories and performs the required migration and backup checks before starting the updated application.
 
+If the installer reports a failure creating `/opt/godseye/.venv`, check the message immediately above the line number. On Debian or Ubuntu, repair the matching virtual-environment package and retry from the extracted release directory:
+
+    sudo apt-get update
+    sudo apt-get install --reinstall python3-venv
+    df -h /opt/godseye
+    sudo ./install.sh --upgrade
+
+The installer uses `/usr/bin/python3` to match the distribution package and tests virtual-environment creation before stopping existing services. If the check still fails, retain the complete Python error output to distinguish a missing `ensurepip` package from a full disk or filesystem problem.
+
 ### Useful maintenance commands
 
     sudo ./install.sh --doctor
