@@ -214,6 +214,9 @@ jobs:
           ) | ForEach-Object {
             Copy-Item (Join-Path 'windows/agent-x64' $_) (Join-Path $stage 'windows/agent-x64' $_) -Force
           }
+          $stagedMsi = Join-Path $stage 'windows/agent-x64/GODSEYE-Windows-Agent-x64.msi'
+          $stagedManifest = Get-Content (Join-Path $stage 'windows/agent-x64/update-manifest.json') -Raw | ConvertFrom-Json
+          if ($stagedManifest.sha256 -ne (Get-FileHash $stagedMsi -Algorithm SHA256).Hash) { throw 'Full package Agent manifest does not match its MSI.' }
           Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zip -CompressionLevel Optimal
           $zipHash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToUpperInvariant()
           Set-Content -Path "$zip.sha256" -Value $zipHash -Encoding ascii

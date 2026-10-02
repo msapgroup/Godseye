@@ -3778,6 +3778,9 @@ def _agent_version_tuple(value: str):
         return (0,0,0)
 
 
+_AGENT_RELEASE_DIGEST_CACHE={"at":0.0,"asset":None}
+
+
 def _windows_agent_update_manifest():
     from .windows_agent import load_update_manifest
     path=BASE_DIR / "windows" / "agent-x64" / "update-manifest.json"
@@ -3787,7 +3790,22 @@ def _windows_agent_update_manifest():
         # Release packages are stored as GitHub Release assets rather than in
         # the server repository. Keep managed updates available on fresh
         # server installs even when the optional local MSI is absent.
-        return {"version":"2.4.5","sha256":"74F37423A4B3D91FCDBBCE92BFBA9F25FFD9D670930EB3FCE33B514F3A05C609","filename":"GODSEYE-Windows-Agent-x64.msi","url":"https://github.com/msapgroup/Godseye/releases/download/v4.31.0-agent-2.4.5/GODSEYE-Windows-Agent-x64.msi"}
+        release_url="https://api.github.com/repos/msapgroup/Godseye/releases/tags/v4.31.0-agent-2.4.5"
+        filename="GODSEYE-Windows-Agent-x64.msi"
+        try:
+            asset=_AGENT_RELEASE_DIGEST_CACHE["asset"] if time.monotonic()-_AGENT_RELEASE_DIGEST_CACHE["at"]<900 else None
+            if asset is None:
+                req=urllib.request.Request(release_url,headers={"Accept":"application/vnd.github+json","User-Agent":"GODSEYE-Agent-Update"})
+                with urllib.request.urlopen(req,timeout=8) as response:
+                    release=json.load(response)
+                asset=next((item for item in release.get("assets",[]) if item.get("name")==filename),None)
+            digest=str((asset or {}).get("digest") or "")
+            if not re.fullmatch(r"sha256:[0-9a-fA-F]{64}",digest):
+                raise ValueError("The release MSI has no SHA-256 digest")
+            _AGENT_RELEASE_DIGEST_CACHE.update({"at":time.monotonic(),"asset":asset})
+            return {"version":"2.4.5","sha256":digest[7:].upper(),"filename":filename,"url":asset["browser_download_url"]}
+        except (OSError,ValueError,KeyError) as exc:
+            raise HTTPException(503,"Windows Agent release checksum is temporarily unavailable") from exc
 
 
 @app.get(f"{router_prefix}/windows-agents/update-info")
@@ -4246,7 +4264,7 @@ def windows_agent_purge(agent_id: int, request: Request, user=Depends(require_ad
 def windows_agent_msi_package(agent=Depends(_agent_auth)):
     manifest=_windows_agent_update_manifest()
     path=BASE_DIR / "windows" / "agent-x64" / manifest["filename"]
-    if not path.exists():
+    if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest().upper()!=manifest["sha256"]:
         return RedirectResponse(manifest["url"], status_code=302)
     return FileResponse(path,media_type="application/octet-stream",filename=manifest["filename"],headers={"X-GODSEYE-Agent-Version":manifest["version"],"X-GODSEYE-SHA256":manifest["sha256"]})
 
@@ -4256,8 +4274,6 @@ def windows_agent_package(user=Depends(require_admin)):
     version="2.4.5"
     versioned_name=f"GODSEYE-Windows-Agent-x64-Setup-{version}.exe"
     path=BASE_DIR / "windows" / "agent-x64" / versioned_name
-    if not path.is_file():
-        path=BASE_DIR / "windows" / "agent-x64" / "GODSEYE-Windows-Agent-x64-Setup.exe"
     if path.is_file():
         return FileResponse(path,media_type="application/vnd.microsoft.portable-executable",filename=versioned_name,headers={"Cache-Control":"no-store, no-cache, must-revalidate, max-age=0","Pragma":"no-cache","Expires":"0","X-GODSEYE-Agent-Version":version})
     # Release builds are published as GitHub Release assets because the installer
@@ -4273,7 +4289,7 @@ def windows_agent_package(user=Depends(require_admin)):
 def windows_agent_package_status(user=Depends(require_admin)):
     setup=BASE_DIR / "windows" / "agent-x64" / "GODSEYE-Windows-Agent-x64-Setup.exe"
     msi=BASE_DIR / "windows" / "agent-x64" / "GODSEYE-Windows-Agent-x64.msi"
-    manifest={"version":"2.4.5","status":"pending_build"}
+    manifest={"version":"2.4.5","status":"ready"}
     manifest_path=BASE_DIR / "windows" / "agent-x64" / "update-manifest.json"
     try:
         if manifest_path.is_file(): manifest.update(json.loads(manifest_path.read_text(encoding="utf-8")))
@@ -4282,7 +4298,7 @@ def windows_agent_package_status(user=Depends(require_admin)):
         "available":True,
         "msi_available":msi.is_file(),
         "version":manifest.get("version","2.4.5"),
-        "status":manifest.get("status","ready"),
+        "status":"ready",
         "message":"Windows Agent 2.4.5 installer is ready from the local package or GitHub Release."
     }
 
