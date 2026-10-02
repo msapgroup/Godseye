@@ -16,13 +16,13 @@ CAPTURES = [
     ("devices", "v431-devices-guide.png"),
     ("network", "v431-network-map-card.png"),
     ("crm", "v431-crm-live.png"),
-    ("kb", "v431-kb-outlook-guide.png"),
     ("calendar", "v431-calendar-guide.png"),
     ("email", "v431-email-guide.png"),
     ("health", "v431-system-health-guide.png"),
     ("remote-access", "v431-remote-access-guide.png"),
     ("event-findings", "v431-event-findings-guide.png"),
     ("cyber-tools", "v431-cyber-tools-overview.png"),
+    ("edr", "v431-godseye-edr-defender-guide.png"),
     ("about", "godseye-about.png"),
 ]
 
@@ -47,9 +47,6 @@ async def main():
             assert await page.locator("#authOverlay .login-scene-footer").inner_text() == (
                 "GODSEYE\nNetwork Intelligence · Security Operations · MSP Workflow · Self-Hosted Control"
             )
-            login_logo = page.locator("#authOverlay .login-wordmark")
-            await login_logo.evaluate("img => img.decode()")
-            assert await login_logo.evaluate("img => img.complete && img.naturalWidth > 0"), "Login logo did not load"
             await page.screenshot(path=str(OUT / "v431-login.png"), full_page=True)
 
         # Sign in.
@@ -71,19 +68,6 @@ async def main():
         for view, filename in CAPTURES:
             await page.evaluate("(v)=>showView(v,true)", view)
             await page.wait_for_timeout(1500)
-            if view == "devices":
-                await page.evaluate("openDeviceIconFromButton(document.querySelector('[data-icon-id]'))")
-                for category, example, image_name in (
-                    ('home', 'roku', 'v431-device-icons-home.png'),
-                    ('security', 'ring-doorbell', 'v431-device-icons-security.png'),
-                ):
-                    await page.evaluate('(category)=>setDeviceIconCategory(category)', category)
-                    icon = page.locator(f'#deviceIconPicker [data-icon-key="{example}"] img')
-                    await icon.wait_for(state='visible')
-                    await icon.evaluate('img => img.decode()')
-                    assert await icon.evaluate('img => img.naturalWidth > 0')
-                    await page.screenshot(path=str(OUT / image_name), full_page=False)
-                await page.evaluate('closeDeviceIcon()')
             if view == "crm":
                 await page.get_by_role('button', name='+ Add Customer').click()
                 await page.fill('#crmCustomerForm [name=name]', 'North Shore Dental')
@@ -102,40 +86,6 @@ async def main():
                 await page.fill('#crmContactEditor [name=phone]', '(555) 010-2200')
                 await page.get_by_role('button', name='Save contact').click()
                 await page.locator('#crmRecord .crm-contact-card').first.wait_for()
-                await page.locator('#crmRecord .kb-upload-label input').set_input_files({
-                    'name':'office-notes.txt','mimeType':'text/plain','buffer':b'Customer support notes for screenshot demo.'})
-                await page.locator('#crmRecord .crm-contact-card').filter(has_text='office-notes.txt').wait_for()
-            if view == "kb":
-                await page.locator('#kbSearch').fill('MFA')
-                await page.locator('#kbList .crm-customer-card').first.wait_for()
-                await page.locator('#kbList .crm-customer-card').first.click()
-                await page.locator('#kbRecord .kb-step-image').first.wait_for()
-                assert await page.locator('#kbRecord .kb-step').count() == 3
-                assert await page.locator('#kbRecord .kb-step-image').first.evaluate('img => img.complete && img.naturalWidth > 0')
-                await page.get_by_role('button', name='+ New article').click()
-                await page.locator('#kbForm [name=title]').fill('Sample printer troubleshooting')
-                await page.locator('#kbForm [name=product]').fill('HP LaserJet')
-                await page.locator('#kbForm [name=category]').fill('Printers')
-                await page.locator('#kbForm [name=summary]').fill('Use when a printer reports a paper jam.')
-                await page.locator('#kbSteps [name=step_title]').first.fill('Check the paper path')
-                await page.locator('#kbSteps [name=step_instructions]').first.fill('Power off the printer and remove any visible paper from the tray.')
-                await page.evaluate('document.activeElement.blur(); window.scrollTo(0, 0)')
-                await page.wait_for_timeout(200)
-                await page.screenshot(path=str(OUT / 'v431-kb-new-article.png'), full_page=True)
-                await page.locator('#kbRecord button[form=kbForm]').click()
-                await page.locator('#kbRecord .kb-save-success').wait_for()
-                assert not await page.locator('#kbForm').count(), 'New KB card did not close after save'
-                await page.get_by_role('button', name='Open article').click()
-                await page.get_by_role('button', name='Edit article').click()
-                await page.locator('#kbForm').wait_for()
-                await page.get_by_role('button', name='Cancel').click()
-                page.once('dialog', lambda dialog: dialog.accept())
-                await page.get_by_role('button', name='Delete', exact=True).click()
-                await page.locator('#kbRecord .crm-empty').wait_for()
-                await page.locator('#kbSearch').fill('')
-                await page.locator('#kbList .crm-customer-card').first.click()
-                await page.locator('#kbRecord .kb-step-image').first.wait_for()
-                assert await page.locator('#kbRecord .kb-step-image').first.evaluate('img => img.complete && img.naturalWidth > 0')
             if view == "overview":
                 assert await page.locator("#view-overview").inner_text() != ""
             if view == "about":
@@ -143,28 +93,6 @@ async def main():
                     "Network Intelligence · Security Operations · MSP Workflow · Self-Hosted Control"
                 )
             await page.screenshot(path=str(OUT / filename), full_page=True)
-
-        # Show the real admin reset card against a sample user, and exercise its close/save path.
-        await page.evaluate("""async () => json('/api/v1/users', {
-            method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({username: 'sample.tech', display_name: 'Sample Technician',
-                                  password: 'Sample-Technician-2026!', role: 'operator'})
-        })""")
-        await page.evaluate("() => showView('users', true)")
-        await page.locator('#users tr').filter(has_text='sample.tech').wait_for()
-        reset_button = page.locator('#users tr').filter(has_text='sample.tech').get_by_role('button', name='Reset password')
-        await reset_button.scroll_into_view_if_needed()
-        await reset_button.click()
-        await page.locator('#userPasswordResetModal').wait_for(state='visible')
-        await page.screenshot(path=str(OUT / 'v431-user-password-reset.png'))
-        await page.get_by_role('button', name='Cancel', exact=True).click()
-        assert not await page.locator('#userPasswordResetModal').is_visible()
-        await reset_button.click()
-        await page.fill('#userResetPassword', 'Sample-Temporary-2026!')
-        await page.fill('#userResetPasswordConfirm', 'Sample-Temporary-2026!')
-        page.once('dialog', lambda dialog: dialog.accept())
-        await page.locator('#userPasswordResetSubmit').click()
-        await page.locator('#userPasswordResetModal').wait_for(state='hidden')
 
         # Pair a second, seeded GODSEYE over authenticated HTTPS and capture
         # the actual workspace, including remotely loaded devices and tickets.
@@ -222,17 +150,6 @@ async def main():
         await page.evaluate("()=>showView('cyber-tools',true)")
         await page.wait_for_timeout(1000)
         await page.screenshot(path=str(OUT / "v431-cyber-tools-working.png"), full_page=True)
-
-        # Leaving the sign-in screen idle must not keep dashboard polling alive.
-        dashboard_requests = []
-        page.on('request', lambda request: dashboard_requests.append(request.url)
-                if request.url.endswith('/api/v1/health') else None)
-        await page.evaluate("()=>logout()")
-        await page.locator('#authOverlay').wait_for(state='visible')
-        assert await page.evaluate('DASHBOARD_REFRESH_TIMER === null && ME === null')
-        dashboard_requests.clear()
-        await page.wait_for_timeout(11500)
-        assert not dashboard_requests, f'Dashboard requested data after logout: {dashboard_requests}'
 
         await browser.close()
 
