@@ -3744,7 +3744,11 @@ def windows_agent_heartbeat(req: WindowsAgentHeartbeatRequest, request: Request,
         edr.ensure_schema(c)
         edr_policy=c.execute("SELECT enabled FROM edr_policies WHERE agent_id=?",(aid,)).fetchone()
         edr_pack=c.execute("SELECT version,sha256 FROM edr_rule_packs WHERE active=1").fetchone()
-    return {"ok":True,"server_time":ts,"channels":json.loads(fresh["channels_json"]),"poll_interval_seconds":fresh["poll_interval_seconds"],"enabled":bool(fresh["enabled"]),"rechecks":rechecks,"commands":agent_commands,
+    channels=json.loads(fresh["channels_json"])
+    defender_channel="Microsoft-Windows-Windows Defender/Operational"
+    if edr_policy and edr_policy[0] and defender_channel not in channels:
+        channels.append(defender_channel)
+    return {"ok":True,"server_time":ts,"channels":channels,"poll_interval_seconds":fresh["poll_interval_seconds"],"enabled":bool(fresh["enabled"]),"rechecks":rechecks,"commands":agent_commands,
             "edr":{"enabled":bool(edr_policy and edr_policy[0]),"version":edr_pack["version"] if edr_pack else None,"sha256":edr_pack["sha256"] if edr_pack else None}}
 
 
