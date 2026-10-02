@@ -64,6 +64,7 @@ def test_defender_status_and_version_gated_update(tmp_path):
             agent_headers = {"Authorization": "Bearer defender-test-key"}
             heartbeat = client.post("/api/v1/windows-agents/heartbeat", headers=agent_headers, json={"agent_version": "2.5.0"})
             assert heartbeat.status_code == 200, heartbeat.text
+            assert "Microsoft-Windows-Windows Defender/Operational" in heartbeat.json()["channels"]
             review = [x for x in heartbeat.json()["commands"] if x["type"] == "defender_review"]
             assert len(review) == 1
             assert client.post("/api/v1/windows-agents/heartbeat", headers=agent_headers, json={"agent_version": "2.5.0"}).json()["commands"][0]["command_id"] == review[0]["command_id"]
@@ -76,5 +77,8 @@ def test_defender_status_and_version_gated_update(tmp_path):
             with main.db() as c:
                 c.execute("UPDATE windows_agents SET agent_version='2.5.1' WHERE id=?", (agent_id,))
             assert client.post(f"/api/v1/edr/agents/{agent_id}/defender/update", headers=headers).status_code == 200
+            assert client.post(f"/api/v1/edr/agents/{agent_id}/policy", headers=headers, json={"enabled": False}).status_code == 200
+            off = client.post("/api/v1/windows-agents/heartbeat", headers=agent_headers, json={"agent_version": "2.5.1"})
+            assert "Microsoft-Windows-Windows Defender/Operational" not in off.json()["channels"]
     finally:
         main.DB_PATH, main.BASE_DIR = old_db, old_base
