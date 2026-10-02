@@ -154,6 +154,8 @@ The full backup contains sensitive operational data and the appliance encryption
 | --- | --- |
 | Network Exposure Scan | Runs bounded network discovery and port checks against an authorized private host or network. |
 | Endpoint Security Posture | Reviews enrolled Windows endpoint reachability, agent health, updates, errors, and security state. |
+| Windows Defender Response | Select an enrolled Windows PC to review Defender protection and recent detections, run a quick scan, or have an admin confirm removal of active threats. The PC needs the updated Windows Agent and enabled Microsoft Defender Antivirus. |
+| ClamAV Second Opinion | Update ClamAV signatures with FreshClam and scan Windows user profiles on an enrolled PC. ClamAV must be installed and configured on that PC. |
 | Web & TLS Audit | Reviews HTTPS, certificates, redirects, and important web security headers. |
 | Malware & IOC Scan | Checks supported hashes, IP addresses, domains, and uploaded files with configured security engines. |
 | DNS & Email Security | Reviews MX, SPF, DMARC, DKIM, CAA, address records, and related DNS security information. |
@@ -162,6 +164,8 @@ The full backup contains sensitive operational data and the appliance encryption
 | Evidence Capture | Captures a bounded packet sample from a validated network interface for troubleshooting or evidence collection. |
 
 After a run, review the structured result and scan history. Where supported, results can be turned into Findings or Tickets, exported, or scheduled for another check.
+
+**Malware response:** In **Cyber Tools → Windows Defender Response**, select a PC and choose **Review threats**. If a scan is needed, select **Quick scan** and use **Check status** to see the agent result. An admin can select **Remove threats**, enter the exact PC name, and review the result after Defender runs `Remove-MpThreat`. This command acts on all active threats Defender detected on that PC; review the PC again to verify the outcome. In **ClamAV Second Opinion**, update signatures first, then scan Windows user profiles. ClamAV on Windows does not provide on-access protection, so keep Defender enabled for real-time coverage. Both endpoint cards require Windows Agent 2.4.5; install the [current agent release](https://github.com/msapgroup/Godseye/releases/tag/v4.31.0-agent-2.4.5) before using them.
 
 ![GODSEYE Cyber Tools result](docs/screenshots/v431-cyber-tools-working.png)
 

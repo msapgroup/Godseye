@@ -89,7 +89,7 @@ namespace Godseye.WindowsAgent
 
         public static int Run()
         {
-            using var mutex = new Mutex(true, @"Local\GODSEYE.WindowsAgent.Tray.2.4.4", out bool created);
+            using var mutex = new Mutex(true, @"Local\GODSEYE.WindowsAgent.Tray.2.4.5", out bool created);
             if (!created) return 0;
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);

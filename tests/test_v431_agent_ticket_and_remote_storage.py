@@ -8,7 +8,7 @@ import app.main as main
 from app.windows_agent import token_hash
 
 
-def _insert_agent(key: str, *, version: str = "2.4.4") -> int:
+def _insert_agent(key: str, *, version: str = "2.4.5") -> int:
     timestamp = main.now()
     with main.db() as c:
         return c.execute(

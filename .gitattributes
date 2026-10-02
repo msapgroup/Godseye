@@ -1,0 +1,4 @@
+windows/agent-x64/**/bin/** export-ignore
+windows/agent-x64/**/obj/** export-ignore
+windows/agent-x64/publish/** export-ignore
+windows/agent/GODSEYE-Windows-Agent.zip export-ignore

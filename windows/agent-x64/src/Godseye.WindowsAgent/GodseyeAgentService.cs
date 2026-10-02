@@ -92,7 +92,7 @@ namespace Godseye.WindowsAgent
 
     public class GodseyeAgentService : ServiceBase
     {
-        static readonly string AgentVersion = typeof(GodseyeAgentService).Assembly.GetName().Version?.ToString(3) ?? "2.4.4";
+        static readonly string AgentVersion = typeof(GodseyeAgentService).Assembly.GetName().Version?.ToString(3) ?? "2.4.5";
         static readonly JsonCompat Json = new JsonCompat();
         readonly string BaseDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "GODSEYE", "Agent");
         Thread worker;
@@ -1036,6 +1036,16 @@ namespace Godseye.WindowsAgent
                         result["ok"] = true; result["events"] = 0; result["new_findings"] = 0;
                         result["details"] = RunClamAvScan();
                     }
+                    else if (String.Equals(type, "clamav_update", StringComparison.OrdinalIgnoreCase))
+                    {
+                        result["details"] = UpdateClamAvSignatures();
+                        result["ok"] = true; result["events"] = 0; result["new_findings"] = 0;
+                    }
+                    else if (type == "defender_review" || type == "defender_quick_scan" || type == "defender_remediate")
+                    {
+                        result["details"] = RunDefenderCommand(type);
+                        result["ok"] = true; result["events"] = 0; result["new_findings"] = 0;
+                    }
                     else if (String.Equals(type, "scan_windows_updates", StringComparison.OrdinalIgnoreCase))
                     {
                         result["ok"] = true; result["updates"] = ScanWindowsUpdates(); result["details"] = "Windows Update scan completed.";
@@ -1068,8 +1078,55 @@ namespace Godseye.WindowsAgent
             string[] candidates = new string[] { "clamscan.exe", Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "ClamAV", "clamscan.exe"), Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "ClamAV", "clamscan.exe") };
             string exe = candidates.FirstOrDefault(File.Exists) ?? "clamscan.exe";
             string logDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "GODSEYE", "Agent"); Directory.CreateDirectory(logDir);
-            ProcessStartInfo psi = new ProcessStartInfo { FileName = exe, Arguments = "--infected --recursive --log=\"" + Path.Combine(logDir, "clamav-scan.log") + "\" \"" + Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) + "\"", UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true, WorkingDirectory = logDir };
-            using (Process p = Process.Start(psi)) { if (p == null) throw new Exception("ClamAV could not be started. Install ClamAV and ensure clamscan.exe is available."); p.WaitForExit(900000); if (!p.HasExited) { try { p.Kill(); } catch { } throw new Exception("ClamAV scan timed out after 15 minutes."); } return p.ExitCode == 0 ? "ClamAV scan completed: no threats found." : (p.ExitCode == 1 ? "ClamAV scan completed: threats were found. Review clamav-scan.log." : "ClamAV scan completed with an error. Review clamav-scan.log."); }
+            string userProfiles = Path.Combine(Path.GetPathRoot(Environment.SystemDirectory) ?? "C:\\", "Users");
+            if (!Directory.Exists(userProfiles)) throw new Exception("Windows user profile directory is unavailable.");
+            ProcessStartInfo psi = new ProcessStartInfo { FileName = exe, Arguments = "--infected --recursive --log=\"" + Path.Combine(logDir, "clamav-scan.log") + "\" \"" + userProfiles + "\"", UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true, WorkingDirectory = logDir };
+            using (Process p = Process.Start(psi)) { if (p == null) throw new Exception("ClamAV could not be started. Install ClamAV and ensure clamscan.exe is available."); p.WaitForExit(900000); if (!p.HasExited) { try { p.Kill(); } catch { } throw new Exception("ClamAV scan timed out after 15 minutes."); } if (p.ExitCode > 1) throw new Exception("ClamAV scan failed. Review clamav-scan.log on the PC."); return p.ExitCode == 0 ? "ClamAV scanned Windows user profiles: no threats found." : "ClamAV scanned Windows user profiles: threats found. Review clamav-scan.log on the PC."; }
+        }
+
+        string UpdateClamAvSignatures()
+        {
+            string[] candidates = new string[] { Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "ClamAV", "freshclam.exe"), Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "ClamAV", "freshclam.exe") };
+            string exe = candidates.FirstOrDefault(File.Exists);
+            if (exe == null) throw new Exception("ClamAV FreshClam is not installed on this PC.");
+            ProcessStartInfo psi = new ProcessStartInfo { FileName = exe, Arguments = "--stdout", UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
+            using (Process p = Process.Start(psi))
+            {
+                if (p == null) throw new Exception("FreshClam could not be started.");
+                string output = p.StandardOutput.ReadToEnd(); string error = p.StandardError.ReadToEnd();
+                if (!p.WaitForExit(120000)) { try { p.Kill(); } catch { } throw new Exception("FreshClam timed out."); }
+                if (p.ExitCode != 0) throw new Exception("FreshClam update failed: " + (error.Length > 800 ? error.Substring(0, 800) : error));
+                return "ClamAV signatures updated. " + (output.Length > 1800 ? output.Substring(output.Length - 1800) : output).Trim();
+            }
+        }
+
+        string RunDefenderCommand(string action)
+        {
+            // Only these three fixed scripts can run. Never accept a script or command from the server.
+            string preamble = "$ErrorActionPreference='Stop'; Import-Module Defender -ErrorAction Stop; ";
+            string script;
+            if (action == "defender_quick_scan")
+                script = preamble + "if(-not (Get-MpComputerStatus).AntivirusEnabled){throw 'Microsoft Defender Antivirus is not enabled'}; Start-MpScan -ScanType QuickScan -ErrorAction Stop; 'Quick scan completed. Review detections for Defender actions.'";
+            else if (action == "defender_remediate")
+                script = preamble + "if(-not (Get-MpComputerStatus).AntivirusEnabled){throw 'Microsoft Defender Antivirus is not enabled'}; Remove-MpThreat -ErrorAction Stop; 'Defender removal command completed. Review detections again to verify the result.'";
+            else if (action == "defender_review")
+                script = preamble + "$s=Get-MpComputerStatus; $d=@(Get-MpThreatDetection -ErrorAction SilentlyContinue | Select-Object -First 10 ThreatID,ActionSuccess,InitialDetectionTime,Resources); [pscustomobject]@{AntivirusEnabled=$s.AntivirusEnabled;RealTimeProtectionEnabled=$s.RealTimeProtectionEnabled;SignatureLastUpdated=$s.AntivirusSignatureLastUpdated;QuickScanEndTime=$s.QuickScanEndTime;RecentDetections=$d} | ConvertTo-Json -Compress -Depth 4";
+            else throw new Exception("Unsupported Defender action.");
+            string exe = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "WindowsPowerShell", "v1.0", "powershell.exe");
+            string encoded = Convert.ToBase64String(Encoding.Unicode.GetBytes(script));
+            ProcessStartInfo psi = new ProcessStartInfo { FileName = exe, Arguments = "-NoProfile -NonInteractive -EncodedCommand " + encoded, UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
+            using (Process p = Process.Start(psi))
+            {
+                if (p == null) throw new Exception("Microsoft Defender could not be started.");
+                string output = p.StandardOutput.ReadToEnd(); string error = p.StandardError.ReadToEnd();
+                if (!p.WaitForExit(action == "defender_quick_scan" ? 1200000 : 60000))
+                {
+                    try { p.Kill(); } catch { }
+                    throw new Exception("Microsoft Defender command timed out.");
+                }
+                if (p.ExitCode != 0) throw new Exception("Microsoft Defender: " + (error.Length > 800 ? error.Substring(0, 800) : error));
+                return (output.Length > 3900 ? output.Substring(0, 3900) : output).Trim();
+            }
         }
 
         object ComProperty(object instance, string name)

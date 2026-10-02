@@ -56,14 +56,17 @@ def test_pre_21_agent_requires_one_manual_baseline_update(tmp_path, monkeypatch)
 def test_x64_agent_updater_is_fixed_hash_verified_msi_path():
     src=Path("windows/agent-x64/src/Godseye.WindowsAgent/GodseyeAgentService.cs").read_text()
     csproj=Path("windows/agent-x64/src/Godseye.WindowsAgent/Godseye.WindowsAgent.csproj").read_text()
-    assert '<Version>2.4.4</Version>' in csproj
+    assert '<Version>2.4.5</Version>' in csproj
     assert 'Assembly.GetName().Version' in src
     assert '"upgrade_agent"' in src
     assert '"/api/v1/windows-agents/package/msi"' in src
     assert 'SHA256.Create()' in src and 'Upgrade MSI SHA-256 verification failed.' in src
     assert 'Environment.SystemDirectory' in src and '"msiexec.exe"' in src
     assert 'cmd.exe' not in src.lower()
-    assert 'powershell.exe' not in src.lower()
+    assert 'RunDefenderCommand(string action)' in src
+    assert 'Remove-MpThreat -ErrorAction Stop' in src
+    assert '-EncodedCommand ' in src
+    assert 'payload.ContainsKey("script")' not in src
     assert 'payload.ContainsKey("url")' not in src
 
 

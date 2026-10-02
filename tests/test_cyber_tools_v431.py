@@ -100,3 +100,35 @@ def test_network_targets_are_bounded_to_private_space():
         assert "private/link-local" in str(exc)
     else:
         raise AssertionError("Public network targets must be rejected")
+
+
+def test_defender_response_requires_exact_admin_confirmation_and_deduplicates(tmp_path):
+    old_db = main.DB_PATH
+    main.DB_PATH = tmp_path / "defender.db"
+    try:
+        main.init_db()
+        with main.db() as c:
+            ts = main.now()
+            agent_id = c.execute(
+                "INSERT INTO windows_agents(agent_uuid,api_key_hash,computer_name,agent_version,enrolled_at,updated_at) VALUES(?,?,?,?,?,?)",
+                ("defender-test", "test-hash", "OFFICE-PC", "2.4.5", ts, ts),
+            ).lastrowid
+        with TestClient(main.app) as client:
+            _login_admin(client)
+            url = f"/api/v1/cyber-tools/defender/{agent_id}"
+            bad = client.post(url + "/remove-threats", json={"confirm_computer_name": "wrong"}, headers=_csrf(client))
+            assert bad.status_code == 400
+            queued = client.post(url + "/review", json={}, headers=_csrf(client))
+            assert queued.status_code == 200
+            assert queued.json()["queued"] is True
+            again = client.post(url + "/review", json={}, headers=_csrf(client))
+            assert again.json()["command_id"] == queued.json()["command_id"]
+            removed = client.post(url + "/remove-threats", json={"confirm_computer_name": "OFFICE-PC"}, headers=_csrf(client))
+            assert removed.status_code == 200
+            signatures = client.post(f"/api/v1/cyber-tools/clamav/{agent_id}/update", json={}, headers=_csrf(client))
+            assert signatures.status_code == 200
+            with main.db() as c:
+                kinds = [row[0] for row in c.execute("SELECT command_type FROM windows_agent_commands ORDER BY id")]
+            assert kinds == ["defender_review", "defender_remediate", "clamav_update"]
+    finally:
+        main.DB_PATH = old_db
