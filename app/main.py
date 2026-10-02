@@ -4380,36 +4380,23 @@ def windows_agent_msi_package(agent=Depends(_agent_auth)):
 
 @app.get(f"{router_prefix}/windows-agents/package")
 def windows_agent_package(user=Depends(require_admin)):
-    version="2.4.5"
+    try: version=_windows_agent_update_manifest()["version"]
+    except HTTPException: version="2.4.5"
     versioned_name=f"GODSEYE-Windows-Agent-x64-Setup-{version}.exe"
     path=BASE_DIR / "windows" / "agent-x64" / versioned_name
     if path.is_file():
-        return FileResponse(path,media_type="application/vnd.microsoft.portable-executable",filename=versioned_name,headers={"Cache-Control":"no-store, no-cache, must-revalidate, max-age=0","Pragma":"no-cache","Expires":"0","X-GODSEYE-Agent-Version":version})
-    # Release builds are published as GitHub Release assets because the installer
-    # exceeds GitHub's repository file-size limit. Fresh installs use that asset.
-    return RedirectResponse(
-        "https://github.com/msapgroup/Godseye/releases/download/v4.31.0-agent-2.4.5/GODSEYE-Windows-Agent-x64-Setup-2.4.5.exe",
-        status_code=302,
-        headers={"Cache-Control":"no-store, no-cache, must-revalidate, max-age=0","Pragma":"no-cache","Expires":"0","X-GODSEYE-Agent-Version":version},
-    )
+        return FileResponse(path,media_type="application/vnd.microsoft.portable-executable",filename=versioned_name,headers={"Cache-Control":"no-store","X-GODSEYE-Agent-Version":version})
+    return RedirectResponse(f"https://github.com/msapgroup/Godseye/releases/download/v4.31.0-agent-{version}/{versioned_name}",status_code=302,headers={"Cache-Control":"no-store","X-GODSEYE-Agent-Version":version})
 
 
 @app.get(f"{router_prefix}/windows-agents/package-status")
 def windows_agent_package_status(user=Depends(require_admin)):
-    setup=BASE_DIR / "windows" / "agent-x64" / "GODSEYE-Windows-Agent-x64-Setup-2.4.5.exe"
-    msi=BASE_DIR / "windows" / "agent-x64" / "GODSEYE-Windows-Agent-x64.msi"
-    manifest={"version":"2.4.5","status":"ready"}
-    manifest_path=BASE_DIR / "windows" / "agent-x64" / "update-manifest.json"
-    try:
-        if manifest_path.is_file(): manifest.update(json.loads(manifest_path.read_text(encoding="utf-8")))
-    except (OSError,ValueError,json.JSONDecodeError): pass
-    return {
-        "available":True,
-        "msi_available":msi.is_file(),
-        "version":manifest.get("version","2.4.5"),
-        "status":"ready",
-        "message":"Windows Agent 2.4.5 installer is ready from the local package or GitHub Release."
-    }
+    try: manifest=_windows_agent_update_manifest()
+    except HTTPException: manifest={"version":"2.4.5"}
+    version=manifest["version"]
+    setup=BASE_DIR / "windows" / "agent-x64" / f"GODSEYE-Windows-Agent-x64-Setup-{version}.exe"
+    return {"available":True,"msi_available":(BASE_DIR / "windows" / "agent-x64" / "GODSEYE-Windows-Agent-x64.msi").is_file(),
+            "version":version,"status":"ready","message":f"Windows Agent {version} installer is available from the validated package or GitHub Release."}
 
 
 @app.get(f"{router_prefix}/windows-agents/package/legacy")
@@ -8594,9 +8581,9 @@ async function loadWindowsAgentPackageStatus(){
 }
 async function downloadWindowsAgentPackage(){
  try{
-  const response=await fetch('/api/v1/windows-agents/package?v=2.4.5&fresh='+Date.now(),{credentials:'same-origin',cache:'no-store'});
-  if(!response.ok){let message='Windows Agent installer is unavailable.';try{message=(await response.json()).detail||message}catch(_){}throw new Error(message)}
-  const blob=await response.blob(),url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download='GODSEYE-Windows-Agent-x64-Setup-2.4.5.exe';document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
+  const info=await json('/api/v1/windows-agents/package-status');
+  if(!info.available)throw new Error('Windows Agent installer is unavailable.');
+  window.location.assign('/api/v1/windows-agents/package?v='+encodeURIComponent(info.version)+'&fresh='+Date.now());
  }catch(e){alert(e.message||'Windows Agent installer is unavailable.');await loadWindowsAgentPackageStatus()}
 }
 async function pullWindowsAgentNow(id){
