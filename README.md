@@ -64,7 +64,7 @@ Administrators can use **Reboot server** at the bottom of the sidebar. Confirm t
 
 ![Security device icons in the picker](docs/screenshots/v431-device-icons-security.png)
 
-**How it works:** In **Devices**, open a row's **•••** menu and choose **Change Icon**. Pick a category and an icon, then select **Save Icon**. GODSEYE keeps the existing router, NAS, VoIP phone, and other icons and now includes Roku player, Fire TV Stick, smart plug, Raspberry Pi, Ring and generic video doorbells, plus smart speakers, thermostats, locks, UPS units, POS terminals, badge readers, conference phones, projectors, and more. **Auto** suggests an icon from the device type and recognizable name or vendor; a manually selected icon always takes priority. Brand labels identify device types—the artwork is a device silhouette, not a vendor logo. You can still upload your own PNG, JPEG, or WebP icon (up to 256 KB).
+**How it works:** In **Devices**, open a row's **•••** menu and choose **Change Icon**. Pick a category and an icon, then select **Save Icon**. GODSEYE keeps the existing router, NAS, VoIP phone, and other icons and now includes Roku player, Apple TV, Fire TV Stick, smart plug, Raspberry Pi, Ring and generic video doorbells, plus smart speakers, thermostats, locks, UPS units, POS terminals, badge readers, conference phones, projectors, and more. **Auto** suggests an icon from the device type and recognizable name or vendor; a manually selected icon always takes priority. Brand labels identify device types—the artwork is a device silhouette, not a vendor logo. You can still upload your own PNG, JPEG, or WebP icon (up to 256 KB).
 
 ### Network Map
 
