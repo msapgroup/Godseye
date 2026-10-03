@@ -162,7 +162,9 @@ jobs:
           $oldHash = (Get-FileHash $oldMsi -Algorithm SHA256).Hash.ToLowerInvariant()
           # The release is refreshed in place. Validate its published checksum
           # rather than pinning the retired original MSI after every refresh.
-          $publishedHash = (Invoke-WebRequest -Uri ($oldUrl + '.sha256') -TimeoutSec 60).Content.Trim().ToLowerInvariant()
+          $checksumFile = Join-Path $env:RUNNER_TEMP 'published-agent-245.sha256'
+          Invoke-WebRequest -Uri ($oldUrl + '.sha256') -OutFile $checksumFile -TimeoutSec 60
+          $publishedHash = (Get-Content $checksumFile -Raw).Trim().ToLowerInvariant()
           if ($publishedHash -notmatch '^[a-f0-9]{64}$' -or $oldHash -ne $publishedHash) { throw 'Published Agent 2.4.5 prerequisite MSI SHA-256 mismatch.' }
 
           $oldInstall = Start-Process msiexec.exe -ArgumentList @('/i', "`"$oldMsi`"", '/qn', '/norestart') -PassThru
