@@ -33,7 +33,9 @@ The ProgramData directory contains enrollment identity, the DPAPI-protected API 
 
 ## Enrollment and upgrades
 
-On a new computer, the guided Setup EXE asks for the GODSEYE server URL and a one-time Windows Agent enrollment token. It installs the native MSI and then runs the agent's built-in configuration mode.
+Run **GODSEYE-Windows-Agent-x64-Setup-2.4.5.exe**. After Welcome, the first choice screen is **Optional Godseye EDR**: select **Install Godseye EDR scanner (YARA-X)** or **Agent only (skip Godseye EDR scanner)**, then click Next. This screen also appears on enrolled computers. Agent only is the default for a new installation; an existing EDR installation defaults to keeping EDR. Both choices retain the core agent, Cyber Tools integration, and consent-based Remote Access. Direct MSI installs do not show the guided choice screen.
+
+On a new computer, the following screens ask for the GODSEYE server URL and a one-time Windows Agent enrollment token. Setup installs the native MSI and then runs the agent's built-in configuration mode.
 
 If `%ProgramData%\GODSEYE\Agent\agent.json` already exists, the guided installer treats the computer as an existing installation and skips the enrollment pages. MSI upgrades therefore do not require the server address or a new enrollment token.
 

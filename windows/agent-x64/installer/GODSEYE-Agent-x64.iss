@@ -16,6 +16,7 @@ PrivilegesRequired=admin
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
+DisableWelcomePage=no
 OutputDir=output
 OutputBaseFilename=GODSEYE-Windows-Agent-x64-Setup-2.4.5
 SetupLogging=yes
@@ -57,7 +58,20 @@ procedure InitializeWizard;
 begin
   ExistingConfig := FileExists(ConfigPath());
 
-  ConfigPage := CreateInputQueryPage(wpWelcome,
+  { Always show the component choice first, including enrolled upgrades.
+    Two radio choices make skipping EDR explicit and reversible. }
+  EdrPage := CreateInputOptionPage(wpWelcome,
+    'Optional Godseye EDR', 'Choose endpoint scan components',
+    'Choose whether to install the optional Godseye EDR scanner. Both choices include the core Agent, Cyber Tools integration, and user-approved remote support.',
+    True, False);
+  EdrPage.Add('Install Godseye EDR scanner (YARA-X)');
+  EdrPage.Add('Agent only (skip Godseye EDR scanner)');
+  if FileExists(ExpandConstant('{autopf64}\GODSEYE Agent\EDR\yr.exe')) then
+    EdrPage.SelectedValueIndex := 0
+  else
+    EdrPage.SelectedValueIndex := 1;
+
+  ConfigPage := CreateInputQueryPage(EdrPage.ID,
     'Connect to GODSEYE',
     'Enroll this Windows computer with GODSEYE',
     'Enter the GODSEYE server URL and a one-time Windows Agent enrollment token. Existing installations keep their current enrollment automatically.');
@@ -73,12 +87,6 @@ begin
   TlsPage.Add('Verify the GODSEYE HTTPS certificate (recommended)');
   TlsPage.SelectedValueIndex := 0;
 
-  EdrPage := CreateInputOptionPage(TlsPage.ID,
-    'Optional Godseye EDR', 'Choose endpoint scan components',
-    'The core Windows Agent and approved remote support work with either choice. Select Godseye EDR only when you want its on-demand YARA-X scans.',
-    True, False);
-  EdrPage.Add('Install Godseye EDR scanner (YARA-X)');
-  EdrPage.Values[0] := FileExists(ExpandConstant('{autopf64}\GODSEYE Agent\EDR\yr.exe'));
 end;
 
 function ShouldSkipPage(PageID: Integer): Boolean;
@@ -143,7 +151,7 @@ begin
   { The MSI is the sole owner of files, service registration, repair, upgrades,
     and uninstall. This bootstrapper only supplies first-install enrollment UI. }
   Params := '/i "' + MsiPath + '" /qn /norestart';
-  if EdrPage.Values[0] then
+  if EdrPage.SelectedValueIndex = 0 then
     Params := Params + ' ADDLOCAL=MainFeature,EdrFeature'
   else
     Params := Params + ' ADDLOCAL=MainFeature REMOVE=EdrFeature';

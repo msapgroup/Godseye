@@ -250,6 +250,8 @@ The GODSEYE Windows Agent is the recommended way to connect supported Windows wo
 
 Use the [Agent 2.4.5 release](https://github.com/msapgroup/Godseye/releases/tag/v4.31.0-agent-2.4.5) for Remote Access, Cyber Tools, and optional EDR. If the service runs but no tray icon appears, follow the [2.4.5 tray startup repair](docs/WINDOWS_AGENT.md#windows-service-and-tray).
 
+**Choose EDR during setup:** Run **GODSEYE-Windows-Agent-x64-Setup-2.4.5.exe**, click **Next** on Welcome, and choose **Install Godseye EDR scanner (YARA-X)** or **Agent only (skip Godseye EDR scanner)**. This choice appears before enrollment on both new and previously enrolled computers. A direct MSI install does not show this screen. The Windows build checks the actual Setup.exe screens for both cases and saves screenshots in its **GODSEYE-Agent-2.4.5-Setup-EDR-screens** artifact.
+
 Enrollment uses a one-time token created from GODSEYE. After enrollment, the agent keeps its identity and protected credentials on the Windows computer so normal reinstall or upgrade operations can preserve the enrolled system.
 
 The agent communicates outbound to GODSEYE over HTTPS and can support:
