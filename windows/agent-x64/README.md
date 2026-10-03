@@ -22,6 +22,10 @@ Persistent agent data is stored separately under:
 
 The ProgramData directory contains enrollment identity, the DPAPI-protected API key, configuration, Event Log bookmarks, queued events and logs. MSI upgrades replace application binaries without replacing this persistent state. Uninstall removes the Windows service and installed application files but intentionally preserves the ProgramData state so reinstall or upgrade does not destroy the enrolled identity.
 
+Configuration saves use a flushed atomic replacement and retain `agent.json.bak`. If the main file is damaged, the agent restores a valid backup while preserving the damaged file as `agent.json.corrupt-*`. It does not invent a new identity or overwrite an unrecoverable configuration. Logs identify whether invalid JSON came from the configuration, pending event file, or a server response. An elevated `GODSEYE.Agent.exe --check-config` checks configuration and attempts recovery from an existing valid backup without contacting the server.
+
+If Setup fails, its detailed MSI log is saved to `C:\ProgramData\GODSEYE\Agent\setup-msi.log`. A newer installed agent such as 2.5.x must be uninstalled before installing 2.4.5; keep ProgramData to preserve enrollment.
+
 ## Windows service
 
 - Service name: `GODSEYEWindowsAgent`

@@ -63,11 +63,19 @@ try {
         Start-Sleep -Milliseconds 500
       }
       if ($window -eq [IntPtr]::Zero) { throw "$mode Setup window did not appear." }
-      $next=Get-Controls $window | Where-Object Text -match '^(&?Next|Next&).*>' | Select-Object -First 1
-      if (-not $next) { throw "$mode Setup welcome page has no Next button." }
+      $next=$null
+      for ($i=0;$i -lt 60;$i++) {
+        $next=Get-Controls $window | Where-Object { ($_.Text -replace '&','').Trim() -match '^Next\b' } | Select-Object -First 1
+        if ($next) { break }
+        Start-Sleep -Milliseconds 500
+      }
+      if (-not $next) { Get-Controls $window | Format-Table | Out-String | Write-Host; throw "$mode Setup welcome page has no Next button." }
       [void][SetupUi]::SendMessage($next.Handle,0x00F5,[IntPtr]::Zero,[IntPtr]::Zero)
-      Start-Sleep -Milliseconds 500
-      $controls=Get-Controls $window
+      for ($i=0;$i -lt 60;$i++) {
+        $controls=Get-Controls $window
+        if ($controls | Where-Object Text -eq 'Optional Godseye EDR') { break }
+        Start-Sleep -Milliseconds 500
+      }
       if (-not ($controls | Where-Object Text -eq 'Optional Godseye EDR')) { throw "$mode Setup did not show EDR as its first choice page." }
       $list=$controls | Where-Object Class -eq 'TNewCheckListBox' | Select-Object -First 1
       if (-not $list) { throw "$mode Setup has no component selection list." }

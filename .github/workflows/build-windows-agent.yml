@@ -58,6 +58,11 @@ jobs:
           $fileVersion = (Get-Item $agent).VersionInfo.FileVersion
           if ($fileVersion -notlike '2.4.5*') { throw "Unexpected Agent file version: $fileVersion" }
 
+      - name: Verify configuration writes and null-byte recovery
+        shell: pwsh
+        run: |
+          & 'windows/agent-x64/tests/config-recovery-smoke.ps1' -AgentPath 'windows/agent-x64/publish/GODSEYE.Agent.exe'
+
       - name: Stage verified optional YARA-X engine
         shell: pwsh
         run: |
