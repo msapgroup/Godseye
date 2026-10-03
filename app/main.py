@@ -5213,7 +5213,7 @@ load()
 @app.get("/tools", response_class=HTMLResponse)
 def tools_page(request: Request):
     get_current_user(request)
-    page = '''<!doctype html>
+    page = r'''<!doctype html>
 <html lang="en"><head><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>GODSEYE — Network Tools</title><div id="standaloneToolsHelp" class="standalone-help-pop" style="display:none"><div class="standalone-help-card"><div class="standalone-help-head"><span>Network Tools</span><button type="button" onclick="document.getElementById('standaloneToolsHelp').style.display='none'" aria-label="Close help">×</button></div><div class="standalone-help-body">Diagnostics and management tools for your local network.</div></div></div><script>(function(){try{const saved=localStorage.getItem('godseye_theme');const dark=saved!=='light';document.documentElement.dataset.theme=dark?'dark':'light'}catch(e){document.documentElement.dataset.theme='light'}})();</script>
 <style>
@@ -5272,6 +5272,10 @@ body{background:radial-gradient(circle at 40% -15%,#0d2941 0,#07131f 36%,#050e18
 .card,.panel,.box,.tool{background:linear-gradient(150deg,#0d2234,#091824)!important;border-color:#1b3c54!important;border-radius:9px!important}
 input,select,textarea{background:#071623!important;border-color:#24475f!important;color:#e6f4ff!important}
 button,.primary{border-radius:7px!important}.muted,small{color:#86a1b5!important}h1,h2,h3{color:#f1f9ff!important}
+.cyber-card-result.cyber-report{max-height:420px!important;min-height:120px!important;font-size:12px!important;white-space:normal;line-height:1.5;padding:12px!important;overflow:auto}
+.cyber-report-heading{display:flex;align-items:start;gap:10px;justify-content:space-between;margin-bottom:12px}.cyber-report-status{font-size:10px;border:1px solid currentColor;border-radius:20px;padding:2px 7px;text-transform:capitalize}
+.cyber-report-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(80px,1fr));gap:8px;margin-bottom:12px}.cyber-report-metric{padding:9px;border:1px solid #31516a;border-radius:8px;background:rgba(69,156,219,.08)}.cyber-report-metric strong{display:block;font-size:22px;color:#60bfff}.cyber-report-metric span{font-size:10px}
+.cyber-report-section{border:1px solid #31516a;border-radius:8px;margin:8px 0;padding:8px}.cyber-report-section summary{cursor:pointer;font-weight:600;overflow-wrap:anywhere}.cyber-report-field{display:grid;grid-template-columns:minmax(90px,1fr) minmax(0,1.5fr);gap:8px;padding:6px 0;border-bottom:1px solid rgba(128,158,183,.18)}.cyber-report-field strong{white-space:pre-wrap;overflow-wrap:anywhere;font-weight:500}.cyber-report-field>span{opacity:.8}.cyber-report-item{padding:6px 0;overflow-wrap:anywhere}.cyber-report-empty{opacity:.75}
 </style></head><body><div class="layout">
 <aside class="side"><div class="brand">__EYE_LOGO__<div><b>GODSEYE</b><small>NETWORK INTELLIGENCE</small></div></div><nav class="nav">
 <div class="nav-title">Overview</div><a href="/">◉ <span>Dashboard</span></a><a href="/#devices">▣ <span>Devices</span></a><a href="/#network">⌘ <span>Network Map</span></a><a href="/monitoring">◔ <span>Monitoring</span></a><a href="/#findings">⚠ <span>Findings</span></a>
@@ -5301,7 +5305,25 @@ document.addEventListener('dragend',()=>{toolsDragged?.classList.remove('draggin
 setTimeout(initStandaloneToolsLayout,0);
 async function ensureCsrf(){if(document.cookie.includes('godseye_csrf='))return;await fetch('/api/v1/auth/csrf')}
 async function req(url,opt={}){await ensureCsrf();opt=opt||{};opt.headers=opt.headers||{};if(opt.method&&['POST','PUT','PATCH','DELETE'].includes(opt.method.toUpperCase())){const m=document.cookie.match('(?:^|; )godseye_csrf=([^;]*)');if(m)opt.headers['X-CSRF-Token']=decodeURIComponent(m[1])}const r=await fetch(url,opt);const t=await r.text();let data={};try{data=t?JSON.parse(t):{}}catch{data={detail:t}}if(!r.ok)throw new Error(data.detail||t||('HTTP '+r.status));return data}
-function show(id,data){const el=document.getElementById(id);el.textContent=typeof data==='string'?data:JSON.stringify(data,null,2);el.className='result '+(data&&data.ok?'ok':data&&data.detail?'err':'')}
+function cyberResultLabel(key){return String(key).replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())}
+function cyberResultValue(value){if(value===null||value===undefined||value==='')return 'Not reported';if(typeof value==='boolean')return value?'Yes':'No';return String(value)}
+function cyberResultFields(value,depth=0){
+ if(depth>8)return '<p>Additional nested details are available in Export JSON.</p>';
+ if(typeof value==='string'&&/^[\[{]/.test(value.trim())){try{const parsed=JSON.parse(value);if(parsed&&typeof parsed==='object')return cyberResultFields(parsed,depth+1)}catch(_){}}
+ if(Array.isArray(value)){if(!value.length)return '<p class="cyber-report-empty">No items reported.</p>';return value.map((item,i)=>typeof item==='object'&&item!==null?`<details class="cyber-report-section" ${i===0?'open':''}><summary>${esc(item.computer_name||item.name||item.title||item.host||('Item '+(i+1)))}</summary>${cyberResultFields(item,depth+1)}</details>`:`<div class="cyber-report-item">${esc(cyberResultValue(item))}</div>`).join('')}
+ if(value&&typeof value==='object')return Object.entries(value).map(([key,item])=>(item&&typeof item==='object'||typeof item==='string'&&/^[\[{]/.test(item.trim()))?`<details class="cyber-report-section" ${depth===0?'open':''}><summary>${esc(cyberResultLabel(key))}${Array.isArray(item)?' ('+item.length+')':''}</summary>${cyberResultFields(item,depth+1)}</details>`:`<div class="cyber-report-field"><span>${esc(cyberResultLabel(key))}</span><strong>${esc(cyberResultValue(item))}</strong></div>`).join('');
+ return `<p>${esc(cyberResultValue(value))}</p>`;
+}
+function renderCyberResult(out,run){
+ out.className='cyber-card-result cyber-report'+(run.status==='failed'?' failed':'');
+ const r=run.result||{};
+ const metrics=['agent_count','online_count','offline_count','host_count','open_port_count','warning_count','alert_count','high_priority_count','passed','total'].filter(k=>typeof r[k]==='number');
+ const cards=metrics.map(k=>`<div class="cyber-report-metric"><strong>${esc(r[k])}</strong><span>${esc(cyberResultLabel(k))}</span></div>`).join('');
+ const details=Object.fromEntries(Object.entries(r).filter(([k])=>!metrics.includes(k)&&k!=='ok'));
+ out.innerHTML=`<div class="cyber-report-heading"><b>${esc(run.summary||'Report completed')}</b><span class="cyber-report-status">${esc(run.status||'completed')}</span></div>${cards?'<div class="cyber-report-metrics">'+cards+'</div>':''}${cyberResultFields(details)}`;
+}
+
+function show(id,data){const el=document.getElementById(id);if(typeof data==='string'){el.textContent=data;el.className='result';return}renderCyberResult(el,{status:data?.ok===false||data?.detail?'failed':'completed',summary:data?.message||'Diagnostic report',result:data})}
 async function post(url,body,id){try{show(id,await req(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}))}catch(e){show(id,'Error: '+e.message);document.getElementById(id).className='result err'}}
 async function runGet(url,id){try{show(id,await req(url))}catch(e){show(id,'Error: '+e.message);document.getElementById(id).className='result err'}}
 function val(id){return document.getElementById(id).value.trim()}
@@ -9073,8 +9095,9 @@ function cyberResultLabel(key){return String(key).replace(/_/g,' ').replace(/\b\
 function cyberResultValue(value){if(value===null||value===undefined||value==='')return 'Not reported';if(typeof value==='boolean')return value?'Yes':'No';return String(value)}
 function cyberResultFields(value,depth=0){
  if(depth>8)return '<p>Additional nested details are available in Export JSON.</p>';
+ if(typeof value==='string'&&/^[\[{]/.test(value.trim())){try{const parsed=JSON.parse(value);if(parsed&&typeof parsed==='object')return cyberResultFields(parsed,depth+1)}catch(_){}}
  if(Array.isArray(value)){if(!value.length)return '<p class="cyber-report-empty">No items reported.</p>';return value.map((item,i)=>typeof item==='object'&&item!==null?`<details class="cyber-report-section" ${i===0?'open':''}><summary>${esc(item.computer_name||item.name||item.title||item.host||('Item '+(i+1)))}</summary>${cyberResultFields(item,depth+1)}</details>`:`<div class="cyber-report-item">${esc(cyberResultValue(item))}</div>`).join('')}
- if(value&&typeof value==='object')return Object.entries(value).map(([key,item])=>item&&typeof item==='object'?`<details class="cyber-report-section" ${depth===0?'open':''}><summary>${esc(cyberResultLabel(key))}${Array.isArray(item)?' ('+item.length+')':''}</summary>${cyberResultFields(item,depth+1)}</details>`:`<div class="cyber-report-field"><span>${esc(cyberResultLabel(key))}</span><strong>${esc(cyberResultValue(item))}</strong></div>`).join('');
+ if(value&&typeof value==='object')return Object.entries(value).map(([key,item])=>(item&&typeof item==='object'||typeof item==='string'&&/^[\[{]/.test(item.trim()))?`<details class="cyber-report-section" ${depth===0?'open':''}><summary>${esc(cyberResultLabel(key))}${Array.isArray(item)?' ('+item.length+')':''}</summary>${cyberResultFields(item,depth+1)}</details>`:`<div class="cyber-report-field"><span>${esc(cyberResultLabel(key))}</span><strong>${esc(cyberResultValue(item))}</strong></div>`).join('');
  return `<p>${esc(cyberResultValue(value))}</p>`;
 }
 function renderCyberResult(out,run){
