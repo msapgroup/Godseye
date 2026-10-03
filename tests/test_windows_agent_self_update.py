@@ -109,3 +109,13 @@ def test_setup_manifest_rejects_old_tampered_and_malformed_packages(tmp_path):
     assert windows_agent.verified_setup_path(tmp_path) is None
     manifest_path.write_text("[]")
     assert windows_agent.verified_setup_path(tmp_path) is None
+
+
+def test_server_rejects_stale_local_update_target(monkeypatch):
+    import time
+    monkeypatch.setattr(windows_agent,"load_update_manifest",lambda path:manifest("2.5.2"))
+    monkeypatch.setattr(main,"_AGENT_RELEASE_DIGEST_CACHE",{"at":time.monotonic(),"asset":{
+        "digest":"sha256:"+"b"*64,"browser_download_url":"https://github.com/msapgroup/Godseye/releases/download/v4.31.0-agent-2.4.5/GODSEYE-Windows-Agent-x64.msi"}})
+    result=main._windows_agent_update_manifest()
+    assert result["version"] == "2.4.5" and result["sha256"] == "B"*64
+    assert main.windows_agent_package_status(admin())["msi_available"] is False

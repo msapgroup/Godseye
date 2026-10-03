@@ -4452,8 +4452,13 @@ def windows_agent_package(user=Depends(require_admin)):
 
 @app.get(f"{router_prefix}/windows-agents/package-status")
 def windows_agent_package_status(user=Depends(require_admin)):
+    from .windows_agent import load_update_manifest
     version="2.4.5"
-    return {"available":True,"msi_available":(BASE_DIR / "windows" / "agent-x64" / "GODSEYE-Windows-Agent-x64.msi").is_file(),
+    try:
+        local_msi=load_update_manifest(BASE_DIR / "windows" / "agent-x64" / "update-manifest.json")["version"] == version
+    except (OSError, ValueError, TypeError):
+        local_msi=False
+    return {"available":True,"msi_available":local_msi,
             "version":version,"status":"ready","message":f"Windows Agent {version} installer is available from the validated package or GitHub Release."}
 
 
@@ -8607,7 +8612,7 @@ function renderWindowsAgents(){
  const root=document.getElementById('windowsAgentList');if(!root)return;
  root.innerHTML=WINDOWS_AGENTS.length?WINDOWS_AGENTS.map(x=>{
    const pull=x.last_pull_status&&x.last_pull_status!=='never'?` · Pull: ${esc(x.last_pull_status)}${x.last_pull_completed_at?' '+esc(new Date(x.last_pull_completed_at).toLocaleTimeString()):''}`:'';
-   const pullBtn=x.revoked_at?'':(x.pull_now_supported?`<button class="primary operate-only" onclick="pullWindowsAgentNow(${x.id})">⟳ Pull Events Now</button>`:`<button class="secondary" disabled title="Install the permanent x64 agent (v2.0.0 or newer)">Update Agent for Pull Now</button>`);
+   const pullBtn=x.revoked_at?'':(x.pull_now_supported?`<button class="primary operate-only" onclick="pullWindowsAgentNow(${x.id})">⟳ Pull Events Now</button>`:`<button class="secondary" disabled title="Install the current Windows Agent 2.4.5">Update Agent for Pull Now</button>`);
    let updateBtn='';
    if(!x.revoked_at&&x.repair_required){
      updateBtn=`<button class="primary admin-only" onclick="downloadWindowsAgentPackage()">↓ Install current ${esc(x.available_version)}</button>`;
