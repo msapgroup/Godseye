@@ -52,7 +52,7 @@ try {
   foreach ($mode in @('fresh','enrolled')) {
     if ($mode -eq 'enrolled') {
       New-Item -ItemType Directory (Split-Path $config) -Force | Out-Null
-      [IO.File]::WriteAllText($config,'{}')
+      [IO.File]::WriteAllText($config,'{"ServerUrl":"https://example.invalid","AgentUuid":"setup-ui-fixture","EnrollmentToken":"fixture-token"}')
     }
     $process=Start-Process (Resolve-Path $SetupPath).Path -ArgumentList '/NORESTART' -PassThru
     try {

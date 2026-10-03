@@ -136,6 +136,8 @@ namespace Godseye.WindowsAgent
         [STAThread]
         static void Main(string[] args)
         {
+            if (args.Length > 0 && args[0].Equals("--version", StringComparison.OrdinalIgnoreCase))
+            { Console.WriteLine(AgentVersion); return; }
             if (args.Length > 0 && args[0].Equals("--check-config", StringComparison.OrdinalIgnoreCase))
             {
                 try { new GodseyeAgentService().LoadConfig(); Console.WriteLine("Agent configuration is valid."); }
@@ -171,20 +173,17 @@ namespace Godseye.WindowsAgent
         void ConfigureFromArgs(string[] args)
         {
             Directory.CreateDirectory(BaseDir);
-            AgentConfig cfg;
-            if (File.Exists(ConfigPath))
+            AgentConfig cfg = new AgentConfig
             {
-                cfg = LoadConfig();
-            }
-            else
+                AgentUuid = Guid.NewGuid().ToString(), PollIntervalSeconds = 60,
+                Channels = new List<string>() { "System", "Application" }, SkipTlsVerify = false
+            };
+            bool repair = args.Any(a => a.Equals("--repair-config", StringComparison.OrdinalIgnoreCase));
+            bool damaged = false;
+            if (File.Exists(ConfigPath) || File.Exists(ConfigPath + ".bak"))
             {
-                cfg = new AgentConfig
-                {
-                    AgentUuid = Guid.NewGuid().ToString(),
-                    PollIntervalSeconds = 60,
-                    Channels = new List<string>() { "System", "Application" },
-                    SkipTlsVerify = false
-                };
+                try { cfg = LoadConfig(); }
+                catch (InvalidDataException) when (repair) { damaged = true; }
             }
 
             for (int i = 1; i < args.Length; i++)
@@ -196,10 +195,20 @@ namespace Godseye.WindowsAgent
             }
 
             if (String.IsNullOrWhiteSpace(cfg.ServerUrl)) throw new Exception("ServerUrl is required for first-time configuration.");
-            if (!File.Exists(KeyPath) && String.IsNullOrWhiteSpace(cfg.EnrollmentToken)) throw new Exception("EnrollmentToken is required for first-time enrollment.");
+            bool usableKey = false;
+            try { usableKey = !String.IsNullOrWhiteSpace(ReadApiKey()); } catch (CryptographicException) { }
+            if (!usableKey && String.IsNullOrWhiteSpace(cfg.EnrollmentToken)) throw new Exception("EnrollmentToken is required when no usable enrollment key exists.");
             if (String.IsNullOrWhiteSpace(cfg.AgentUuid)) cfg.AgentUuid = Guid.NewGuid().ToString();
             if (cfg.Channels == null || cfg.Channels.Count == 0) cfg.Channels = new List<string>() { "System", "Application" };
             if (cfg.PollIntervalSeconds < 30) cfg.PollIntervalSeconds = 60;
+            if (damaged)
+            {
+                string suffix = ".corrupt-" + DateTime.UtcNow.ToString("yyyyMMddHHmmssfff");
+                foreach (string path in new[] { ConfigPath, ConfigPath + ".bak" })
+                    if (File.Exists(path)) File.Move(path, path + suffix);
+            }
+            if (repair && !usableKey && File.Exists(KeyPath))
+                File.Move(KeyPath, KeyPath + ".corrupt-" + DateTime.UtcNow.ToString("yyyyMMddHHmmssfff"));
             SaveConfig(cfg);
             Console.WriteLine("GODSEYE Windows Agent configuration saved to " + ConfigPath);
         }

@@ -440,7 +440,7 @@ namespace Godseye.WindowsAgent
                 };
                 var logo = new PictureBox { Left = 24, Top = 24, Width = 64, Height = 64, SizeMode = PictureBoxSizeMode.StretchImage, Image = CreateLogoBitmap(64) };
                 var status = new Label { Left = 115, Top = 30, Width = 340, Height = 28, Text = "Status:  " + (ServiceRunning() ? "Running" : "Stopped"), ForeColor = ServiceRunning() ? Color.Green : Color.Firebrick, Font = new Font("Segoe UI Semibold", 11f) };
-                var version = new Label { Left = 115, Top = 65, Width = 340, Height = 24, Text = "Version:  " + ReadStatus("Version", "unknown") };
+                var version = new Label { Left = 115, Top = 65, Width = 340, Height = 24, Text = "Version:  " + typeof(TrayApp).Assembly.GetName().Version?.ToString(3) };
                 var server = new Label { Left = 115, Top = 98, Width = 340, Height = 42, Text = "Server:  " + ReadStatus("ServerUrl") };
                 var checkin = new Label { Left = 115, Top = 140, Width = 340, Height = 24, Text = "Last Check-In:  " + ReadStatus("LastCheckIn") };
                 var remote = new Label { Left = 115, Top = 174, Width = 340, Height = 30, Text = "Remote Access:  Enabled (User Approval)" };

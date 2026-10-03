@@ -30,7 +30,16 @@ try {
   $result=Invoke-Agent @('--check-config') 2
   if ($result -notmatch 'No valid backup is available') { throw 'Invalid configuration without a backup was not reported clearly.' }
   if (([IO.File]::ReadAllBytes($config))[0] -ne 0) { throw 'Unrecoverable configuration was silently overwritten.' }
+  Add-Type -AssemblyName System.Security
+  $keyPath=Join-Path $folder 'agent.key'
+  $protected=[Security.Cryptography.ProtectedData]::Protect([Text.Encoding]::UTF8.GetBytes('CI-NONSECRET-KEY'),$null,[Security.Cryptography.DataProtectionScope]::LocalMachine)
+  [IO.File]::WriteAllBytes($keyPath,$protected)
+  $keyHash=(Get-FileHash $keyPath).Hash
+  Invoke-Agent @('--configure','--repair-config','--server-url','http://127.0.0.1:9') | Write-Host
+  if ((Get-FileHash $keyPath).Hash -ne $keyHash) { throw 'Repair changed the protected enrollment key.' }
+  Invoke-Agent @('--check-config') | Write-Host
   Write-Host 'Atomic saves, null-byte recovery, identity preservation, and unrecoverable-file diagnostics passed.'
 } finally {
   Get-ChildItem $folder -Filter 'agent.json*' | Remove-Item -Force
+  Remove-Item (Join-Path $folder 'agent.key') -ErrorAction Ignore
 }

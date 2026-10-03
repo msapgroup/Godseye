@@ -223,11 +223,18 @@ jobs:
           $hash = (Get-FileHash 'windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe' -Algorithm SHA256).Hash.ToUpperInvariant()
           Set-Content -Path 'windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe.sha256' -Value $hash -Encoding ascii
           Set-Content -Path 'windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup-2.4.5.exe.sha256' -Value $hash -Encoding ascii
+          @{version='2.4.5'; filename='GODSEYE-Windows-Agent-x64-Setup-2.4.5.exe'; sha256=$hash} | ConvertTo-Json |
+            Set-Content -Path 'windows/agent-x64/setup-manifest.json' -Encoding utf8
 
       - name: Verify guided Setup EDR choices for new and enrolled computers
         shell: pwsh
         run: |
           & 'windows/agent-x64/tests/setup-ui-smoke.ps1' -SetupPath 'windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup-2.4.5.exe'
+
+      - name: Verify guided Setup replaces mismatched and existing agents
+        shell: pwsh
+        run: |
+          & 'windows/agent-x64/tests/setup-upgrade-smoke.ps1' -SetupPath 'windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup-2.4.5.exe'
 
       - name: Upload actual Setup EDR screen captures
         if: always()
@@ -267,6 +274,7 @@ jobs:
             'GODSEYE-Windows-Agent-x64.msi',
             'GODSEYE-Windows-Agent-x64.msi.sha256',
             'update-manifest.json',
+            'setup-manifest.json',
             'GODSEYE-Windows-Agent-x64-Setup-2.4.5.exe',
             'GODSEYE-Windows-Agent-x64-Setup-2.4.5.exe.sha256',
             'GODSEYE-Windows-Agent-x64-Setup.exe',
@@ -291,6 +299,7 @@ jobs:
             windows/agent-x64/GODSEYE-Windows-Agent-x64.msi
             windows/agent-x64/GODSEYE-Windows-Agent-x64.msi.sha256
             windows/agent-x64/update-manifest.json
+            windows/agent-x64/setup-manifest.json
             windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup-2.4.5.exe
             windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup-2.4.5.exe.sha256
             windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe
@@ -334,5 +343,6 @@ jobs:
             windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe
             windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe.sha256
             windows/agent-x64/update-manifest.json
+            windows/agent-x64/setup-manifest.json
             GODSEYE-v4.31.0-with-agent.zip
             GODSEYE-v4.31.0-with-agent.zip.sha256
