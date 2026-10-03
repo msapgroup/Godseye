@@ -43,7 +43,7 @@ def test_agent_installer_preserves_existing_enrollment():
     script = Path("windows/agent-x64/installer/GODSEYE-Agent-x64.iss").read_text(encoding="utf-8")
     assert "ExistingConfig := ProbeResult = 0" in script
     assert "check-enrollment.ps1" in script
-    assert "Result := ExistingConfig" in script
+    assert "ConnectionPage.SelectedValueIndex = 0" in script
     assert "Enrollment token:" in script
     assert "GODSEYE Windows Agent 2.4.5 was installed and verified successfully" in script
 
