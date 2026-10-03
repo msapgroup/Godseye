@@ -142,7 +142,7 @@ namespace Godseye.WindowsAgent
             {
                 try
                 {
-                    var pong = RemoteHelperRequest("GODSEYE-Tray-" + Process.GetCurrentProcess().SessionId,
+                    var pong = new GodseyeAgentService().RemoteHelperRequest("GODSEYE-Tray-" + Process.GetCurrentProcess().SessionId,
                         new Dictionary<string,object>{{"kind","ping"}}, 1000);
                     Environment.ExitCode = pong != null && pong.ContainsKey("ok") && Convert.ToBoolean(pong["ok"]) && pong.ContainsKey("version") && Convert.ToString(pong["version"]) == AgentVersion ? 0 : 3;
                 }
