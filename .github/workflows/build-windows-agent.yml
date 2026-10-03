@@ -8,6 +8,7 @@ on:
       - '.github/workflows/build-windows-agent.yml'
       - 'windows/agent-x64/src/**'
       - 'windows/agent-x64/installer/**'
+      - 'windows/agent-x64/tests/**'
       - 'windows/agent-x64/prepare-edr-engine.ps1'
       - 'install.sh'
       - 'doctor.sh'
@@ -18,6 +19,7 @@ on:
       - '.github/workflows/build-windows-agent.yml'
       - 'windows/agent-x64/src/**'
       - 'windows/agent-x64/installer/**'
+      - 'windows/agent-x64/tests/**'
       - 'windows/agent-x64/prepare-edr-engine.ps1'
       - 'install.sh'
       - 'doctor.sh'
@@ -55,6 +57,11 @@ jobs:
           if (-not (Test-Path $agent)) { throw 'Published GODSEYE.Agent.exe was not created.' }
           $fileVersion = (Get-Item $agent).VersionInfo.FileVersion
           if ($fileVersion -notlike '2.4.5*') { throw "Unexpected Agent file version: $fileVersion" }
+
+      - name: Verify configuration writes and null-byte recovery
+        shell: pwsh
+        run: |
+          & 'windows/agent-x64/tests/config-recovery-smoke.ps1' -AgentPath 'windows/agent-x64/publish/GODSEYE.Agent.exe'
 
       - name: Stage verified optional YARA-X engine
         shell: pwsh
@@ -149,7 +156,7 @@ jobs:
           $edrUninstall = Start-Process msiexec.exe -ArgumentList @('/x', "`"$msi`"", '/qn', '/norestart') -Wait -PassThru
           if ($edrUninstall.ExitCode -notin @(0,3010)) { throw "Optional EDR uninstall failed with code $($edrUninstall.ExitCode)." }
 
-      - name: Smoke-test original 2.4.5 to integrated 2.4.5
+      - name: Smoke-test published 2.4.5 to integrated 2.4.5
         shell: pwsh
         run: |
           $oldMsi = Join-Path $env:RUNNER_TEMP 'GODSEYE-Windows-Agent-x64-2.4.5.msi'
@@ -158,7 +165,12 @@ jobs:
           Invoke-WebRequest -Uri $oldUrl -OutFile $oldMsi -TimeoutSec 180
           if ((Get-Item $oldMsi).Length -lt 1000000) { throw 'Agent 2.4.5 MSI download is incomplete.' }
           $oldHash = (Get-FileHash $oldMsi -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($oldHash -ne '502d863bf1508420e4d9ea5bba597eaf2ea2c0bc2f25786bafb32168904c3531') { throw 'Agent 2.4.5 prerequisite MSI SHA-256 mismatch.' }
+          # The release is refreshed in place. Validate its published checksum
+          # rather than pinning the retired original MSI after every refresh.
+          $checksumFile = Join-Path $env:RUNNER_TEMP 'published-agent-245.sha256'
+          Invoke-WebRequest -Uri ($oldUrl + '.sha256') -OutFile $checksumFile -TimeoutSec 60
+          $publishedHash = (Get-Content $checksumFile -Raw).Trim().ToLowerInvariant()
+          if ($publishedHash -notmatch '^[a-f0-9]{64}$' -or $oldHash -ne $publishedHash) { throw 'Published Agent 2.4.5 prerequisite MSI SHA-256 mismatch.' }
 
           $oldInstall = Start-Process msiexec.exe -ArgumentList @('/i', "`"$oldMsi`"", '/qn', '/norestart') -PassThru
           if (-not $oldInstall.WaitForExit(180000)) { Stop-Process -Id $oldInstall.Id -Force; throw 'Agent 2.4.5 install timed out.' }
@@ -211,6 +223,19 @@ jobs:
           $hash = (Get-FileHash 'windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe' -Algorithm SHA256).Hash.ToUpperInvariant()
           Set-Content -Path 'windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe.sha256' -Value $hash -Encoding ascii
           Set-Content -Path 'windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup-2.4.5.exe.sha256' -Value $hash -Encoding ascii
+
+      - name: Verify guided Setup EDR choices for new and enrolled computers
+        shell: pwsh
+        run: |
+          & 'windows/agent-x64/tests/setup-ui-smoke.ps1' -SetupPath 'windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup-2.4.5.exe'
+
+      - name: Upload actual Setup EDR screen captures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: GODSEYE-Agent-2.4.5-Setup-EDR-screens
+          path: ${{ runner.temp }}/godseye-setup-edr-*.png
+          if-no-files-found: ignore
 
       - name: Build GODSEYE v4.31.0 source + Agent candidate ZIP
         shell: pwsh

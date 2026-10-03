@@ -136,6 +136,12 @@ namespace Godseye.WindowsAgent
         [STAThread]
         static void Main(string[] args)
         {
+            if (args.Length > 0 && args[0].Equals("--check-config", StringComparison.OrdinalIgnoreCase))
+            {
+                try { new GodseyeAgentService().LoadConfig(); Console.WriteLine("Agent configuration is valid."); }
+                catch (Exception ex) { Console.Error.WriteLine(ex.Message); Environment.ExitCode = 2; }
+                return;
+            }
             if (args.Length > 0 && args[0].Equals("--tray", StringComparison.OrdinalIgnoreCase))
             {
                 Environment.ExitCode = TrayApp.Run();
@@ -168,7 +174,7 @@ namespace Godseye.WindowsAgent
             AgentConfig cfg;
             if (File.Exists(ConfigPath))
             {
-                cfg = Json.Deserialize<AgentConfig>(File.ReadAllText(ConfigPath, Encoding.UTF8)) ?? new AgentConfig();
+                cfg = LoadConfig();
             }
             else
             {
@@ -258,9 +264,19 @@ namespace Godseye.WindowsAgent
 
         AgentConfig LoadConfig()
         {
-            if (!File.Exists(ConfigPath)) throw new Exception("Agent configuration is missing: " + ConfigPath);
-            AgentConfig cfg = Json.Deserialize<AgentConfig>(File.ReadAllText(ConfigPath, Encoding.UTF8));
-            if (cfg == null || String.IsNullOrWhiteSpace(cfg.ServerUrl)) throw new Exception("ServerUrl is missing from agent configuration");
+            AgentConfig cfg;
+            try { cfg = ReadConfigFile(ConfigPath); }
+            catch (Exception ex) when (ex is IOException || ex is JsonException)
+            {
+                try { cfg = ReadConfigFile(ConfigPath + ".bak"); }
+                catch (Exception backupError) when (backupError is IOException || backupError is JsonException)
+                {
+                    throw new InvalidDataException("Cannot read agent configuration at " + ConfigPath + ". No valid backup is available. Preserve this file and restore a valid configuration backup, or ask your administrator to repair enrollment. " + ex.Message, ex);
+                }
+                if (File.Exists(ConfigPath)) File.Move(ConfigPath, ConfigPath + ".corrupt-" + DateTime.UtcNow.ToString("yyyyMMddHHmmssfff"));
+                WriteJsonAtomic(ConfigPath, Json.Serialize(cfg), false);
+                Log("Recovered agent configuration from " + ConfigPath + ".bak; enrollment identity preserved.");
+            }
             cfg.ServerUrl = cfg.ServerUrl.TrimEnd('/');
             if (cfg.Channels == null || cfg.Channels.Count == 0) cfg.Channels = new List<string>() { "System", "Application" };
             if (cfg.PollIntervalSeconds < 30) cfg.PollIntervalSeconds = 60;
@@ -269,7 +285,35 @@ namespace Godseye.WindowsAgent
 
         void SaveConfig(AgentConfig cfg)
         {
-            File.WriteAllText(ConfigPath, Json.Serialize(cfg), Encoding.UTF8);
+            WriteJsonAtomic(ConfigPath, Json.Serialize(cfg), true);
+        }
+
+        AgentConfig ReadConfigFile(string path)
+        {
+            AgentConfig cfg = Json.Deserialize<AgentConfig>(File.ReadAllText(path, Encoding.UTF8));
+            if (cfg == null || String.IsNullOrWhiteSpace(cfg.ServerUrl)) throw new InvalidDataException("ServerUrl is missing from " + path);
+            return cfg;
+        }
+
+        // Never truncate the live configuration. Flush a complete replacement
+        // before atomically swapping it, retaining the previous valid identity.
+        static void WriteJsonAtomic(string path, string json, bool keepBackup)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            string temp = path + ".tmp-" + Guid.NewGuid().ToString("N");
+            try
+            {
+                byte[] bytes = new UTF8Encoding(false).GetBytes(json);
+                using (var file = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+                { file.Write(bytes, 0, bytes.Length); file.Flush(true); }
+                if (File.Exists(path)) File.Replace(temp, path, keepBackup ? path + ".bak" : null, true);
+                else
+                {
+                    if (keepBackup) File.Copy(temp, path + ".bak", true);
+                    File.Move(temp, path);
+                }
+            }
+            finally { if (File.Exists(temp)) File.Delete(temp); }
         }
 
         AgentState LoadState()
@@ -372,7 +416,9 @@ namespace Godseye.WindowsAgent
         {
             if (!File.Exists(PendingPath)) CreatePendingBatch(cfg);
             if (!File.Exists(PendingPath)) return new Dictionary<string, object>() { { "events", 0 }, { "new_findings", 0 } };
-            PendingBatch batch = Json.Deserialize<PendingBatch>(File.ReadAllText(PendingPath, Encoding.UTF8));
+            PendingBatch batch;
+            try { batch = Json.Deserialize<PendingBatch>(File.ReadAllText(PendingPath, Encoding.UTF8)); }
+            catch (JsonException ex) { throw new InvalidDataException("Invalid pending event JSON at " + PendingPath + "; the queued file has been preserved. " + ex.Message, ex); }
             if (batch == null || batch.events == null || batch.events.Count == 0)
             {
                 if (File.Exists(PendingPath)) File.Delete(PendingPath);
@@ -1446,6 +1492,7 @@ namespace Godseye.WindowsAgent
         {
             string url=cfg.ServerUrl+path; HttpWebRequest req=(HttpWebRequest)WebRequest.Create(url);req.Method="GET";req.Accept="application/json";req.Timeout=10000;req.ReadWriteTimeout=10000;req.UserAgent="GODSEYE-Windows-Agent/"+AgentVersion;if(!String.IsNullOrWhiteSpace(bearer))req.Headers[HttpRequestHeader.Authorization]="Bearer "+bearer;
             try{using(HttpWebResponse res=(HttpWebResponse)req.GetResponse())using(StreamReader sr=new StreamReader(res.GetResponseStream(),Encoding.UTF8)){string text=sr.ReadToEnd();return Json.Deserialize<Dictionary<string,object>>(text);}}
+            catch(JsonException ex){throw new InvalidDataException("GODSEYE server returned invalid JSON for GET " + path + ". " + ex.Message,ex);}
             catch(WebException ex){string detail=ex.Message;if(ex.Response!=null)try{using(StreamReader sr=new StreamReader(ex.Response.GetResponseStream()))detail=sr.ReadToEnd();}catch{}throw new Exception("GODSEYE API request failed: "+detail,ex);}
         }
 
@@ -1465,6 +1512,10 @@ namespace Godseye.WindowsAgent
                 {
                     string text = sr.ReadToEnd(); return Json.Deserialize<Dictionary<string, object>>(text);
                 }
+            }
+            catch (JsonException ex)
+            {
+                throw new InvalidDataException("GODSEYE server returned invalid JSON for POST " + path + ". " + ex.Message, ex);
             }
             catch (WebException ex)
             {

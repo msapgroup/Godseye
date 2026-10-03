@@ -16,6 +16,7 @@ PrivilegesRequired=admin
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
+DisableWelcomePage=no
 OutputDir=output
 OutputBaseFilename=GODSEYE-Windows-Agent-x64-Setup-2.4.5
 SetupLogging=yes
@@ -53,11 +54,55 @@ begin
   Result := ExpandConstant('{autopf64}\GODSEYE Agent\{#MyAppExeName}');
 end;
 
+function NewerThan245(Version: String): Boolean;
+var
+  Part, I, DotPos: Integer;
+  Expected: array[0..2] of Integer;
+begin
+  Result := False;
+  Expected[0] := 2; Expected[1] := 4; Expected[2] := 5;
+  for I := 0 to 2 do
+  begin
+    DotPos := Pos('.', Version);
+    if DotPos = 0 then DotPos := Length(Version) + 1;
+    Part := StrToIntDef(Copy(Version, 1, DotPos - 1), 0);
+    if Part > Expected[I] then begin Result := True; exit; end;
+    if Part < Expected[I] then exit;
+    Delete(Version, 1, DotPos);
+  end;
+end;
+
+function InitializeSetup(): Boolean;
+var
+  InstalledVersion: String;
+begin
+  Result := True;
+  if GetVersionNumbersString(AgentExePath(), InstalledVersion) and NewerThan245(InstalledVersion) then
+  begin
+    MsgBox('GODSEYE Agent ' + InstalledVersion + ' is already installed. Windows Installer blocks replacing a newer version with 2.4.5.' + #13#10 + #13#10 +
+      'Uninstall GODSEYE Windows Agent in Windows Settings > Apps, then run this Setup again. Your enrollment and agent state in ProgramData are preserved. Do not delete that folder.', mbError, MB_OK);
+    Result := False;
+  end;
+end;
+
 procedure InitializeWizard;
 begin
   ExistingConfig := FileExists(ConfigPath());
 
-  ConfigPage := CreateInputQueryPage(wpWelcome,
+  { Always show the component choice first, including enrolled upgrades.
+    Two radio choices make skipping EDR explicit and reversible. }
+  EdrPage := CreateInputOptionPage(wpWelcome,
+    'Optional Godseye EDR', 'Choose endpoint scan components',
+    'Choose whether to install the optional Godseye EDR scanner. Both choices include the core Agent, Cyber Tools integration, and user-approved remote support.',
+    True, False);
+  EdrPage.Add('Install Godseye EDR scanner (YARA-X)');
+  EdrPage.Add('Agent only (skip Godseye EDR scanner)');
+  if FileExists(ExpandConstant('{autopf64}\GODSEYE Agent\EDR\yr.exe')) then
+    EdrPage.SelectedValueIndex := 0
+  else
+    EdrPage.SelectedValueIndex := 1;
+
+  ConfigPage := CreateInputQueryPage(EdrPage.ID,
     'Connect to GODSEYE',
     'Enroll this Windows computer with GODSEYE',
     'Enter the GODSEYE server URL and a one-time Windows Agent enrollment token. Existing installations keep their current enrollment automatically.');
@@ -73,12 +118,6 @@ begin
   TlsPage.Add('Verify the GODSEYE HTTPS certificate (recommended)');
   TlsPage.SelectedValueIndex := 0;
 
-  EdrPage := CreateInputOptionPage(TlsPage.ID,
-    'Optional Godseye EDR', 'Choose endpoint scan components',
-    'The core Windows Agent and approved remote support work with either choice. Select Godseye EDR only when you want its on-demand YARA-X scans.',
-    True, False);
-  EdrPage.Add('Install Godseye EDR scanner (YARA-X)');
-  EdrPage.Values[0] := FileExists(ExpandConstant('{autopf64}\GODSEYE Agent\EDR\yr.exe'));
 end;
 
 function ShouldSkipPage(PageID: Integer): Boolean;
@@ -133,6 +172,7 @@ var
   Params: String;
   ExePath: String;
   InstalledVersion: String;
+  InstallLog: String;
 begin
   if CurStep <> ssPostInstall then
     exit;
@@ -142,14 +182,18 @@ begin
 
   { The MSI is the sole owner of files, service registration, repair, upgrades,
     and uninstall. This bootstrapper only supplies first-install enrollment UI. }
-  Params := '/i "' + MsiPath + '" /qn /norestart';
-  if EdrPage.Values[0] then
+  ForceDirectories(DataDir());
+  InstallLog := DataDir() + '\setup-msi.log';
+  Params := '/i "' + MsiPath + '" /qn /norestart /l*v "' + InstallLog + '"';
+  if EdrPage.SelectedValueIndex = 0 then
     Params := Params + ' ADDLOCAL=MainFeature,EdrFeature'
   else
     Params := Params + ' ADDLOCAL=MainFeature REMOVE=EdrFeature';
   if not Exec(ExpandConstant('{sys}\msiexec.exe'), Params, '', SW_SHOW, ewWaitUntilTerminated, MsiResultCode) or
      ((MsiResultCode <> 0) and (MsiResultCode <> 3010)) then
-    RaiseException('Windows Installer could not install GODSEYE Windows Agent. msiexec exit code: ' + IntToStr(MsiResultCode));
+    RaiseException('Windows Installer could not install GODSEYE Windows Agent. msiexec exit code: ' + IntToStr(MsiResultCode) + #13#10 +
+      'Details were saved to: ' + InstallLog + #13#10 +
+      'If Windows requests a restart, restart before trying again. Send setup-msi.log to your administrator to diagnose the failure.');
 
   if not ExistingConfig then
   begin
