@@ -138,6 +138,17 @@ namespace Godseye.WindowsAgent
         {
             if (args.Length > 0 && args[0].Equals("--version", StringComparison.OrdinalIgnoreCase))
             { Console.WriteLine(AgentVersion); return; }
+            if (args.Length > 0 && args[0].Equals("--check-tray", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    var pong = RemoteHelperRequest("GODSEYE-Tray-" + Process.GetCurrentProcess().SessionId,
+                        new Dictionary<string,object>{{"kind","ping"}}, 1000);
+                    Environment.ExitCode = pong != null && pong.ContainsKey("ok") && Convert.ToBoolean(pong["ok"]) ? 0 : 3;
+                }
+                catch { Environment.ExitCode = 3; }
+                return;
+            }
             if (args.Length > 0 && args[0].Equals("--check-config", StringComparison.OrdinalIgnoreCase))
             {
                 try { new GodseyeAgentService().LoadConfig(); Console.WriteLine("Agent configuration is valid."); }
@@ -263,7 +274,7 @@ namespace Godseye.WindowsAgent
                 }
                 catch (Exception ex)
                 {
-                    Log("ERROR " + ex.Message);
+                    Log("ERROR " + ex.Message + (ex.GetBaseException() != ex ? " Cause: " + ex.GetBaseException().Message : ""));
                     AgentState state = LoadState(); state.LastError = ex.Message; SaveState(state);
                     wait = 15;
                 }
@@ -539,6 +550,13 @@ namespace Godseye.WindowsAgent
             {
                 uint sessionId = GetActiveInteractiveSessionId();
                 if (sessionId == INVALID_SESSION_ID) return;
+                try
+                {
+                    var pong = RemoteHelperRequest("GODSEYE-Tray-" + sessionId,
+                        new Dictionary<string,object>{{"kind","ping"}}, 300);
+                    if (pong != null && pong.ContainsKey("ok") && Convert.ToBoolean(pong["ok"])) return;
+                }
+                catch { }
                 if (trayHelperProcessId > 0)
                 {
                     try

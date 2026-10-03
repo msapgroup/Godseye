@@ -31,13 +31,14 @@ Source: "check-enrollment.ps1"; Flags: dontcopy
 [Run]
 ; The MSI owns the service and sign-in startup. Launch the tray now in the
 ; signed-in user's session so it appears without requiring a sign-out.
-Filename: "{autopf64}\GODSEYE Agent\{#MyAppExeName}"; Parameters: "--tray"; Flags: nowait runasoriginaluser skipifsilent
+Filename: "{autopf64}\GODSEYE Agent\{#MyAppExeName}"; Parameters: "--tray"; Flags: nowait runasoriginaluser; Check: NeedsTrayLaunch
 
 [Code]
 var
   ConfigPage: TInputQueryWizardPage;
   TlsPage: TInputOptionWizardPage;
   EdrPage: TInputOptionWizardPage;
+  ConnectionPage: TInputOptionWizardPage;
   ExistingConfig: Boolean;
   ExistingKey: Boolean;
 
@@ -83,13 +84,22 @@ begin
   else
     EdrPage.SelectedValueIndex := 1;
 
-  ConfigPage := CreateInputQueryPage(EdrPage.ID,
+  ConnectionPage := CreateInputOptionPage(EdrPage.ID,
+    'Existing GODSEYE enrollment', 'Keep or repair connection settings',
+    'Keep the existing enrollment, or change the server URL and certificate settings without removing the protected enrollment key.', True, False);
+  ConnectionPage.Add('Keep existing enrollment and connection settings (recommended)');
+  ConnectionPage.Add('Change server connection or TLS settings (keep enrollment key)');
+  ConnectionPage.SelectedValueIndex := 0;
+  if ExpandConstant('{param:RECONFIGURE|0}') = '1' then ConnectionPage.SelectedValueIndex := 1;
+
+  ConfigPage := CreateInputQueryPage(ConnectionPage.ID,
     'Connect to GODSEYE',
     'Enroll this Windows computer with GODSEYE',
     'Enter the GODSEYE server URL and enrollment token. Usable existing settings are kept automatically. If an existing enrollment key was found, the token may be left blank to keep that enrollment.');
   ConfigPage.Add('GODSEYE URL:', False);
   ConfigPage.Add('Enrollment token:', True);
-  ConfigPage.Values[0] := 'https://';
+  ConfigPage.Values[0] := ExpandConstant('{param:SERVERURL|https://}');
+  ConfigPage.Values[1] := ExpandConstant('{param:TOKEN|}');
 
   TlsPage := CreateInputOptionPage(ConfigPage.ID,
     'TLS verification',
@@ -97,19 +107,22 @@ begin
     'Keep TLS certificate verification enabled for production.',
     True, False);
   TlsPage.Add('Verify the GODSEYE HTTPS certificate (recommended)');
+  TlsPage.Add('Use a self-signed certificate on a trusted LAN (skip certificate validation)');
   TlsPage.SelectedValueIndex := 0;
+  if ExpandConstant('{param:TLSVERIFY|1}') = '0' then TlsPage.SelectedValueIndex := 1;
 
 end;
 
 function ShouldSkipPage(PageID: Integer): Boolean;
 begin
-  Result := ExistingConfig and ((PageID = ConfigPage.ID) or (PageID = TlsPage.ID));
+  Result := ((PageID = ConnectionPage.ID) and (not ExistingConfig)) or
+    (ExistingConfig and (ConnectionPage.SelectedValueIndex = 0) and ((PageID = ConfigPage.ID) or (PageID = TlsPage.ID)));
 end;
 
 function NextButtonClick(CurPageID: Integer): Boolean;
 begin
   Result := True;
-  if (not ExistingConfig) and (CurPageID = ConfigPage.ID) then
+  if ((not ExistingConfig) or (ConnectionPage.SelectedValueIndex = 1)) and (CurPageID = ConfigPage.ID) then
   begin
     if Trim(ConfigPage.Values[0]) = '' then
     begin
@@ -144,6 +157,23 @@ begin
   end;
 end;
 
+function TrayCheckRequired(): Boolean;
+begin
+  Result := (not WizardSilent()) or (ExpandConstant('{param:CHECKTRAY|0}') = '1');
+end;
+
+function NeedsTrayLaunch(): Boolean;
+var
+  ExitCode: Integer;
+begin
+  Result := False;
+  if not TrayCheckRequired() then exit;
+  if not FileExists(AgentExePath()) then
+    RaiseException('The installed GODSEYE executable is missing before tray startup: ' + AgentExePath() + '. Keep setup-msi.log and check Windows protection history for a removed file.');
+  if Exec(AgentExePath(), '--check-tray', '', SW_HIDE, ewWaitUntilTerminated, ExitCode) and (ExitCode = 0) then exit;
+  Result := True;
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   ResultCode: Integer;
@@ -154,9 +184,18 @@ var
   ExePath: String;
   InstalledVersion: String;
   InstallLog: String;
+  Attempt: Integer;
 begin
-  if CurStep <> ssPostInstall then
-    exit;
+  if (CurStep = ssDone) and TrayCheckRequired() then
+  begin
+    for Attempt := 1 to 15 do
+    begin
+      if Exec(AgentExePath(), '--check-tray', '', SW_HIDE, ewWaitUntilTerminated, ResultCode) and (ResultCode = 0) then exit;
+      Sleep(500);
+    end;
+    RaiseException('The agent service is installed, but the tray did not complete its readiness check in this Windows session. Keep agent.log and setup-msi.log for diagnosis.');
+  end;
+  if CurStep <> ssPostInstall then exit;
 
   ExtractTemporaryFile('{#MyMsiName}');
   MsiPath := ExpandConstant('{tmp}\{#MyMsiName}');
@@ -188,7 +227,7 @@ begin
       'If Windows requests a restart, restart before trying again. Send setup-msi.log to your administrator to diagnose the failure.');
   end;
 
-  if not ExistingConfig then
+  if (not ExistingConfig) or (ConnectionPage.SelectedValueIndex = 1) then
   begin
     ExePath := AgentExePath();
     if not FileExists(ExePath) then

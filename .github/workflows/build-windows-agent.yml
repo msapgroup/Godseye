@@ -231,6 +231,11 @@ jobs:
         run: |
           & 'windows/agent-x64/tests/setup-ui-smoke.ps1' -SetupPath 'windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup-2.4.5.exe'
 
+      - name: Verify fresh Setup enrollment and final tray launch
+        shell: pwsh
+        run: |
+          & 'windows/agent-x64/tests/setup-fresh-enrollment-smoke.ps1' -SetupPath 'windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup-2.4.5.exe'
+
       - name: Verify guided Setup replaces mismatched and existing agents
         shell: pwsh
         run: |
@@ -241,7 +246,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: GODSEYE-Agent-2.4.5-Setup-EDR-screens
-          path: ${{ runner.temp }}/godseye-setup-edr-*.png
+          path: ${{ runner.temp }}/godseye-setup-*.png
           if-no-files-found: ignore
 
       - name: Build GODSEYE v4.31.0 source + Agent candidate ZIP

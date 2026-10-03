@@ -254,6 +254,8 @@ Use the [Agent 2.4.5 release](https://github.com/msapgroup/Godseye/releases/tag/
 
 ![Windows Agents: current 2.4.5 installer and reported endpoint versions](docs/screenshots/v431-windows-agent-245.png)
 
+**Enrollment and connection settings:** A new install asks for the server URL and current token. An enrolled upgrade keeps its protected key and settings, with an explicit choice to change the URL or TLS settings. TLS verification is enabled by default; the TLS page also offers an explicit self-signed option for a trusted LAN. Setup now checks the tray readiness in the installing Windows session. Confirm a new heartbeat in the app to verify the connection.
+
 **Choose EDR during setup:** Run **GODSEYE-Windows-Agent-x64-Setup-2.4.5.exe**, click **Next** on Welcome, and choose **Install Godseye EDR scanner (YARA-X)** or **Agent only (skip Godseye EDR scanner)**. This choice appears before enrollment on both new and previously enrolled computers. A direct MSI install does not show this screen. The Windows build checks the actual Setup.exe screens for both cases and saves screenshots in its **GODSEYE-Agent-2.4.5-Setup-EDR-screens** artifact.
 
 ![Agent 2.4.5 Setup: choose optional Godseye EDR or Agent only](docs/screenshots/agent-245-setup-edr.png)
