@@ -138,6 +138,17 @@ namespace Godseye.WindowsAgent
         {
             if (args.Length > 0 && args[0].Equals("--version", StringComparison.OrdinalIgnoreCase))
             { Console.WriteLine(AgentVersion); return; }
+            if (args.Length > 0 && args[0].Equals("--check-tray", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    var pong = new GodseyeAgentService().RemoteHelperRequest("GODSEYE-Tray-" + Process.GetCurrentProcess().SessionId,
+                        new Dictionary<string,object>{{"kind","ping"}}, 1000);
+                    Environment.ExitCode = pong != null && pong.ContainsKey("ok") && Convert.ToBoolean(pong["ok"]) && pong.ContainsKey("version") && Convert.ToString(pong["version"]) == AgentVersion ? 0 : 3;
+                }
+                catch { Environment.ExitCode = 3; }
+                return;
+            }
             if (args.Length > 0 && args[0].Equals("--check-config", StringComparison.OrdinalIgnoreCase))
             {
                 try { new GodseyeAgentService().LoadConfig(); Console.WriteLine("Agent configuration is valid."); }
@@ -194,7 +205,9 @@ namespace Godseye.WindowsAgent
                 else if (a.Equals("--skip-tls-verify", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length) cfg.SkipTlsVerify = Boolean.Parse(args[++i]);
             }
 
-            if (String.IsNullOrWhiteSpace(cfg.ServerUrl)) throw new Exception("ServerUrl is required for first-time configuration.");
+            if (!Uri.TryCreate(cfg.ServerUrl, UriKind.Absolute, out Uri serverUri) ||
+                (serverUri.Scheme != Uri.UriSchemeHttp && serverUri.Scheme != Uri.UriSchemeHttps) || String.IsNullOrWhiteSpace(serverUri.Host))
+                throw new Exception("Enter a complete GODSEYE server URL including its hostname or IP address and the correct port.");
             bool usableKey = false;
             try { usableKey = !String.IsNullOrWhiteSpace(ReadApiKey()); } catch (CryptographicException) { }
             if (!usableKey && String.IsNullOrWhiteSpace(cfg.EnrollmentToken)) throw new Exception("EnrollmentToken is required when no usable enrollment key exists.");
@@ -263,7 +276,7 @@ namespace Godseye.WindowsAgent
                 }
                 catch (Exception ex)
                 {
-                    Log("ERROR " + ex.Message);
+                    Log("ERROR " + ex.Message + (ex.GetBaseException() != ex ? " Cause: " + ex.GetBaseException().Message : ""));
                     AgentState state = LoadState(); state.LastError = ex.Message; SaveState(state);
                     wait = 15;
                 }
@@ -539,6 +552,13 @@ namespace Godseye.WindowsAgent
             {
                 uint sessionId = GetActiveInteractiveSessionId();
                 if (sessionId == INVALID_SESSION_ID) return;
+                try
+                {
+                    var pong = RemoteHelperRequest("GODSEYE-Tray-" + sessionId,
+                        new Dictionary<string,object>{{"kind","ping"}}, 300);
+                    if (pong != null && pong.ContainsKey("ok") && Convert.ToBoolean(pong["ok"]) && pong.ContainsKey("version") && Convert.ToString(pong["version"]) == AgentVersion) return;
+                }
+                catch { }
                 if (trayHelperProcessId > 0)
                 {
                     try
@@ -701,7 +721,7 @@ namespace Godseye.WindowsAgent
         internal static Dictionary<string, object> HandleRemoteHelperRequest(Dictionary<string, object> request)
         {
             string kind = request != null && request.ContainsKey("kind") ? Convert.ToString(request["kind"]) : "";
-            if (String.Equals(kind,"ping",StringComparison.OrdinalIgnoreCase)) return new Dictionary<string,object>{{"ok",true},{"ready",true}};
+            if (String.Equals(kind,"ping",StringComparison.OrdinalIgnoreCase)) return new Dictionary<string,object>{{"ok",true},{"ready",true},{"version",AgentVersion}};
             if (String.Equals(kind,"ticket-peek",StringComparison.OrdinalIgnoreCase)) return TrayApp.PeekPendingTicket();
             if (String.Equals(kind,"ticket-result",StringComparison.OrdinalIgnoreCase))
             {

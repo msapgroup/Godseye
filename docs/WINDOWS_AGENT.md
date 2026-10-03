@@ -84,3 +84,9 @@ New endpoints should use the current x64 Setup. WinRM remains available when ins
 ### Matching server and agent packages
 
 Update the server using the full application ZIP from the current release, then run the Agent 2.4.5 Setup on affected Windows computers. Updating only the Windows installer does not update an older server UI. The server verifies local installer checksums and rejects stale update manifests. A computer reporting 2.5.x displays **Install current 2.4.5** until the repaired agent sends a new heartbeat; its observed version is never relabeled. Healthy enrollment skips token entry. If connection settings are damaged but the protected key is valid, enter the server URL without a new token. Otherwise enter a current enrollment token.
+
+### New installation and connection repair
+
+A saved token is pending enrollment, not proof that the server accepted it. New installs ask for the server URL and a current enrollment token. An existing protected enrollment key skips token entry by default. Enrolled upgrades can choose **Change server connection or TLS settings** to correct the URL or certificate setting while keeping their key. Certificate verification stays enabled by default. A trusted LAN with a self-signed server certificate has an explicit alternative on the TLS page. Do not select it for an untrusted connection.
+
+Setup checks the tray's readiness in the installing Windows session after launch. An installed service alone is not evidence of a connected agent: confirm a new heartbeat in Windows Agents. SSL failures now include the underlying cause in agent.log.

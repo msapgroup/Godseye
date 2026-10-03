@@ -24,7 +24,7 @@ foreach ($name in @('agent.json', 'agent.json.bak')) {
     $cfg = [IO.File]::ReadAllText((Join-Path $folder $name)) | ConvertFrom-Json
     $url = [Uri]$cfg.ServerUrl
     if ($url.IsAbsoluteUri -and $url.Scheme -in @('http','https') -and -not [string]::IsNullOrWhiteSpace($cfg.AgentUuid) -and
-        ($hasKey -or -not [string]::IsNullOrWhiteSpace($cfg.EnrollmentToken))) { exit 0 }
+         $hasKey) { exit 0 }
   } catch { }
 }
 if ($hasKey) { exit 10 } # Existing enrollment key; connection settings need repair.

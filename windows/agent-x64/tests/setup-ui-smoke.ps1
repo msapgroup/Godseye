@@ -52,9 +52,11 @@ try {
   foreach ($mode in @('fresh','enrolled')) {
     if ($mode -eq 'enrolled') {
       New-Item -ItemType Directory (Split-Path $config) -Force | Out-Null
-      [IO.File]::WriteAllText($config,'{"ServerUrl":"https://example.invalid","AgentUuid":"setup-ui-fixture","EnrollmentToken":"fixture-token"}')
+      [IO.File]::WriteAllText($config,'{"ServerUrl":"https://example.invalid","AgentUuid":"setup-ui-fixture","EnrollmentToken":""}')
+      Add-Type -AssemblyName System.Security
+      [IO.File]::WriteAllBytes((Join-Path (Split-Path $config) 'agent.key'),[Security.Cryptography.ProtectedData]::Protect([Text.Encoding]::UTF8.GetBytes('CI-UI-KEY'),$null,[Security.Cryptography.DataProtectionScope]::LocalMachine))
     }
-    $process=Start-Process (Resolve-Path $SetupPath).Path -ArgumentList '/NORESTART' -PassThru
+    $process=Start-Process (Resolve-Path $SetupPath).Path -ArgumentList '/NORESTART /SERVERURL=https://example.invalid /TOKEN=CI-UI-TOKEN' -PassThru
     try {
       $window=[IntPtr]::Zero
       for ($i=0;$i -lt 60;$i++) {
@@ -96,11 +98,32 @@ try {
       $bitmap.Save((Join-Path $env:RUNNER_TEMP "godseye-setup-edr-$mode.png"))
       $graphics.Dispose(); $bitmap.Dispose()
       Write-Host "$mode Setup.exe displays both EDR choices before enrollment."
+      [void][SetupUi]::SendMessage($next.Handle,0x00F5,[IntPtr]::Zero,[IntPtr]::Zero)
+      Start-Sleep -Milliseconds 500
+      if ($mode -eq 'fresh') {
+        if (-not (Get-Controls $window | Where-Object Text -eq 'Connect to GODSEYE')) { throw 'Fresh Setup skipped enrollment settings.' }
+        [void][SetupUi]::SendMessage($next.Handle,0x00F5,[IntPtr]::Zero,[IntPtr]::Zero)
+        Start-Sleep -Milliseconds 500
+        $controls=Get-Controls $window
+        if (-not ($controls | Where-Object Text -eq 'TLS verification')) { throw 'Fresh Setup skipped certificate settings.' }
+        $list=$controls | Where-Object Class -eq 'TNewCheckListBox' | Select-Object -First 1
+        if ([SetupUi]::SendMessage($list.Handle,0x018B,[IntPtr]::Zero,[IntPtr]::Zero).ToInt32() -ne 2) { throw 'Certificate settings must offer both explicit choices.' }
+      } else {
+        if (-not (Get-Controls $window | Where-Object Text -eq 'Existing GODSEYE enrollment')) { throw 'Enrolled Setup has no keep/change choice.' }
+      }
+      $rect=[SetupUi+RECT]::new(); [void][SetupUi]::GetWindowRect($window,[ref]$rect)
+      $bitmap=[Drawing.Bitmap]::new($rect.Right-$rect.Left,$rect.Bottom-$rect.Top)
+      $graphics=[Drawing.Graphics]::FromImage($bitmap); $dc=$graphics.GetHdc()
+      try { [void][SetupUi]::PrintWindow($window,$dc,0) } finally { $graphics.ReleaseHdc($dc) }
+      $bitmap.Save((Join-Path $env:RUNNER_TEMP "godseye-setup-connection-$mode.png"))
+      $graphics.Dispose(); $bitmap.Dispose()
+
     } finally {
       # No Install button is pressed. End only this bootstrapper's process tree.
       & taskkill.exe /PID $process.Id /T /F | Out-Null
     }
     if (Test-Path $config) { Remove-Item $config }
+    Remove-Item (Join-Path (Split-Path $config) 'agent.key') -ErrorAction Ignore
   }
 } finally {
   if ($null -ne $backup) { [IO.File]::WriteAllBytes($config,$backup) }
