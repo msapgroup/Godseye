@@ -9,6 +9,7 @@ on:
     types: [completed]
 permissions:
   contents: write
+  statuses: write
 concurrency:
   group: sync-windows-installers
   cancel-in-progress: false
@@ -75,3 +76,13 @@ jobs:
             git pull --rebase origin main
             git push origin HEAD:main
           fi
+      - name: Record verified installer status on the synchronized commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          verified_sha="$(git rev-parse HEAD)"
+          gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$verified_sha" \
+            -f state=success \
+            -f context="Windows Agent / Published installer verification" \
+            -f description="Agent 2.4.5 installers match release checksums and manifests." \
+            -f target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
