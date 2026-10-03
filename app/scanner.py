@@ -306,6 +306,17 @@ def record_scan(found):
     timestamp = now()
     found_macs = set()
     fired_events = []
+    # DNS and ping may each take seconds. Never run them while a scan
+    # transaction holds SQLite's single writer lock (agents share this DB).
+    snapshot_connection = db()
+    try:
+        snapshot = {r["mac"]: dict(r) for r in snapshot_connection.execute("SELECT * FROM devices")}
+    finally:
+        snapshot_connection.close()
+    seen = {d["mac"] for d in found}
+    hostnames = {d["mac"]: resolve_hostname(d["ip"]) for d in found if d["mac"] not in snapshot}
+    reachable = {mac: (old["ip"], ping_reachable(old["ip"]))
+                 for mac, old in snapshot.items() if mac not in seen and old["ip"]}
     with db() as c:
         existing = {r["mac"]: r for r in c.execute("SELECT * FROM devices")}
         for d in found:
@@ -313,7 +324,7 @@ def record_scan(found):
             found_macs.add(mac)
             old = existing.get(mac)
             if old is None:
-                hostname = resolve_hostname(d["ip"])
+                hostname = hostnames.get(mac)
                 c.execute(
                     "INSERT INTO devices(mac,ip,hostname,vendor,status,first_seen,last_seen,classification,missed_scans) "
                     "VALUES(?,?,?,?,?,?,?,?,0)",
@@ -335,7 +346,7 @@ def record_scan(found):
         for mac, old in existing.items():
             if mac in found_macs:
                 continue
-            if old["ip"] and ping_reachable(old["ip"]):
+            if old["ip"] and reachable.get(mac) == (old["ip"], True):
                 # ARP missed it, but it answers ping - still there. Rescue it
                 # the same way a re-appearing device would be handled, so it
                 # doesn't drift toward suspected_offline/offline over a false

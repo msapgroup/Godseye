@@ -24,7 +24,7 @@ import smtplib
 from email import policy
 from email.parser import BytesParser
 from email.header import decode_header
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, closing
 from pathlib import Path
 from email.message import EmailMessage
 from email.utils import formatdate
@@ -710,6 +710,7 @@ def init_db():
         _add_column_if_missing(c, "events", "severity", "severity TEXT NOT NULL DEFAULT 'info'")
         _add_column_if_missing(c, "integration_checks", "monitor_id", "monitor_id INTEGER")
         c.execute("UPDATE devices SET classification='known' WHERE trusted=1 AND classification='new'")
+        acl.ensure_schema(c)
 
         if c.execute("SELECT COUNT(*) FROM users").fetchone()[0] == 0:
             # Fresh install: create the administrator identity with no usable password.
@@ -839,6 +840,9 @@ class WindowsEventCollectorManager:
                             self._poll_one(c,row)
                         except Exception:
                             pass
+                        # Commit one source before contacting the next. WinRM
+                        # timeouts must not retain the previous source's writes.
+                        c.commit()
                     c.commit()
             except Exception:
                 pass
@@ -1087,6 +1091,26 @@ ALLOWED_WHILE_PASSWORD_RESET_REQUIRED = {
 }
 
 
+def touch_session(token, last_seen_at, nowdt):
+    """Refresh activity at most once a minute without blocking API reads.
+
+    Authentication/expiry checks remain mandatory. Only this advisory timestamp
+    can be skipped when another writer owns the database; the next request retries.
+    """
+    if last_seen_at and (nowdt - dt.datetime.fromisoformat(last_seen_at)).total_seconds() < min(60, IDLE_TIMEOUT_SECONDS / 4):
+        return
+    c = sqlite3.connect(DB_PATH, timeout=0)
+    try:
+        c.execute("UPDATE sessions SET last_seen_at=? WHERE token=? AND last_seen_at IS ?",
+                  (nowdt.isoformat(), token, last_seen_at))
+        c.commit()
+    except sqlite3.OperationalError as exc:
+        if (getattr(exc, "sqlite_errorcode", 0) & 0xff) not in {sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED}:
+            raise
+    finally:
+        c.close()
+
+
 def get_current_user(request: Request):
     """Auth dependency for every /api/v1 route except /auth/login.
 
@@ -1103,7 +1127,7 @@ def get_current_user(request: Request):
     token = request.cookies.get(SESSION_COOKIE)
     if not token:
         raise HTTPException(401, "Not authenticated")
-    with db() as c:
+    with closing(db()) as c:
         row = c.execute(
             "SELECT u.id AS id, u.username, u.role, u.must_change_password, u.must_change_password_by, "
             "u.password_changed_at, s.expires_at, s.last_seen_at "
@@ -1114,12 +1138,9 @@ def get_current_user(request: Request):
             raise HTTPException(401, "Session expired")
         nowdt = dt.datetime.now(dt.timezone.utc)
         if dt.datetime.fromisoformat(row["expires_at"]) < nowdt:
-            c.execute("DELETE FROM sessions WHERE token=?", (token,))
             raise HTTPException(401, "Session expired")
         if row["last_seen_at"] and (nowdt - dt.datetime.fromisoformat(row["last_seen_at"])).total_seconds() > IDLE_TIMEOUT_SECONDS:
-            c.execute("DELETE FROM sessions WHERE token=?", (token,))
             raise HTTPException(401, "Session timed out due to inactivity")
-        c.execute("UPDATE sessions SET last_seen_at=? WHERE token=?", (now(), token))
     password_reset_needed = must_change_now(row["must_change_password"], row["must_change_password_by"]) \
         or is_password_expired(row["password_changed_at"])
     if password_reset_needed and request.url.path not in ALLOWED_WHILE_PASSWORD_RESET_REQUIRED:
@@ -1131,6 +1152,7 @@ def get_current_user(request: Request):
         cookie = request.cookies.get(CSRF_COOKIE)
         if not header or not cookie or not hmac.compare_digest(header, cookie):
             raise HTTPException(403, "CSRF token missing or invalid")
+    touch_session(token, row["last_seen_at"], nowdt)
     return row
 
 

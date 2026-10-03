@@ -510,6 +510,22 @@ The installer uses `/usr/bin/python3` to match the distribution package and test
 
 ### Useful maintenance commands
 
+If Windows Update status shows **Internal Server Error**, agent heartbeats fail,
+or the dashboard intermittently marks a running agent offline, check the server log:
+
+    sudo journalctl -u godseye-web.service --since "30 minutes ago" --no-pager
+
+Repeated `sqlite3.OperationalError: database is locked` requires the updated server
+package: extract it separately and run `sudo ./install.sh --upgrade`. The fix moves
+scanner DNS/ping probes outside database write transactions, releases each WinRM
+source's writes before polling the next source, and prevents optional session
+activity timestamps from blocking authenticated polling. Permissions, CSRF checks,
+and session expiry remain enforced. Agent **2.4.5** enrollment is preserved; this
+server fix does not require reinstalling the Windows agent. Verify that **Windows
+Agents & Updates** shows advancing heartbeats and that **Scan Microsoft Updates**
+can complete without a server error. An `unreachable network` message still requires
+checking the agent's LAN/VPN route and configured server URL.
+
     sudo ./install.sh --doctor
     sudo systemctl status godseye-web
     sudo systemctl status godseye-scanner

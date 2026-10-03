@@ -24,3 +24,5 @@ jobs:
           tests/test_godseye_edr.py
           tests/test_windows_agent_self_update.py
           tests/test_v431_agent_package_status.py
+          tests/test_server_database_contention.py
+          tests/test_admin_password_reset.py

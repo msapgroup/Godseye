@@ -50,6 +50,10 @@ def page_for_path(path):
 
 
 def ensure_schema(c):
+    # Called by /auth/me as well as initialization. Existing installations
+    # need a read here, not DDL that competes with agent/scanner writes.
+    if c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='role_page_permissions'").fetchone():
+        return
     c.execute("""CREATE TABLE IF NOT EXISTS role_page_permissions (
         role TEXT NOT NULL, page TEXT NOT NULL, access TEXT NOT NULL,
         PRIMARY KEY(role, page))""")
