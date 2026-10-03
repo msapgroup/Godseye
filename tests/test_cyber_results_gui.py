@@ -37,3 +37,12 @@ assert.ok(out.innerHTML.includes('Engine missing'));
     assert code.strip() in page
     second = source[source.index('function cyberResultLabel(', source.index('function show(id,data)')):source.index('function renderCyberActions(')]
     assert code.strip() == second.strip()
+
+
+def test_network_tools_report_uses_its_own_escape_helper():
+    source = (Path(__file__).resolve().parents[1] / 'app/main.py').read_text()
+    start = source.index('def tools_page(')
+    code = source[source.index('function esc(', start):source.index('async function post(', start)]
+    script = "const assert=require('node:assert/strict'); const out={}; const document={getElementById:()=>out};\n" + code + "\nshow('pingOut',{ok:true,host:'<script>alert(1)</script>',packets_received:4}); assert.ok(out.innerHTML.includes('Packets Received')); assert.ok(out.innerHTML.includes('&lt;script&gt;')); assert.ok(!out.innerHTML.includes('<script>')); show('pingOut','Error: Unreachable'); assert.equal(out.textContent,'Error: Unreachable');"
+    result = subprocess.run([shutil.which('node'), '-e', script], capture_output=True, text=True, timeout=10)
+    assert result.returncode == 0, result.stderr

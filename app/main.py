@@ -5305,6 +5305,7 @@ document.addEventListener('dragend',()=>{toolsDragged?.classList.remove('draggin
 setTimeout(initStandaloneToolsLayout,0);
 async function ensureCsrf(){if(document.cookie.includes('godseye_csrf='))return;await fetch('/api/v1/auth/csrf')}
 async function req(url,opt={}){await ensureCsrf();opt=opt||{};opt.headers=opt.headers||{};if(opt.method&&['POST','PUT','PATCH','DELETE'].includes(opt.method.toUpperCase())){const m=document.cookie.match('(?:^|; )godseye_csrf=([^;]*)');if(m)opt.headers['X-CSRF-Token']=decodeURIComponent(m[1])}const r=await fetch(url,opt);const t=await r.text();let data={};try{data=t?JSON.parse(t):{}}catch{data={detail:t}}if(!r.ok)throw new Error(data.detail||t||('HTTP '+r.status));return data}
+function esc(value){return String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;')}
 function cyberResultLabel(key){return String(key).replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())}
 function cyberResultValue(value){if(value===null||value===undefined||value==='')return 'Not reported';if(typeof value==='boolean')return value?'Yes':'No';return String(value)}
 function cyberResultFields(value,depth=0){
