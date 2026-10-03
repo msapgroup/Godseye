@@ -24,6 +24,8 @@ The ProgramData directory contains enrollment identity, the DPAPI-protected API 
 
 Configuration saves use a flushed atomic replacement and retain `agent.json.bak`. If the main file is damaged, the agent restores a valid backup while preserving the damaged file as `agent.json.corrupt-*`. It does not invent a new identity or overwrite an unrecoverable configuration. Logs identify whether invalid JSON came from the configuration, pending event file, or a server response. An elevated `GODSEYE.Agent.exe --check-config` checks configuration and attempts recovery from an existing valid backup without contacting the server.
 
+Setup completes the MSI installation and verifies Agent 2.4.5 before launching the tray in the installing user's session. Fresh-install validation starts with the executable absent, then verifies enrollment, heartbeat, and tray readiness. If remote screen capture fails, the agent log records the tray's reported error or a capture timeout rather than hiding it behind a generic message.
+
 If Setup fails, its detailed MSI log is saved to `C:\ProgramData\GODSEYE\Agent\setup-msi.log`. Run the current Setup directly over an existing 2.4.5 or mismatched 2.5.x installation. Setup stops the old service and tray, replaces the package, and restarts the service. Healthy enrollment is retained; missing or invalid enrollment opens the connection settings. Keep ProgramData intact.
 
 ## Windows service

@@ -4,6 +4,16 @@ $folder=Join-Path $env:ProgramData 'GODSEYE\Agent'
 $exe=Join-Path $env:ProgramFiles 'GODSEYE Agent\GODSEYE.Agent.exe'
 $setup=(Resolve-Path $SetupPath).Path
 $state=Join-Path $env:RUNNER_TEMP 'fresh-enrollment-state.json'
+# Prior tests can leave an installed executable behind and mask an early tray
+# launch. This case must begin with no installed service executable at all.
+Stop-Service GODSEYEWindowsAgent -ErrorAction Ignore
+& taskkill.exe /IM GODSEYE.Agent.exe /T /F 2>$null | Out-Null
+$msi=(Resolve-Path 'windows/agent-x64/GODSEYE-Windows-Agent-x64.msi').Path
+$remove=Start-Process msiexec.exe -ArgumentList @('/x',"`"$msi`"",'/qn','/norestart') -Wait -PassThru
+if ($remove.ExitCode -notin @(0,3010,1605)) { throw "Could not prepare a genuinely fresh install: $($remove.ExitCode)" }
+if (Test-Path $exe) { throw 'Fresh Setup regression requires the installed executable to be absent.' }
+Write-Host 'Fresh-install precondition verified: installed executable is absent.'
+
 foreach ($name in @('agent.json','agent.json.bak','agent.key')) { Remove-Item (Join-Path $folder $name) -ErrorAction Ignore }
 Remove-Item $state -ErrorAction Ignore
 $server=Start-Process python -ArgumentList @('windows/agent-x64/tests/enrollment-fixture.py',"`"$state`"") -PassThru

@@ -28,11 +28,6 @@ Uninstallable=no
 Source: "..\{#MyMsiName}"; Flags: dontcopy
 Source: "check-enrollment.ps1"; Flags: dontcopy
 
-[Run]
-; The MSI owns the service and sign-in startup. Launch the tray now in the
-; signed-in user's session so it appears without requiring a sign-out.
-Filename: "{autopf64}\GODSEYE Agent\{#MyAppExeName}"; Parameters: "--tray"; Flags: nowait runasoriginaluser; Check: NeedsTrayLaunch
-
 [Code]
 var
   ConfigPage: TInputQueryWizardPage;
@@ -163,16 +158,19 @@ begin
   Result := (not WizardSilent()) or (ExpandConstant('{param:CHECKTRAY|0}') = '1');
 end;
 
-function NeedsTrayLaunch(): Boolean;
+procedure StartVerifiedTray;
 var
   ExitCode: Integer;
 begin
-  Result := False;
   if not TrayCheckRequired() then exit;
+  { [Run] executes before ssPostInstall, where this bootstrapper installs the MSI.
+    Never inspect or launch its executable from an early [Run] Check callback. }
+  Log('MSI installation and Agent 2.4.5 verification completed before tray startup.');
   if not FileExists(AgentExePath()) then
-    RaiseException('The installed GODSEYE executable is missing before tray startup: ' + AgentExePath() + '. Keep setup-msi.log and check Windows protection history for a removed file.');
+    RaiseException('The GODSEYE executable is missing after MSI installation: ' + AgentExePath() + '. Keep setup-msi.log and check Windows protection history for a removed file.');
   if Exec(AgentExePath(), '--check-tray', '', SW_HIDE, ewWaitUntilTerminated, ExitCode) and (ExitCode = 0) then exit;
-  Result := True;
+  if not ExecAsOriginalUser(AgentExePath(), '--tray', '', SW_SHOWNORMAL, ewNoWait, ExitCode) then
+    RaiseException('GODSEYE was installed, but its tray could not be launched in the installing user session. Windows error: ' + IntToStr(ExitCode) + '. Keep setup-msi.log and agent.log.');
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
@@ -265,6 +263,8 @@ begin
     RaiseException('GODSEYE Windows Agent was installed, but its version could not be verified.');
   if Pos('2.4.5', InstalledVersion) <> 1 then
     RaiseException('The installer expected GODSEYE Windows Agent 2.4.5, but Windows reports version ' + InstalledVersion + '.');
+
+  StartVerifiedTray;
 
   if MsiResultCode <> 3010 then
     SuppressibleMsgBox('GODSEYE Windows Agent 2.4.5 was installed and verified successfully.', mbInformation, MB_OK, IDOK);

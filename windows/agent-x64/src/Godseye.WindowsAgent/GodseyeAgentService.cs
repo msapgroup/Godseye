@@ -945,7 +945,8 @@ namespace Godseye.WindowsAgent
                 {
                     Dictionary<string,object> frame=RemoteHelperRequest(pipeName,new Dictionary<string,object>{{"kind","capture"}},2500);
                     if(frame!=null&&frame.ContainsKey("sharing_stopped")&&Convert.ToBoolean(frame["sharing_stopped"]))break;
-                    if(frame==null||!frame.ContainsKey("image_base64"))throw new Exception("Remote desktop capture failed.");
+                    if(frame==null)throw new Exception("Remote desktop capture failed: the tray did not return a frame within the capture timeout.");
+                    if(!frame.ContainsKey("image_base64"))throw new Exception("Remote desktop capture failed: "+(frame.ContainsKey("error")?Convert.ToString(frame["error"]):"the tray returned no image data."));
                     Dictionary<string,object> accepted=Post(cfg,"/api/v1/windows-agents/remote/sessions/"+sessionId+"/frame",new Dictionary<string,object>{{"image_base64",frame["image_base64"]},{"width",frame["width"]},{"height",frame["height"]}},ReadApiKey());
                     frameDelivered=true;
                     Dictionary<string,object> poll=Get(cfg,"/api/v1/windows-agents/remote/sessions/"+sessionId+"/events?after="+after,ReadApiKey());
