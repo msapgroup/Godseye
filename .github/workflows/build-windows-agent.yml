@@ -243,6 +243,9 @@ jobs:
 
       - name: Upload actual Setup EDR screen captures
         if: always()
+        # Release publication below is authoritative; optional CI copies must not block it.
+        timeout-minutes: 2
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: GODSEYE-Agent-2.4.5-Setup-EDR-screens
@@ -297,6 +300,9 @@ jobs:
           Set-Content -Path "$zip.sha256" -Value $zipHash -Encoding ascii
 
       - name: Upload integrated Windows Agent 2.4.5 packages
+        # Release publication below is authoritative; optional CI copies must not block it.
+        timeout-minutes: 2
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: GODSEYE-Windows-Agent-x64-2.4.5-integrated
@@ -313,6 +319,9 @@ jobs:
             windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe.sha256
 
       - name: Upload GODSEYE v4.31.0 candidate
+        # Release publication below is authoritative; optional CI copies must not block it.
+        timeout-minutes: 2
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: GODSEYE-v4.31.0-with-agent
