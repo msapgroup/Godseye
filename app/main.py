@@ -905,6 +905,10 @@ app = FastAPI(title="GODSEYE", version=APP_VERSION, lifespan=lifespan)
 def login_background():
     return FileResponse(BASE_DIR / "app" / "assets" / "login-bg.jpg", media_type="image/jpeg", headers={"Cache-Control":"no-cache, max-age=0, must-revalidate"})
 
+@app.get("/assets/dashboard-world-map.svg", include_in_schema=False)
+def dashboard_world_map():
+    return FileResponse(BASE_DIR / "app" / "assets" / "dashboard-world-map.svg", media_type="image/svg+xml", headers={"Cache-Control":"public, max-age=86400"})
+
 @app.get("/assets/dashboard-map-reference.png", include_in_schema=False)
 def dashboard_map_reference():
     return FileResponse(BASE_DIR / "app" / "assets" / "dashboard-map-reference.png", media_type="image/png", headers={"Cache-Control":"public, max-age=86400"})
@@ -7026,15 +7030,32 @@ html[data-theme="dark"] .authcard{background:linear-gradient(150deg,rgba(12,31,4
 html[data-theme="dark"] .sidebar .brand.v430-brand{height:88px!important;padding:7px 10px!important;overflow:hidden!important}
 .godseye-approved-lockup{width:100%;height:73px;object-fit:contain;object-position:center;display:block}
 .godseye-shield-g-eye{object-fit:cover;object-position:left center}
-.map-preview-layout{display:grid;grid-template-columns:minmax(0,58%) minmax(210px,42%);gap:4px;align-items:center;min-height:218px;padding:8px 12px;background:radial-gradient(circle at 32% 45%,#112c42,#091b2b 75%)}
-.map-preview-world{width:100%;height:170px;background:url("/assets/dashboard-map-reference.png") -16px -55px/538px 219px no-repeat;overflow:hidden}
+/* Keep card contents inside their tracks at compact workspace widths. */
+.device-summary-cards .statcard{grid-template-columns:42px minmax(0,1fr) auto!important}
+.device-summary-cards .statcard>div{min-width:0}
+.device-summary-cards .statmeta,.device-summary-cards .trend{white-space:normal!important;overflow-wrap:anywhere}
+.v430-temp-uptime{grid-template-columns:repeat(2,minmax(0,1fr))}
+.v430-temp-uptime>div{min-width:0;padding:12px}
+.v430-temp-uptime strong,.v430-temp-uptime span{overflow-wrap:anywhere}
+.v430-health-card b.bad::after{content:" !";color:#ff5968}
+#rulesPanel form [id^="ruleFields"]{min-width:0;max-width:100%;flex-wrap:wrap}
+#rulesPanel form .input,#rulesPanel form .filter{min-width:0;max-width:100%}
+.panel.admin-only.admin-visible{display:block!important}
+#healthAdvanced pre.result{white-space:pre-wrap;overflow-wrap:anywhere}
+#healthAdvanced .actions{flex-wrap:wrap}
+#healthAdvanced .input,#healthAdvanced .filter{min-width:0;max-width:100%}
+@media(max-width:1350px){html[data-theme] .cards.device-summary-cards{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
+@media(max-width:1000px){#view-devices .v430-device-detail-grid{grid-template-columns:minmax(0,1fr)!important}}
+@media(max-width:760px){html[data-theme] .cards.device-summary-cards{grid-template-columns:minmax(0,1fr)!important}}
+.map-preview-layout{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:12px;align-items:center;min-height:218px;padding:8px 12px;background:radial-gradient(circle at 32% 45%,#112c42,#091b2b 75%)}
+.map-preview-world{width:100%;min-width:0;aspect-ratio:176/94;background:url("/assets/dashboard-world-map.svg") center/contain no-repeat;overflow:hidden}
 .map-preview-side{display:flex;flex-direction:column;justify-content:center;gap:22px;min-width:0;padding:0 5px}
 .map-preview-status{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:3px;align-items:start;text-align:center}
-.map-preview-status span{color:#a3bacb;font-size:9px;white-space:nowrap}
+.map-preview-status span{color:#a3bacb;font-size:9px;min-width:0;overflow-wrap:anywhere}
 .map-preview-status b{display:block;color:#55bbff;font-size:21px;line-height:1.2;margin-bottom:5px}
 .map-preview-status b.red{color:#ff6578!important}.map-preview-status b.yellow{color:#ffc85f!important}
 .map-preview-open{width:100%;min-height:38px;display:flex;align-items:center;justify-content:space-between;padding:8px 14px!important;font-size:11px!important}
-@media(max-width:700px){.map-preview-layout{grid-template-columns:1fr}.map-preview-world{height:145px}.map-preview-side{gap:12px;padding:0 10px 12px}}
+@media(max-width:700px){.map-preview-layout{grid-template-columns:1fr}.map-preview-world{max-width:440px;justify-self:center}.map-preview-side{gap:12px;padding:0 10px 12px}}
 
 .login-brand-row>.eye-logo,.setup-brand>.eye{display:none!important}
 .login-brand-row .login-wordmark{width:290px!important;height:100px!important;object-fit:contain}
@@ -9867,7 +9888,7 @@ function renderHealthSummary(h,retention,backups,settings,notifications){
  const events=document.getElementById('healthEventSummary'),notes=Array.isArray(notifications)?notifications:[];if(events)events.innerHTML=notes.length?notes.slice(0,5).map(x=>`<div><span>${esc(x.event_type||'Delivery')}</span><b>${esc(x.status||'unknown')}</b></div>`).join(''):'<div>No recent system events.</div>';
  json('/api/v1/analytics/traffic?minutes=60').then(r=>{const last=(r.samples||[]).at(-1);if(last){put('healthNetworkRate',fmtBits(last.rx_bps)+' ↓  ·  '+fmtBits(last.tx_bps)+' ↑');put('healthNetworkInterface',last.interface||'Network interface');const netbar=document.getElementById('healthNetworkBar');if(netbar)netbar.style.width=Math.min(100,Math.max(4,Number(last.rx_bps||0)/1e7))+'%'}}).catch(()=>{});
 }
-async function loadHealth(){try{const [h,r,b,p,tls,nh]=await Promise.all([json('/api/v1/appliance/health'),json('/api/v1/appliance/retention').catch(()=>null),json('/api/v1/appliance/backups').catch(()=>[]),json('/api/v1/appliance/production-settings').catch(()=>null),json('/api/v1/appliance/https').catch(()=>null),json('/api/v1/notifications/history').catch(()=>[])]);LAST_HEALTH_CHECKS=Array.isArray(h.checks)?h.checks:[];healthOverall.textContent=(h.overall||'unknown').toUpperCase();healthHost.textContent=h.hostname||'—';healthKernel.textContent=h.kernel||'—';v430RenderHealthPage(h,b,p);renderHealthSummary(h,r,b,p,nh);healthChecks.innerHTML=(h.checks||[]).map(x=>`<tr><td>${esc(x.name)}</td><td><span class="pill ${x.status==='ok'?'online':x.status==='critical'?'offline':''}">${esc(x.status)}</span></td><td>${esc(v430HealthDetail(x))}</td></tr>`).join('');if(r){retTraffic.value=r.traffic_retention_days;retEvents.value=r.event_retention_days;retAudit.value=r.audit_retention_days;retReports.value=r.report_retention_days;retSync.value=r.sync_retention_days;retNotify.value=r.notification_retention_days}backupRows.innerHTML=(b||[]).map(x=>`<tr><td>${esc(new Date(x.created_at).toLocaleString())}</td><td>${esc(x.filename)}</td><td>${(x.size_bytes/1024/1024).toFixed(2)} MB</td><td>${esc(x.note||'')}</td><td><button class="link" onclick="restoreBackup('${esc(x.filename)}')">Restore</button></td></tr>`).join('')||'<tr><td colspan="5" class="empty">No backups yet.</td></tr>';if(p){prodAutoBackup.value=p.auto_backup_enabled?'1':'0';prodBackupHour.value=p.backup_hour_utc;prodBackupKeep.value=p.backup_keep_count;prodUpdateChannel.value=p.update_channel||'stable'}if(tls){tlsStatus.textContent=tls.configured?'HTTPS certificate is installed on this appliance.':'HTTPS certificate is not configured yet.';httpsOut.textContent=tls.helper||''}notificationHistoryRows.innerHTML=(nh||[]).map(x=>`<tr><td>${esc(new Date(x.created_at).toLocaleString())}</td><td>${esc(x.event_type)}</td><td>${esc(x.severity)}</td><td>${esc(x.status)}</td><td>${x.attempts||1}</td><td><button class="link" onclick="retryNotification(${x.id})">Retry</button></td></tr>`).join('')||'<tr><td colspan="6" class="empty">No notification history.</td></tr>'}catch(e){healthChecks.innerHTML='<tr><td colspan="3">'+esc(e.message)+'</td></tr>'}}
+async function loadHealth(){try{const [h,r,b,p,tls,nh]=await Promise.all([json('/api/v1/appliance/health'),json('/api/v1/appliance/retention').catch(()=>null),json('/api/v1/appliance/backups').catch(()=>[]),json('/api/v1/appliance/production-settings').catch(()=>null),json('/api/v1/appliance/https').catch(()=>null),json('/api/v1/notifications/history').catch(()=>[])]);LAST_HEALTH_CHECKS=Array.isArray(h.checks)?h.checks:[];healthOverall.textContent=(h.overall||'unknown').toUpperCase();healthOverall.classList.toggle('bad',String(h.overall||'unknown').toLowerCase()!=='ok');healthHost.textContent=h.hostname||'—';healthKernel.textContent=h.kernel||'—';v430RenderHealthPage(h,b,p);renderHealthSummary(h,r,b,p,nh);healthChecks.innerHTML=(h.checks||[]).map(x=>`<tr><td>${esc(x.name)}</td><td><span class="pill ${x.status==='ok'?'online':x.status==='critical'?'offline':''}">${esc(x.status)}</span></td><td>${esc(v430HealthDetail(x))}</td></tr>`).join('');if(r){retTraffic.value=r.traffic_retention_days;retEvents.value=r.event_retention_days;retAudit.value=r.audit_retention_days;retReports.value=r.report_retention_days;retSync.value=r.sync_retention_days;retNotify.value=r.notification_retention_days}backupRows.innerHTML=(b||[]).map(x=>`<tr><td>${esc(new Date(x.created_at).toLocaleString())}</td><td>${esc(x.filename)}</td><td>${(x.size_bytes/1024/1024).toFixed(2)} MB</td><td>${esc(x.note||'')}</td><td><button class="link" onclick="restoreBackup('${esc(x.filename)}')">Restore</button></td></tr>`).join('')||'<tr><td colspan="5" class="empty">No backups yet.</td></tr>';if(p){prodAutoBackup.value=p.auto_backup_enabled?'1':'0';prodBackupHour.value=p.backup_hour_utc;prodBackupKeep.value=p.backup_keep_count;prodUpdateChannel.value=p.update_channel||'stable'}if(tls){tlsStatus.textContent=tls.configured?'HTTPS certificate is installed on this appliance.':'HTTPS certificate is not configured yet.';httpsOut.textContent=tls.helper||''}notificationHistoryRows.innerHTML=(nh||[]).map(x=>`<tr><td>${esc(new Date(x.created_at).toLocaleString())}</td><td>${esc(x.event_type)}</td><td>${esc(x.severity)}</td><td>${esc(x.status)}</td><td>${x.attempts||1}</td><td><button class="link" onclick="retryNotification(${x.id})">Retry</button></td></tr>`).join('')||'<tr><td colspan="6" class="empty">No notification history.</td></tr>'}catch(e){healthChecks.innerHTML='<tr><td colspan="3">'+esc(e.message)+'</td></tr>'}}
 async function createBackup(){try{await json('/api/v1/appliance/backups',{method:'POST'});await loadHealth()}catch(e){alert('Backup failed: '+e.message)}}
 async function restoreBackup(name){if(!confirm('Restore '+name+'? GODSEYE will create a safety backup first. A service restart is recommended after restore.'))return;try{const r=await json('/api/v1/appliance/backups/restore',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filename:name})});alert('Restore complete. Safety backup: '+r.safety_backup+'\nRestart GODSEYE services when convenient.');await loadHealth()}catch(e){alert('Restore failed: '+e.message)}}
 async function exportFullBackup(){

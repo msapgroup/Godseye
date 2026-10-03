@@ -42,7 +42,7 @@ Use GODSEYE to:
 
 ## See GODSEYE in action
 
-Most gallery images are captures from the running app with representative sample data. The permissions and full backup panels are interface illustrations. Older captures received a visual border refresh; the CRM screen was captured from the running app with a sample customer. Counts, findings, devices, and tickets shown here are examples, not live production results.
+Most gallery images are captures from the running app with representative sample data. The permissions panel is an interface illustration; the full backup card is captured from the running app. Older captures received a visual border refresh; the CRM screen was captured from the running app with a sample customer. Counts, findings, devices, and tickets shown here are examples, not live production results.
 
 ### Sign in
 
@@ -56,7 +56,7 @@ Administrators can use **Reboot server** at the bottom of the sidebar. Confirm t
 
 ![GODSEYE Dashboard](docs/screenshots/v431-dashboard-map-logo.png)
 
-**How it works:** The Dashboard gives you a quick view of device totals, security findings, traffic, monitored services, tickets, and appliance health. Select a summary or card to open the related workspace. The Network Map preview lets you switch between topology and geographic views before opening the full map.
+**How it works:** The Dashboard gives you a quick view of device totals, security findings, traffic, monitored services, tickets, and appliance health. Select a summary or card to open the related workspace. The Network Map Overview shows illustrative map artwork alongside totals from the running app. Select **Open Network Map** to inspect actual network devices and connections. The preview contains only the map artwork, and cards adapt to narrower screens without clipping their details.
 
 ### Devices and inventory
 
