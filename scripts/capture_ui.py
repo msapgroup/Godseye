@@ -168,6 +168,15 @@ async def main():
                 remote.wait(timeout=10)
                 log.close()
 
+        # Record the actual installer target and endpoint versions from the API.
+        await page.evaluate("()=>openWindowsAgentModal()")
+        await page.wait_for_timeout(1500)
+        await page.get_by_role('button', name='↓ Download Agent 2.4.5', exact=True).wait_for()
+        assert '2.5.2' not in await page.locator('#windowsAgentModal').inner_text()
+        await page.screenshot(path=str(OUT / 'v431-windows-agent-245.png'), full_page=True)
+        await page.evaluate("()=>closeWindowsAgentModal()")
+        assert not await page.locator('#windowsAgentModal').is_visible()
+
         # A second Cyber Tools capture records the real card/result workspace.
         await page.evaluate("()=>showView('cyber-tools',true)")
         await page.wait_for_timeout(1000)

@@ -252,6 +252,8 @@ Use the [Agent 2.4.5 release](https://github.com/msapgroup/Godseye/releases/tag/
 
 **Keep the server and agent in sync:** Use the full application ZIP from the release to install or upgrade the server (`sudo ./install.sh` or `sudo ./install.sh --upgrade`). Then run the current **Agent 2.4.5 Setup** on Windows computers. Setup replaces existing 2.4.5 and mismatched 2.5.x installations in place. Valid enrollment skips token entry; missing or damaged settings open the connection page. The server shows the actual last-reported endpoint version until its next heartbeat.
 
+![Windows Agents: current 2.4.5 installer and reported endpoint versions](docs/screenshots/v431-windows-agent-245.png)
+
 **Choose EDR during setup:** Run **GODSEYE-Windows-Agent-x64-Setup-2.4.5.exe**, click **Next** on Welcome, and choose **Install Godseye EDR scanner (YARA-X)** or **Agent only (skip Godseye EDR scanner)**. This choice appears before enrollment on both new and previously enrolled computers. A direct MSI install does not show this screen. The Windows build checks the actual Setup.exe screens for both cases and saves screenshots in its **GODSEYE-Agent-2.4.5-Setup-EDR-screens** artifact.
 
 ![Agent 2.4.5 Setup: choose optional Godseye EDR or Agent only](docs/screenshots/agent-245-setup-edr.png)

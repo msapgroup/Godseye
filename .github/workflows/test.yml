@@ -22,3 +22,5 @@ jobs:
           tests/test_v431_agent_ticket_and_remote_storage.py
           tests/test_cyber_tools_v431.py
           tests/test_godseye_edr.py
+          tests/test_windows_agent_self_update.py
+          tests/test_v431_agent_package_status.py
