@@ -124,7 +124,7 @@ begin
   Result := True;
   if ((not ExistingConfig) or (ConnectionPage.SelectedValueIndex = 1)) and (CurPageID = ConfigPage.ID) then
   begin
-    if Trim(ConfigPage.Values[0]) = '' then
+    if (Trim(ConfigPage.Values[0]) = '') or (Lowercase(Trim(ConfigPage.Values[0])) = 'https://') or (Lowercase(Trim(ConfigPage.Values[0])) = 'http://') then
     begin
       MsgBox('Enter the GODSEYE server URL.', mbError, MB_OK);
       Result := False;

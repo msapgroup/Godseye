@@ -205,7 +205,9 @@ namespace Godseye.WindowsAgent
                 else if (a.Equals("--skip-tls-verify", StringComparison.OrdinalIgnoreCase) && i + 1 < args.Length) cfg.SkipTlsVerify = Boolean.Parse(args[++i]);
             }
 
-            if (String.IsNullOrWhiteSpace(cfg.ServerUrl)) throw new Exception("ServerUrl is required for first-time configuration.");
+            if (!Uri.TryCreate(cfg.ServerUrl, UriKind.Absolute, out Uri serverUri) ||
+                (serverUri.Scheme != Uri.UriSchemeHttp && serverUri.Scheme != Uri.UriSchemeHttps) || String.IsNullOrWhiteSpace(serverUri.Host))
+                throw new Exception("Enter a complete GODSEYE server URL including its hostname or IP address and the correct port.");
             bool usableKey = false;
             try { usableKey = !String.IsNullOrWhiteSpace(ReadApiKey()); } catch (CryptographicException) { }
             if (!usableKey && String.IsNullOrWhiteSpace(cfg.EnrollmentToken)) throw new Exception("EnrollmentToken is required when no usable enrollment key exists.");
