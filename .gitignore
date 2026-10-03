@@ -9,3 +9,6 @@ data/
 .env
 .env.*
 !*.env.example
+windows/agent-x64/**/bin/
+windows/agent-x64/**/obj/
+windows/agent-x64/publish/

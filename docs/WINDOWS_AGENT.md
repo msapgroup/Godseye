@@ -1,19 +1,17 @@
-# GODSEYE Windows Agent 2.5.2
+# GODSEYE Windows Agent 2.4.5 integrated
 
-Agent **2.4.5** is the last verified working baseline for user-approved Remote Access. [Download the 2.4.5 installer](https://github.com/msapgroup/Godseye/releases/tag/v4.31.0-agent-2.4.5) for Remote Access endpoints. Agent 2.5.2 adds optional EDR capabilities and a tray startup change, but the release pipeline did not exercise an interactive Windows desktop and Remote Access session. Do not treat its installer smoke tests as proof of live Remote Access.
-
-The following 2.5.2 setup notes describe the newer package. Its EDR commands require a 2.5.x agent.
+The [GODSEYE Agent 2.4.5 release](https://github.com/msapgroup/Godseye/releases/tag/v4.31.0-agent-2.4.5) is the single current download. This build combines user-approved Remote Access, Cyber Tools endpoint commands, and optional EDR scanning. Its source is in `windows/agent-x64`; no legacy agent is included in the full app ZIP. The original 2.4.5 Remote Access path is retained, but validate the integrated build on a signed-in Windows desktop before broad deployment.
 
 ## Install and enroll
 
 1. In GODSEYE, open **Event Findings → Windows Agents**.
 2. Select **Create Enrollment Token**. The token is one-time use and normally expires after 30 minutes.
-3. For the verified Remote Access baseline, download the 2.4.5 Setup EXE from the linked release above. The in-app download can serve the newer package installed on the GODSEYE server, so check its version before installing.
+3. Download the 2.4.5 Setup EXE from GODSEYE or the linked release above.
 4. Run `GODSEYE-Windows-Agent-x64-Setup.exe` as Administrator on the Windows computer.
 5. Enter the GODSEYE server URL and the one-time enrollment token.
 6. Keep TLS verification enabled for production. The installer can allow a lab-only self-signed setup when explicitly selected.
 
-The v4.31 guided Setup EXE installs and registers the service directly. The Windows-native release pipeline additionally builds the MSI used for authenticated in-product agent self-update. Do not queue an update to 2.5.x on a Remote Access endpoint you intend to keep at 2.4.5.
+The v4.31 guided Setup EXE installs and registers the service directly. The Windows-native release pipeline additionally builds the MSI used for authenticated in-product agent self-update. An original 2.4.5 endpoint needs the integrated guided Setup once: the same version number does not trigger the in-app self-update command.
 
 ## Installed locations
 
@@ -43,9 +41,9 @@ If the service is running but the tray icon is missing, look under **Show hidden
 Start-Process 'C:\Program Files\GODSEYE Agent\GODSEYE.Agent.exe' -ArgumentList '--tray'
 ```
 
-Run that command in the signed-in user's PowerShell window, not a service or SYSTEM prompt. The tray should appear for that user and Remote Access should reach the approval prompt. The MSI registers a Windows sign-in startup entry for future sessions. If the tray still does not start, check `C:\ProgramData\GODSEYE\Agent\agent.log` for “Could not launch tray helper” or “Could not obtain the signed-in user's tray token.”
+Run that command in the signed-in user's PowerShell window, not a service or SYSTEM prompt. The tray should appear for that user and Remote Access should reach the approval prompt. The integrated MSI registers a Windows sign-in startup entry for future sessions. If the tray still does not start, check `C:\ProgramData\GODSEYE\Agent\agent.log` for “Could not launch tray helper” or “Could not obtain the signed-in user's tray token.”
 
-For the original 2.4.5 package, [start-tray-2.4.5.ps1](../windows/agent-x64/start-tray-2.4.5.ps1) checks the installed file version, starts the tray in your signed-in session, and adds a startup entry for your Windows account without changing the service binary. If you already installed a newer version, uninstall **GODSEYE Windows Agent** in Windows Settings before installing 2.4.5; Windows Installer blocks a direct downgrade. Keep `C:\ProgramData\GODSEYE\Agent\` intact so enrollment and bookmarks remain available.
+For a 2.4.5 package with a running service but a missing tray, [start-tray-2.4.5.ps1](../windows/agent-x64/start-tray-2.4.5.ps1) checks the installed file version, starts the tray in your signed-in session, and adds a startup entry for your Windows account without changing the service binary. If you already installed 2.5.x, uninstall **GODSEYE Windows Agent** in Windows Settings before installing integrated 2.4.5; Windows Installer blocks a direct downgrade. Keep `C:\ProgramData\GODSEYE\Agent\` intact so enrollment and bookmarks remain available.
 
 ## Remote Access state flow
 
@@ -67,7 +65,7 @@ The agent reads configured Windows Event Log channels locally and selects Critic
 
 ## Upgrades
 
-Existing Agent 2.1+ installations can use GODSEYE's authenticated Agent update command after the validated 2.5.2 MSI has been installed on the server. The service downloads only GODSEYE's fixed MSI endpoint, verifies the advertised SHA-256, and invokes Windows Installer. The update payload cannot provide an arbitrary URL or command.
+Existing Agent 2.1+ installations can use GODSEYE's authenticated Agent update command after the validated integrated 2.4.5 MSI has been installed on the server. The service downloads only GODSEYE's fixed MSI endpoint, verifies the advertised SHA-256, and invokes Windows Installer. The update payload cannot provide an arbitrary URL or command.
 
 The guided Setup EXE detects an existing `agent.json` and skips enrollment pages. Existing enrollment, API key, configuration, bookmarks and pending queues are preserved.
 

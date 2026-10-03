@@ -81,8 +81,8 @@ def seed() -> None:
             ("Demo Design PC", False, []),
         ], 1):
             ts = iso(idx)
-            agent_id = c.execute("""INSERT INTO windows_agents(agent_uuid,api_key_hash,computer_name,agent_version,enrolled_at,updated_at,last_heartbeat_at)
-                VALUES(?,?,?,?,?,?,?)""", (f"demo-edr-{idx}", token_hash(f"demo-edr-key-{idx}"), name, "2.5.1", ts, ts, ts)).lastrowid
+            agent_id = c.execute("""INSERT INTO windows_agents(agent_uuid,api_key_hash,computer_name,agent_version,enrolled_at,updated_at,last_heartbeat_at,edr_capable)
+                VALUES(?,?,?,?,?,?,?,1)""", (f"demo-edr-{idx}", token_hash(f"demo-edr-key-{idx}"), name, "2.4.5", ts, ts, ts)).lastrowid
             c.execute("INSERT INTO edr_policies(agent_id,enabled,updated_at,updated_by) VALUES(?,1,?,'screenshot-seed')", (agent_id, ts))
             details = json.dumps({"AntivirusEnabled": True, "AMRunningMode": "Normal" if active else "SxS Passive Mode",
                 "RealTimeProtectionEnabled": active, "SignatureLastUpdated": ts, "RecentDetections": detections})
