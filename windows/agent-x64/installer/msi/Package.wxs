@@ -9,8 +9,7 @@
 
     <MajorUpgrade
         Schedule="afterInstallInitialize"
-        AllowSameVersionUpgrades="yes"
-        DowngradeErrorMessage="A newer version of GODSEYE Windows Agent is already installed." />
+        AllowDowngrades="yes" />
 
     <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
 

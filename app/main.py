@@ -3814,7 +3814,10 @@ def _windows_agent_update_manifest():
     from .windows_agent import load_update_manifest
     path=BASE_DIR / "windows" / "agent-x64" / "update-manifest.json"
     try:
-        return load_update_manifest(path)
+        manifest=load_update_manifest(path)
+        if manifest["version"] != "2.4.5":
+            raise ValueError("Retired Windows Agent manifest; use the current 2.4.5 release")
+        return manifest
     except (OSError, ValueError, json.JSONDecodeError):
         # Release packages are stored as GitHub Release assets rather than in
         # the server repository. Keep managed updates available on fresh
@@ -3852,7 +3855,9 @@ def windows_agent_upgrade(agent_id: int, request: Request, user=Depends(require_
         if not agent: raise HTTPException(404,"Windows Agent not found")
         if not agent["enabled"] or agent["revoked_at"]: raise HTTPException(409,"Windows Agent is disabled or revoked")
         installed=agent["agent_version"] or "0.0.0"
-        if _agent_version_tuple(installed) >= _agent_version_tuple(target):
+        if _agent_version_tuple(installed) > _agent_version_tuple(target):
+            return {"ok":True,"queued":False,"repair_required":True,"installed_version":installed,"available_version":target,"message":f"Run the current Agent {target} Setup on this computer to replace the mismatched version in place; enrollment is preserved."}
+        if _agent_version_tuple(installed) == _agent_version_tuple(target):
             return {"ok":True,"queued":False,"update_available":False,"installed_version":installed,"available_version":target,"message":"This Windows Agent is already up to date."}
         if _agent_version_tuple(installed) < (2,1,0):
             raise HTTPException(409,f"Windows Agent {installed} requires one manual upgrade to 2.1.0 or newer before self-update is available. Download and run the current x64 installer once; enrollment is preserved.")
@@ -4087,6 +4092,7 @@ def windows_agent_list(user=Depends(get_current_user)):
             d["upgrade_supported"]=_agent_version_tuple(installed_version) >= (2,1,0)
             d["remote_supported"]=_agent_version_tuple(installed_version) >= (2,4,0)
             d["available_version"]=update_manifest["version"] if update_manifest else None
+            d["repair_required"]=bool(update_manifest and _agent_version_tuple(installed_version) > _agent_version_tuple(update_manifest["version"]))
             d["update_available"]=bool(update_manifest and _agent_version_tuple(installed_version) < _agent_version_tuple(update_manifest["version"]))
             if pull:
                 d["last_pull_status"]=pull["status"]; d["last_pull_requested_at"]=pull["requested_at"]; d["last_pull_completed_at"]=pull["completed_at"]
@@ -4131,7 +4137,7 @@ def _expire_stale_remote_session(c, row):
     if row["status"]=="active":
         error="Remote screen frames stopped arriving. Start a new remote session."
     elif row["status"] in {"approved","capture_started"}:
-        error="Remote screen capture did not start after approval. Start a new session; Agent 2.4.4 fixes writable frame storage."
+        error="Remote screen capture did not start after approval. Start a new session; Agent 2.4.5 fixes writable frame storage."
     else:
         error=f"Remote session timed out while {row['status'].replace('_',' ')}. Start a new remote session."
     ts=now()
@@ -4435,22 +4441,24 @@ def windows_agent_msi_package(agent=Depends(_agent_auth)):
 
 @app.get(f"{router_prefix}/windows-agents/package")
 def windows_agent_package(user=Depends(require_admin)):
-    try: version=_windows_agent_update_manifest()["version"]
-    except HTTPException: version="2.4.5"
+    from .windows_agent import verified_setup_path
+    version="2.4.5"
     versioned_name=f"GODSEYE-Windows-Agent-x64-Setup-{version}.exe"
-    path=BASE_DIR / "windows" / "agent-x64" / versioned_name
-    if path.is_file():
+    path=verified_setup_path(BASE_DIR / "windows" / "agent-x64",version)
+    if path is not None:
         return FileResponse(path,media_type="application/vnd.microsoft.portable-executable",filename=versioned_name,headers={"Cache-Control":"no-store","X-GODSEYE-Agent-Version":version})
     return RedirectResponse(f"https://github.com/msapgroup/Godseye/releases/download/v4.31.0-agent-2.4.5/{versioned_name}",status_code=302,headers={"Cache-Control":"no-store","X-GODSEYE-Agent-Version":version})
 
 
 @app.get(f"{router_prefix}/windows-agents/package-status")
 def windows_agent_package_status(user=Depends(require_admin)):
-    try: manifest=_windows_agent_update_manifest()
-    except HTTPException: manifest={"version":"2.4.5"}
-    version=manifest["version"]
-    setup=BASE_DIR / "windows" / "agent-x64" / f"GODSEYE-Windows-Agent-x64-Setup-{version}.exe"
-    return {"available":True,"msi_available":(BASE_DIR / "windows" / "agent-x64" / "GODSEYE-Windows-Agent-x64.msi").is_file(),
+    from .windows_agent import load_update_manifest
+    version="2.4.5"
+    try:
+        local_msi=load_update_manifest(BASE_DIR / "windows" / "agent-x64" / "update-manifest.json")["version"] == version
+    except (OSError, ValueError, TypeError):
+        local_msi=False
+    return {"available":True,"msi_available":local_msi,
             "version":version,"status":"ready","message":f"Windows Agent {version} installer is available from the validated package or GitHub Release."}
 
 
@@ -8604,12 +8612,14 @@ function renderWindowsAgents(){
  const root=document.getElementById('windowsAgentList');if(!root)return;
  root.innerHTML=WINDOWS_AGENTS.length?WINDOWS_AGENTS.map(x=>{
    const pull=x.last_pull_status&&x.last_pull_status!=='never'?` · Pull: ${esc(x.last_pull_status)}${x.last_pull_completed_at?' '+esc(new Date(x.last_pull_completed_at).toLocaleTimeString()):''}`:'';
-   const pullBtn=x.revoked_at?'':(x.pull_now_supported?`<button class="primary operate-only" onclick="pullWindowsAgentNow(${x.id})">⟳ Pull Events Now</button>`:`<button class="secondary" disabled title="Install the permanent x64 agent (v2.0.0 or newer)">Update Agent for Pull Now</button>`);
+   const pullBtn=x.revoked_at?'':(x.pull_now_supported?`<button class="primary operate-only" onclick="pullWindowsAgentNow(${x.id})">⟳ Pull Events Now</button>`:`<button class="secondary" disabled title="Install the current Windows Agent 2.4.5">Update Agent for Pull Now</button>`);
    let updateBtn='';
-   if(!x.revoked_at&&x.update_available){
+   if(!x.revoked_at&&x.repair_required){
+     updateBtn=`<button class="primary admin-only" onclick="downloadWindowsAgentPackage()">↓ Install current ${esc(x.available_version)}</button>`;
+   }else if(!x.revoked_at&&x.update_available){
      updateBtn=x.upgrade_supported?`<button class="primary admin-only" onclick="upgradeWindowsAgent(${x.id})">↑ Upgrade to ${esc(x.available_version)}</button>`:`<button class="secondary admin-only" onclick="downloadWindowsAgentPackage()" title="Agent 2.0.x needs one manual baseline upgrade; enrollment is preserved.">↓ Manual Update to ${esc(x.available_version)}</button>`;
    }else if(!x.revoked_at&&x.available_version){updateBtn=`<button class="secondary" disabled>✓ Up to date</button>`}
-   const updateText=x.available_version?(x.update_available?` · Update available: ${esc(x.available_version)}${x.upgrade_supported?'':' (one manual baseline update required)'}`:` · Latest: ${esc(x.available_version)}`):'';
+   const updateText=x.repair_required?` · Version mismatch: run current ${esc(x.available_version)} Setup on this computer`:x.available_version?(x.update_available?` · Update available: ${esc(x.available_version)}${x.upgrade_supported?'':' (one manual baseline update required)'}`:` · Latest: ${esc(x.available_version)}`):'';
    return `<div class="windows-agent-row"><span class="windows-agent-icon">W</span><div><b>${esc(x.computer_name||x.hostname||'Windows Agent')}</b><small><span class="agent-status ${esc(x.status||'enrolled')}"><span class="agent-status-dot"></span>${esc(x.status||'enrolled')}</span> · ${esc(x.ip_address||'no IP')} · ${esc(x.os_version||'Windows')} · Agent ${esc(x.agent_version||'—')} · ${x.open_findings||0} open finding(s)${updateText}</small><small>Last heartbeat: ${x.last_heartbeat_at?esc(new Date(x.last_heartbeat_at).toLocaleString()):'never'} · Channels: ${(x.channels||[]).map(esc).join(', ')} · every ${x.poll_interval_seconds||60}s${pull}${x.last_error?' · '+esc(x.last_error):''}</small></div><div class="actions"><button class="secondary operate-only" onclick="scanMicrosoftWindowsUpdates(${x.id})">Scan Microsoft Updates</button>${updateBtn}${pullBtn}${x.revoked_at?`<button class="danger admin-only" onclick="purgeWindowsAgent(${x.id})">Remove Permanently</button>`:`<button class="secondary admin-only" onclick="configureWindowsAgent(${x.id})">Configure</button><button class="danger admin-only" onclick="revokeWindowsAgent(${x.id})">Revoke</button>`}</div></div>`
  }).join(''):'<div class="empty">No Windows Agents enrolled.</div>';
  applyRoleVisibility();
@@ -8652,7 +8662,7 @@ async function createWindowsAgentEnrollment(){
  try{
    const r=await json('/api/v1/windows-agents/enrollment-tokens',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({label:label.trim()||'Windows Agent',expires_minutes:30})});
    windowsAgentEnrollment.style.display='grid';windowsAgentEnrollmentToken.textContent=r.enrollment_token;windowsAgentEnrollmentExpiry.textContent='Expires '+new Date(r.expires_at).toLocaleString();
-   windowsAgentInstallCommand.textContent=`1. Click Download x64 Installer above.\n2. Run GODSEYE-Windows-Agent-x64-Setup.exe as Administrator.\n3. GODSEYE URL: ${location.origin}\n4. Paste the one-time token shown above.\n\nExisting enrolled agents can run newer Setup versions without a new token.`;
+   windowsAgentInstallCommand.textContent=`1. Click Download x64 Installer above.\n2. Run GODSEYE-Windows-Agent-x64-Setup-2.4.5.exe as Administrator.\n3. GODSEYE URL: ${location.origin}\n4. Paste the one-time token shown above.\n\nExisting enrolled agents can run newer Setup versions without a new token.`;
  }catch(e){alert('Could not create enrollment token: '+e.message)}
 }
 function copyAgentEnrollmentToken(){const value=windowsAgentEnrollmentToken.textContent||'';if(!value)return;navigator.clipboard?.writeText(value).then(()=>alert('Enrollment token copied.')).catch(()=>prompt('Copy this enrollment token:',value))}
@@ -8661,7 +8671,7 @@ async function loadWindowsAgentPackageStatus(){
  try{
   const info=await json('/api/v1/windows-agents/package-status');
   if(note)note.textContent=info.message||'';
-  if(button){button.disabled=!info.available;button.textContent=info.available?'↓ Download Agent '+info.version:'Installer '+info.version+' Build Pending';button.title=info.available?'Download the signed x64 installer':info.message}
+  if(button){button.disabled=!info.available;button.textContent=info.available?'↓ Download Agent '+info.version:'Installer '+info.version+' Build Pending';button.title=info.available?'Download the verified x64 installer':info.message}
  }catch(e){if(note)note.textContent='Could not check installer availability: '+e.message;if(button)button.disabled=true}
 }
 async function downloadWindowsAgentPackage(){
@@ -10054,7 +10064,7 @@ function renderRemoteAgents(){
  const rows=REMOTE_AGENTS.filter(a=>!q||String(a.computer_name||'').toLowerCase().includes(q)||String(a.hostname||'').toLowerCase().includes(q)||String(a.ip_address||'').toLowerCase().includes(q));
  const online=REMOTE_AGENTS.filter(a=>a.status==='online').length;
  const set=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v};set('remoteOnlineCount',online);set('remoteOfflineCount',Math.max(0,REMOTE_AGENTS.length-online));set('remoteTotalCount',REMOTE_AGENTS.length);
- root.innerHTML=rows.length?rows.map(a=>{const on=a.status==='online';const supported=!!a.remote_supported;let action='';if(on&&supported)action=`<button class="primary remote-connect" type="button" onclick="startRemoteSession(${a.id})">Connect</button>`;else if(!supported)action=`<button class="secondary remote-connect" type="button" disabled title="Upgrade to Agent 2.4.4">Upgrade Agent</button>`;else action=`<button class="secondary remote-connect" type="button" disabled>Offline</button>`;if(a.revoked_at||a.status==='revoked')action=`<button class="danger admin-only" type="button" onclick="purgeWindowsAgent(${a.id})">Remove</button>`;return `<div class="remote-agent-row"><div class="remote-agent-main"><div class="remote-agent-name"><span class="remote-dot ${on?'online':'offline'}"></span>${esc(a.computer_name||a.hostname||('Agent '+a.id))}</div><div class="remote-agent-sub">${esc(a.ip_address||'No IP')} · Agent ${esc(a.agent_version||'unknown')} · ${esc(a.os_version||'Windows')}</div></div>${action}</div>`}).join(''):`<div class="empty">No matching Windows Agents.</div>`;
+ root.innerHTML=rows.length?rows.map(a=>{const on=a.status==='online';const supported=!!a.remote_supported;let action='';if(on&&supported)action=`<button class="primary remote-connect" type="button" onclick="startRemoteSession(${a.id})">Connect</button>`;else if(!supported)action=`<button class="secondary remote-connect" type="button" disabled title="Upgrade to Agent 2.4.5">Upgrade Agent</button>`;else action=`<button class="secondary remote-connect" type="button" disabled>Offline</button>`;if(a.revoked_at||a.status==='revoked')action=`<button class="danger admin-only" type="button" onclick="purgeWindowsAgent(${a.id})">Remove</button>`;return `<div class="remote-agent-row"><div class="remote-agent-main"><div class="remote-agent-name"><span class="remote-dot ${on?'online':'offline'}"></span>${esc(a.computer_name||a.hostname||('Agent '+a.id))}</div><div class="remote-agent-sub">${esc(a.ip_address||'No IP')} · Agent ${esc(a.agent_version||'unknown')} · ${esc(a.os_version||'Windows')}</div></div>${action}</div>`}).join(''):`<div class="empty">No matching Windows Agents.</div>`;
 }
 async function startRemoteSession(agentId){
  try{

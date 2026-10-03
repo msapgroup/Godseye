@@ -55,7 +55,7 @@ def load_update_manifest(path: Path) -> dict:
     manifest_path = Path(path)
     data = json.loads(manifest_path.read_text(encoding="utf-8"))
     if str(data.get("status") or "ready").strip().lower() != "ready":
-        raise ValueError("Windows Agent 2.3 package is not built and validated yet")
+        raise ValueError("Windows Agent package is not built and validated yet")
     version = str(data.get("version") or "").strip()
     sha256 = str(data.get("sha256") or "").strip().upper()
     filename = str(data.get("filename") or "").strip()
@@ -73,3 +73,21 @@ def load_update_manifest(path: Path) -> dict:
         raise ValueError("Windows Agent MSI SHA-256 does not match the update manifest")
     return {"version": version, "sha256": sha256, "filename": filename}
 
+
+def verified_setup_path(directory: Path, version: str = "2.4.5") -> Path | None:
+    """Only serve the installer bound to a current, matching build checksum."""
+    directory = Path(directory)
+    try:
+        info = json.loads((directory / "setup-manifest.json").read_text(encoding="utf-8-sig"))
+        name = f"GODSEYE-Windows-Agent-x64-Setup-{version}.exe"
+        if not isinstance(info, dict) or info.get("version") != version or info.get("filename") != name:
+            return None
+        digest = str(info.get("sha256") or "").upper()
+        if not re.fullmatch(r"[0-9A-F]{64}", digest):
+            return None
+        path = directory / name
+        if path.is_file() and hmac.compare_digest(hashlib.sha256(path.read_bytes()).hexdigest().upper(), digest):
+            return path
+    except (OSError, ValueError, TypeError):
+        pass
+    return None

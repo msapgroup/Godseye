@@ -3,7 +3,7 @@ import app.main as main
 import app.windows_agent as windows_agent
 
 
-def manifest(version="2.2.0"):
+def manifest(version="2.4.5"):
     return {"version":version,"filename":"GODSEYE-Windows-Agent-x64.msi","sha256":"A"*64}
 
 
@@ -32,7 +32,7 @@ def test_manifest_loader_rejects_bad_filename_and_hash(tmp_path):
 
 def test_upgrade_queues_only_version_and_hash(tmp_path, monkeypatch):
     db=tmp_path/"upgrade.db";monkeypatch.setattr(main,"DB_PATH",db);main.init_db();monkeypatch.setattr(main,"audit",lambda *a,**k:None)
-    monkeypatch.setattr(windows_agent,"load_update_manifest",lambda path:manifest("2.2.0"))
+    monkeypatch.setattr(windows_agent,"load_update_manifest",lambda path:manifest("2.4.5"))
     with main.db() as c: aid=make_agent(c,"2.1.0")
     out=main.windows_agent_upgrade(aid,req(),admin())
     assert out["queued"] is True
@@ -40,13 +40,13 @@ def test_upgrade_queues_only_version_and_hash(tmp_path, monkeypatch):
         row=c.execute("SELECT * FROM windows_agent_commands WHERE id=?",(out["command_id"],)).fetchone()
         import json
         payload=json.loads(row["payload_json"])
-        assert payload=={"version":"2.2.0","sha256":"A"*64}
+        assert payload=={"version":"2.4.5","sha256":"A"*64}
         assert "url" not in payload and "command" not in payload
 
 
 def test_pre_21_agent_requires_one_manual_baseline_update(tmp_path, monkeypatch):
     db=tmp_path/"baseline.db";monkeypatch.setattr(main,"DB_PATH",db);main.init_db();monkeypatch.setattr(main,"audit",lambda *a,**k:None)
-    monkeypatch.setattr(windows_agent,"load_update_manifest",lambda path:manifest("2.1.0"))
+    monkeypatch.setattr(windows_agent,"load_update_manifest",lambda path:manifest("2.4.5"))
     with main.db() as c: aid=make_agent(c,"2.0.1")
     try: main.windows_agent_upgrade(aid,req(),admin());assert False
     except main.HTTPException as exc:
@@ -80,3 +80,42 @@ def test_update_ui_and_server_routes_present():
     assert 'checkWindowsAgentUpdates' in html
     assert 'upgradeWindowsAgent' in html
     assert 'one manual baseline update required' in html
+
+
+def test_mismatched_newer_agent_requires_current_setup_without_queuing_downgrade(tmp_path, monkeypatch):
+    monkeypatch.setattr(main,"DB_PATH",tmp_path/"mismatch.db")
+    main.init_db()
+    monkeypatch.setattr(main,"_windows_agent_update_manifest",lambda:manifest())
+    with main.db() as c: aid=make_agent(c,"2.5.1")
+    out=main.windows_agent_upgrade(aid,req(),admin())
+    assert out["repair_required"] is True and out["queued"] is False
+    assert out["installed_version"] == "2.5.1" and out["available_version"] == "2.4.5"
+    with main.db() as c:
+        assert c.execute("SELECT COUNT(*) FROM windows_agent_commands WHERE agent_id=?",(aid,)).fetchone()[0] == 0
+
+
+def test_setup_manifest_rejects_old_tampered_and_malformed_packages(tmp_path):
+    import hashlib, json
+    path=tmp_path/"GODSEYE-Windows-Agent-x64-Setup-2.4.5.exe"
+    path.write_bytes(b"current installer")
+    manifest_path=tmp_path/"setup-manifest.json"
+    info={"version":"2.4.5","filename":path.name,"sha256":hashlib.sha256(path.read_bytes()).hexdigest()}
+    manifest_path.write_text(json.dumps(info))
+    assert windows_agent.verified_setup_path(tmp_path) == path
+    path.write_bytes(b"stale installer")
+    assert windows_agent.verified_setup_path(tmp_path) is None
+    info["version"]="2.5.2"
+    manifest_path.write_text(json.dumps(info))
+    assert windows_agent.verified_setup_path(tmp_path) is None
+    manifest_path.write_text("[]")
+    assert windows_agent.verified_setup_path(tmp_path) is None
+
+
+def test_server_rejects_stale_local_update_target(monkeypatch):
+    import time
+    monkeypatch.setattr(windows_agent,"load_update_manifest",lambda path:manifest("2.5.2"))
+    monkeypatch.setattr(main,"_AGENT_RELEASE_DIGEST_CACHE",{"at":time.monotonic(),"asset":{
+        "digest":"sha256:"+"b"*64,"browser_download_url":"https://github.com/msapgroup/Godseye/releases/download/v4.31.0-agent-2.4.5/GODSEYE-Windows-Agent-x64.msi"}})
+    result=main._windows_agent_update_manifest()
+    assert result["version"] == "2.4.5" and result["sha256"] == "B"*64
+    assert main.windows_agent_package_status(admin())["msi_available"] is False

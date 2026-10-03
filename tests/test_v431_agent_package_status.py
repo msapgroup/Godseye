@@ -35,13 +35,14 @@ def test_agent_modal_disables_missing_installer_and_handles_download_errors():
     assert "loadWindowsAgentPackageStatus" in source
     assert "button.disabled=!info.available" in source
     assert "response.ok" in source
-    assert "cache:'no-store'" in source
+    assert "&fresh='+Date.now()" in source
     assert "GODSEYE-Windows-Agent-x64-Setup-2.4.5.exe" in source
 
 
 def test_agent_installer_preserves_existing_enrollment():
     script = Path("windows/agent-x64/installer/GODSEYE-Agent-x64.iss").read_text(encoding="utf-8")
-    assert "ExistingConfig := FileExists(ConfigPath())" in script
+    assert "ExistingConfig := ProbeResult = 0" in script
+    assert "check-enrollment.ps1" in script
     assert "Result := ExistingConfig" in script
     assert "Enrollment token:" in script
     assert "GODSEYE Windows Agent 2.4.5 was installed and verified successfully" in script
@@ -54,6 +55,8 @@ def test_built_agent_installer_is_reported_and_downloaded(tmp_path):
     package_dir.mkdir(parents=True)
     built = package_dir / "GODSEYE-Windows-Agent-x64-Setup-2.4.5.exe"
     built.write_bytes(b"MZ" + b"GODSEYE-AGENT-2.4.5" * 64)
+    import json, hashlib
+    (package_dir / "setup-manifest.json").write_text(json.dumps({"version":"2.4.5","filename":built.name,"sha256":hashlib.sha256(built.read_bytes()).hexdigest()}))
     try:
         main.init_db()
         with TestClient(main.app) as client:

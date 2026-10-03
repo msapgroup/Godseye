@@ -43,7 +43,7 @@ Start-Process 'C:\Program Files\GODSEYE Agent\GODSEYE.Agent.exe' -ArgumentList '
 
 Run that command in the signed-in user's PowerShell window, not a service or SYSTEM prompt. The tray should appear for that user and Remote Access should reach the approval prompt. The integrated MSI registers a Windows sign-in startup entry for future sessions. If the tray still does not start, check `C:\ProgramData\GODSEYE\Agent\agent.log` for “Could not launch tray helper” or “Could not obtain the signed-in user's tray token.”
 
-For a 2.4.5 package with a running service but a missing tray, [start-tray-2.4.5.ps1](../windows/agent-x64/start-tray-2.4.5.ps1) checks the installed file version, starts the tray in your signed-in session, and adds a startup entry for your Windows account without changing the service binary. If you already installed 2.5.x, uninstall **GODSEYE Windows Agent** in Windows Settings before installing integrated 2.4.5; Windows Installer blocks a direct downgrade. Keep `C:\ProgramData\GODSEYE\Agent\` intact so enrollment and bookmarks remain available.
+For a 2.4.5 package with a running service but a missing tray, [start-tray-2.4.5.ps1](../windows/agent-x64/start-tray-2.4.5.ps1) checks the installed file version, starts the tray in your signed-in session, and adds a startup entry for your Windows account without changing the service binary. If you already installed 2.5.x, run the current integrated 2.4.5 Setup directly to replace it in place. Keep `C:\ProgramData\GODSEYE\Agent\` intact so enrollment and bookmarks remain available.
 
 ## Remote Access state flow
 
@@ -80,3 +80,7 @@ Get-Content C:\ProgramData\GODSEYE\Agent\agent.log -Tail 50
 ## Legacy Agent and WinRM
 
 New endpoints should use the current x64 Setup. WinRM remains available when installing an agent is not desired; both sources feed the same Event Findings and Ticket Portal workflows.
+
+### Matching server and agent packages
+
+Update the server using the full application ZIP from the current release, then run the Agent 2.4.5 Setup on affected Windows computers. Updating only the Windows installer does not update an older server UI. The server verifies local installer checksums and rejects stale update manifests. A computer reporting 2.5.x displays **Install current 2.4.5** until the repaired agent sends a new heartbeat; its observed version is never relabeled. Healthy enrollment skips token entry. If connection settings are damaged but the protected key is valid, enter the server URL without a new token. Otherwise enter a current enrollment token.

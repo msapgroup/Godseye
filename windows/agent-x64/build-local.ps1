@@ -89,11 +89,16 @@ if (-not (Test-Path $Iscc)) {
 Write-Host 'Building guided Setup EXE...' -ForegroundColor Cyan
 & $Iscc (Join-Path $Root 'installer\GODSEYE-Agent-x64.iss')
 if ($LASTEXITCODE -ne 0) { throw 'Inno Setup build failed.' }
-$BuiltSetup = Join-Path $Root 'installer\output\GODSEYE-Windows-Agent-x64-Setup.exe'
+$VersionedName = 'GODSEYE-Windows-Agent-x64-Setup-2.4.5.exe'
+$BuiltSetup = Join-Path $Root ('installer\output\' + $VersionedName)
 if (-not (Test-Path $BuiltSetup)) { throw 'Guided Setup EXE was not created.' }
 Copy-Item $BuiltSetup $SetupOut -Force
+Copy-Item $BuiltSetup (Join-Path $Root $VersionedName) -Force
 $SetupHash = (Get-FileHash $SetupOut -Algorithm SHA256).Hash.ToLowerInvariant()
 Set-Content -Path "$SetupOut.sha256" -Value "$SetupHash  GODSEYE-Windows-Agent-x64-Setup.exe" -Encoding ascii
+Set-Content -Path (Join-Path $Root ($VersionedName + '.sha256')) -Value $SetupHash -Encoding ascii
+@{version=$AgentVersion; filename=$VersionedName; sha256=$SetupHash} | ConvertTo-Json |
+  Set-Content -Path (Join-Path $Root 'setup-manifest.json') -Encoding utf8
 
 $readyManifest = [ordered]@{
   status = 'ready'

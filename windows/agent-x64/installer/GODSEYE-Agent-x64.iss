@@ -26,6 +26,7 @@ Uninstallable=no
 
 [Files]
 Source: "..\{#MyMsiName}"; Flags: dontcopy
+Source: "check-enrollment.ps1"; Flags: dontcopy
 
 [Run]
 ; The MSI owns the service and sign-in startup. Launch the tray now in the
@@ -38,6 +39,7 @@ var
   TlsPage: TInputOptionWizardPage;
   EdrPage: TInputOptionWizardPage;
   ExistingConfig: Boolean;
+  ExistingKey: Boolean;
 
 function DataDir(): String;
 begin
@@ -54,40 +56,19 @@ begin
   Result := ExpandConstant('{autopf64}\GODSEYE Agent\{#MyAppExeName}');
 end;
 
-function NewerThan245(Version: String): Boolean;
-var
-  Part, I, DotPos: Integer;
-  Expected: array[0..2] of Integer;
-begin
-  Result := False;
-  Expected[0] := 2; Expected[1] := 4; Expected[2] := 5;
-  for I := 0 to 2 do
-  begin
-    DotPos := Pos('.', Version);
-    if DotPos = 0 then DotPos := Length(Version) + 1;
-    Part := StrToIntDef(Copy(Version, 1, DotPos - 1), 0);
-    if Part > Expected[I] then begin Result := True; exit; end;
-    if Part < Expected[I] then exit;
-    Delete(Version, 1, DotPos);
-  end;
-end;
-
-function InitializeSetup(): Boolean;
-var
-  InstalledVersion: String;
-begin
-  Result := True;
-  if GetVersionNumbersString(AgentExePath(), InstalledVersion) and NewerThan245(InstalledVersion) then
-  begin
-    MsgBox('GODSEYE Agent ' + InstalledVersion + ' is already installed. Windows Installer blocks replacing a newer version with 2.4.5.' + #13#10 + #13#10 +
-      'Uninstall GODSEYE Windows Agent in Windows Settings > Apps, then run this Setup again. Your enrollment and agent state in ProgramData are preserved. Do not delete that folder.', mbError, MB_OK);
-    Result := False;
-  end;
-end;
-
 procedure InitializeWizard;
+var
+  ProbeResult: Integer;
 begin
-  ExistingConfig := FileExists(ConfigPath());
+  ExtractTemporaryFile('check-enrollment.ps1');
+  if not Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
+    '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + ExpandConstant('{tmp}\check-enrollment.ps1') + '"',
+    '', SW_HIDE, ewWaitUntilTerminated, ProbeResult) then
+    RaiseException('Could not check the existing GODSEYE enrollment. Setup did not change it.');
+  if (ProbeResult <> 0) and (ProbeResult <> 10) and (ProbeResult <> 11) then
+    RaiseException('GODSEYE enrollment check failed. Setup did not change the existing connection.');
+  ExistingConfig := ProbeResult = 0;
+  ExistingKey := (ProbeResult = 0) or (ProbeResult = 10);
 
   { Always show the component choice first, including enrolled upgrades.
     Two radio choices make skipping EDR explicit and reversible. }
@@ -105,7 +86,7 @@ begin
   ConfigPage := CreateInputQueryPage(EdrPage.ID,
     'Connect to GODSEYE',
     'Enroll this Windows computer with GODSEYE',
-    'Enter the GODSEYE server URL and a one-time Windows Agent enrollment token. Existing installations keep their current enrollment automatically.');
+    'Enter the GODSEYE server URL and enrollment token. Usable existing settings are kept automatically. If an existing enrollment key was found, the token may be left blank to keep that enrollment.');
   ConfigPage.Add('GODSEYE URL:', False);
   ConfigPage.Add('Enrollment token:', True);
   ConfigPage.Values[0] := 'https://';
@@ -154,7 +135,7 @@ begin
       end;
     end;
 
-    if Trim(ConfigPage.Values[1]) = '' then
+    if (not ExistingKey) and (Trim(ConfigPage.Values[1]) = '') then
     begin
       MsgBox('Enter a one-time Windows Agent enrollment token from GODSEYE.', mbError, MB_OK);
       Result := False;
@@ -184,6 +165,15 @@ begin
     and uninstall. This bootstrapper only supplies first-install enrollment UI. }
   ForceDirectories(DataDir());
   InstallLog := DataDir() + '\setup-msi.log';
+  { A running old tray can keep the old executable loaded after file replacement.
+    Stop the service normally first so its recovery policy cannot relaunch it. }
+  if RegKeyExists(HKLM, 'SYSTEM\CurrentControlSet\Services\GODSEYEWindowsAgent') then
+  begin
+    if not Exec(ExpandConstant('{sys}\net.exe'), 'stop GODSEYEWindowsAgent /y', '', SW_HIDE, ewWaitUntilTerminated, ServiceResultCode) or
+      ((ServiceResultCode <> 0) and (ServiceResultCode <> 2)) then
+      RaiseException('Could not stop the existing GODSEYE service for upgrade. Existing enrollment was preserved.');
+  end;
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/IM GODSEYE.Agent.exe /T /F', '', SW_HIDE, ewWaitUntilTerminated, ServiceResultCode);
   Params := '/i "' + MsiPath + '" /qn /norestart /l*v "' + InstallLog + '"';
   if EdrPage.SelectedValueIndex = 0 then
     Params := Params + ' ADDLOCAL=MainFeature,EdrFeature'
@@ -191,9 +181,12 @@ begin
     Params := Params + ' ADDLOCAL=MainFeature REMOVE=EdrFeature';
   if not Exec(ExpandConstant('{sys}\msiexec.exe'), Params, '', SW_SHOW, ewWaitUntilTerminated, MsiResultCode) or
      ((MsiResultCode <> 0) and (MsiResultCode <> 3010)) then
+  begin
+    Exec(ExpandConstant('{sys}\net.exe'), 'start GODSEYEWindowsAgent', '', SW_HIDE, ewWaitUntilTerminated, ServiceResultCode);
     RaiseException('Windows Installer could not install GODSEYE Windows Agent. msiexec exit code: ' + IntToStr(MsiResultCode) + #13#10 +
       'Details were saved to: ' + InstallLog + #13#10 +
       'If Windows requests a restart, restart before trying again. Send setup-msi.log to your administrator to diagnose the failure.');
+  end;
 
   if not ExistingConfig then
   begin
@@ -205,7 +198,7 @@ begin
       enrollment configuration, then restart it so enrollment happens immediately. }
     Exec(ExpandConstant('{sys}\net.exe'), 'stop GODSEYEWindowsAgent /y', '', SW_HIDE, ewWaitUntilTerminated, ServiceResultCode);
 
-    Params := '--configure --server-url "' + Trim(ConfigPage.Values[0]) + '" --enrollment-token "' + Trim(ConfigPage.Values[1]) + '" --skip-tls-verify ';
+    Params := '--configure --repair-config --server-url "' + Trim(ConfigPage.Values[0]) + '" --enrollment-token "' + Trim(ConfigPage.Values[1]) + '" --skip-tls-verify ';
     if TlsPage.SelectedValueIndex = 0 then
       Params := Params + 'false'
     else
@@ -214,12 +207,18 @@ begin
     if not Exec(ExePath, Params, '', SW_HIDE, ewWaitUntilTerminated, ResultCode) or (ResultCode <> 0) then
       RaiseException('The Windows Agent MSI installed successfully, but first-time GODSEYE configuration failed. Agent exit code: ' + IntToStr(ResultCode));
 
-    if not Exec(ExpandConstant('{sys}\net.exe'), 'start GODSEYEWindowsAgent', '', SW_HIDE, ewWaitUntilTerminated, ServiceResultCode) or (ServiceResultCode <> 0) then
-      RaiseException('GODSEYE Windows Agent was configured, but the service could not be restarted. Windows service exit code: ' + IntToStr(ServiceResultCode));
   end;
 
+  { Re-running the same MSI may be maintenance rather than a file upgrade.
+    Explicitly restart and verify the service in either case. }
+  Exec(ExpandConstant('{sys}\net.exe'), 'start GODSEYEWindowsAgent', '', SW_HIDE, ewWaitUntilTerminated, ServiceResultCode);
+  if not Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
+    '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + ExpandConstant('{tmp}\check-enrollment.ps1') + '" -CheckServiceRunning',
+    '', SW_HIDE, ewWaitUntilTerminated, ServiceResultCode) or (ServiceResultCode <> 0) then
+    RaiseException('GODSEYE Windows Agent files were installed, but the service is not running. Check agent.log and setup-msi.log in ' + DataDir());
+
   if MsiResultCode = 3010 then
-    MsgBox('GODSEYE Windows Agent was installed successfully. Windows requested a restart to complete installation.', mbInformation, MB_OK);
+    SuppressibleMsgBox('GODSEYE Windows Agent was installed successfully. Windows requested a restart to complete installation.', mbInformation, MB_OK, IDOK);
 
   ExePath := AgentExePath();
   if not GetVersionNumbersString(ExePath, InstalledVersion) then
@@ -228,5 +227,5 @@ begin
     RaiseException('The installer expected GODSEYE Windows Agent 2.4.5, but Windows reports version ' + InstalledVersion + '.');
 
   if MsiResultCode <> 3010 then
-    MsgBox('GODSEYE Windows Agent 2.4.5 was installed and verified successfully.', mbInformation, MB_OK);
+    SuppressibleMsgBox('GODSEYE Windows Agent 2.4.5 was installed and verified successfully.', mbInformation, MB_OK, IDOK);
 end;
