@@ -144,7 +144,7 @@ namespace Godseye.WindowsAgent
                 {
                     var pong = RemoteHelperRequest("GODSEYE-Tray-" + Process.GetCurrentProcess().SessionId,
                         new Dictionary<string,object>{{"kind","ping"}}, 1000);
-                    Environment.ExitCode = pong != null && pong.ContainsKey("ok") && Convert.ToBoolean(pong["ok"]) ? 0 : 3;
+                    Environment.ExitCode = pong != null && pong.ContainsKey("ok") && Convert.ToBoolean(pong["ok"]) && pong.ContainsKey("version") && Convert.ToString(pong["version"]) == AgentVersion ? 0 : 3;
                 }
                 catch { Environment.ExitCode = 3; }
                 return;
@@ -554,7 +554,7 @@ namespace Godseye.WindowsAgent
                 {
                     var pong = RemoteHelperRequest("GODSEYE-Tray-" + sessionId,
                         new Dictionary<string,object>{{"kind","ping"}}, 300);
-                    if (pong != null && pong.ContainsKey("ok") && Convert.ToBoolean(pong["ok"])) return;
+                    if (pong != null && pong.ContainsKey("ok") && Convert.ToBoolean(pong["ok"]) && pong.ContainsKey("version") && Convert.ToString(pong["version"]) == AgentVersion) return;
                 }
                 catch { }
                 if (trayHelperProcessId > 0)
@@ -719,7 +719,7 @@ namespace Godseye.WindowsAgent
         internal static Dictionary<string, object> HandleRemoteHelperRequest(Dictionary<string, object> request)
         {
             string kind = request != null && request.ContainsKey("kind") ? Convert.ToString(request["kind"]) : "";
-            if (String.Equals(kind,"ping",StringComparison.OrdinalIgnoreCase)) return new Dictionary<string,object>{{"ok",true},{"ready",true}};
+            if (String.Equals(kind,"ping",StringComparison.OrdinalIgnoreCase)) return new Dictionary<string,object>{{"ok",true},{"ready",true},{"version",AgentVersion}};
             if (String.Equals(kind,"ticket-peek",StringComparison.OrdinalIgnoreCase)) return TrayApp.PeekPendingTicket();
             if (String.Equals(kind,"ticket-result",StringComparison.OrdinalIgnoreCase))
             {
