@@ -86,6 +86,12 @@ async def main():
                 await page.fill('#crmContactEditor [name=phone]', '(555) 010-2200')
                 await page.get_by_role('button', name='Save contact').click()
                 await page.locator('#crmRecord .crm-contact-card').first.wait_for()
+            if view == "cyber-tools":
+                await page.locator('[data-cyber-run="endpoint_posture"]').click()
+                await page.locator('#cyber-result-endpoint_posture.cyber-report').wait_for()
+                assert await page.locator('#cyber-result-endpoint_posture .cyber-report-metric').count() == 3
+                await page.locator('#cyber-result-endpoint_posture').scroll_into_view_if_needed()
+                await page.locator('#cyber-result-endpoint_posture').locator('xpath=..').screenshot(path=str(OUT / "v431-endpoint-posture-report.png"))
             if view == "overview":
                 assert await page.locator("#view-overview").inner_text() != ""
             if view == "about":

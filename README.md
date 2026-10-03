@@ -156,6 +156,13 @@ The full backup contains sensitive operational data and the appliance encryption
 
 **How it works:** Cyber Tools provides focused security and troubleshooting utilities for systems you own or are authorized to administer. Each card contains its target, available options, run controls, and structured result.
 
+![Endpoint Security Posture readable report](docs/screenshots/v431-endpoint-posture-report.png)
+
+**Read scan results:** Open **Cyber Tools**, then select **Review posture** or run another tool. Reports show labeled count tiles and expandable sections for endpoints, checks, warnings, and findings. Select a section heading to expand or collapse it; scroll inside a large report to read every item. **Create finding** and **Create ticket** retain their existing actions. **Export JSON** downloads the complete stored report. The same readable detail layout is used in integration analytics and software-update preflight/results. Screenshot data is demonstration data, not a security assessment of your network.
+
+**Microsoft Windows Updates:** Open its sidebar item to load enrolled Windows computers automatically. Select a computer's scan control to request its update inventory; an empty list or API error is shown explicitly instead of leaving the page loading.
+
+
 | Tool | What it does |
 | --- | --- |
 | Network Exposure Scan | Runs bounded network discovery and port checks against an authorized private host or network. |
