@@ -69,7 +69,7 @@ GitHub Actions builds the service and installer packages on `windows-latest`. Th
 - verifies the Windows service is removed; and
 - verifies ProgramData state survives uninstall.
 
-The workflow publishes SHA-256 files for both the MSI and guided Setup EXE as downloadable CI artifacts. It intentionally does **not** commit or push generated binaries back to the repository; release files can be tested before they are uploaded.
+The workflow publishes SHA-256 files for both the MSI and guided Setup EXE as downloadable CI artifacts. After a successful build publishes the validated release, **Sync validated Windows installers** downloads and verifies the published SHA-256 digests, then updates the Setup EXE, MSI, checksum files, and manifests in this folder on main. The standalone service EXE remains a release asset because it exceeds GitHub's normal file-size limit.
 
 ## Code signing
 

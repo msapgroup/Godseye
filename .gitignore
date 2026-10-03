@@ -12,3 +12,9 @@ data/
 windows/agent-x64/**/bin/
 windows/agent-x64/**/obj/
 windows/agent-x64/publish/
+
+# Keep the validated current Windows installers available in main.
+!windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup-2.4.5.exe
+!windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe
+!windows/agent-x64/GODSEYE-Windows-Agent-x64.msi
+!windows/agent-x64/*.sha256

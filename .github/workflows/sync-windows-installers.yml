@@ -1,0 +1,77 @@
+name: Sync validated Windows installers
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/sync-windows-installers.yml']
+  workflow_run:
+    workflows: ['Build GODSEYE Windows Agent x64']
+    types: [completed]
+permissions:
+  contents: write
+concurrency:
+  group: sync-windows-installers
+  cancel-in-progress: false
+jobs:
+  sync:
+    if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download and verify published Agent 2.4.5 installers
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python - <<'PY'
+          import hashlib, json, os, pathlib, urllib.request
+          root = pathlib.Path('windows/agent-x64')
+          api = 'https://api.github.com/repos/msapgroup/Godseye/releases/tags/v4.31.0-agent-2.4.5'
+          request = urllib.request.Request(api, headers={'Authorization': 'Bearer ' + os.environ['GH_TOKEN'], 'Accept': 'application/vnd.github+json', 'User-Agent': 'GODSEYE-installer-sync'})
+          with urllib.request.urlopen(request, timeout=60) as response:
+              release = json.load(response)
+          assets = {a['name']: a for a in release['assets']}
+          names = [
+              'GODSEYE-Windows-Agent-x64-Setup-2.4.5.exe',
+              'GODSEYE-Windows-Agent-x64-Setup.exe',
+              'GODSEYE-Windows-Agent-x64.msi',
+              'GODSEYE-Windows-Agent-x64-Setup-2.4.5.exe.sha256',
+              'GODSEYE-Windows-Agent-x64-Setup.exe.sha256',
+              'GODSEYE-Windows-Agent-x64.msi.sha256',
+              'setup-manifest.json', 'update-manifest.json',
+          ]
+          for name in names:
+              asset = assets[name]
+              with urllib.request.urlopen(asset['browser_download_url'], timeout=180) as response:
+                  data = response.read()
+              digest = 'sha256:' + hashlib.sha256(data).hexdigest()
+              if digest != asset.get('digest'):
+                  raise SystemExit('Published asset checksum mismatch: ' + name)
+              (root / name).write_bytes(data)
+          for name in ['setup-manifest.json', 'update-manifest.json']:
+              manifest = json.loads((root / name).read_text(encoding='utf-8-sig'))
+              if manifest['version'] != '2.4.5' or manifest['filename'] not in names:
+                  raise SystemExit('Unexpected agent manifest: ' + name)
+              actual = hashlib.sha256((root / manifest['filename']).read_bytes()).hexdigest()
+              if actual != manifest['sha256'].lower():
+                  raise SystemExit('Installer does not match manifest: ' + name)
+          if (root / names[0]).read_bytes() != (root / names[1]).read_bytes():
+              raise SystemExit('Versioned and generic Setup installers differ')
+          print('Published Agent 2.4.5 installers and manifests verified.')
+          PY
+      - name: Commit current installers to the main Windows folder
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup-2.4.5.exe windows/agent-x64/GODSEYE-Windows-Agent-x64-Setup.exe windows/agent-x64/GODSEYE-Windows-Agent-x64.msi windows/agent-x64/*.sha256 windows/agent-x64/setup-manifest.json windows/agent-x64/update-manifest.json
+          if git diff --cached --quiet; then
+            echo "Main already contains the validated current installers."
+          else
+            git commit -m "Sync validated Windows Agent 2.4.5 installers"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
