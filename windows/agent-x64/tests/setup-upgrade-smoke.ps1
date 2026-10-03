@@ -13,7 +13,7 @@ $config='{"ServerUrl":"http://127.0.0.1:9","AgentUuid":"upgrade-preserved-uuid",
 [IO.File]::WriteAllText((Join-Path $folder 'upgrade-state.sentinel'),'preserve-this-state')
 $keyHash=(Get-FileHash (Join-Path $folder 'agent.key')).Hash
 function Run-Setup {
-  $p=Start-Process $setup -ArgumentList '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART' -PassThru
+  $p=Start-Process $setup -ArgumentList '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /CHECKTRAY=1' -PassThru
   if (-not $p.WaitForExit(180000)) { Stop-Process $p.Id -Force; throw 'Guided Setup upgrade timed out.' }
   if ($p.ExitCode -notin @(0,3010)) { Get-Content (Join-Path $folder 'setup-msi.log') -Tail 100; throw "Guided Setup failed: $($p.ExitCode)" }
   if ((Get-Item $exe).VersionInfo.FileVersion -notlike '2.4.5*') { throw 'Installed executable version is incorrect.' }
@@ -22,6 +22,8 @@ function Run-Setup {
   if ((Get-FileHash (Join-Path $folder 'agent.key')).Hash -ne $keyHash) { throw 'Upgrade changed the protected enrollment key.' }
   if (-not (Test-Path (Join-Path $folder 'upgrade-state.sentinel'))) { throw 'Upgrade removed persistent state.' }
   if ((Get-Service GODSEYEWindowsAgent).Status -ne 'Running') { throw 'Upgrade did not restart the service.' }
+  $tray=Start-Process $exe -ArgumentList '--check-tray' -Wait -PassThru
+  if ($tray.ExitCode -ne 0) { throw 'Upgraded tray failed its version and readiness handshake.' }
   $versions=@(Get-ItemProperty 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*' -ErrorAction Ignore | Where-Object DisplayName -eq 'GODSEYE Windows Agent' | Select-Object -ExpandProperty DisplayVersion)
   if ($versions.Count -ne 1 -or $versions[0] -ne '2.4.5') { throw "Installed app versions disagree: $versions" }
 }
@@ -30,6 +32,12 @@ function Run-Setup {
 $wxs='windows/agent-x64/installer/msi/Package.wxs'
 $original=[IO.File]::ReadAllText($wxs)
 try {
+  $published=Join-Path $env:RUNNER_TEMP 'GODSEYE-Windows-Agent-x64-2.4.5.msi'
+  if (-not (Test-Path $published)) { throw 'Verified published 2.4.5 prerequisite MSI is missing.' }
+  $p=Start-Process msiexec.exe -ArgumentList @('/i',"`"$published`"",'/qn','/norestart') -Wait -PassThru
+  if ($p.ExitCode -notin @(0,3010)) { throw 'Published 2.4.5 install failed.' }
+  Run-Setup
+  Write-Host 'Guided Setup upgraded published 2.4.5 with its enrollment key, settings, state, service, and current-version tray preserved.'
   [IO.File]::WriteAllText($wxs,$original.Replace('Version="2.4.5"','Version="2.5.1"'))
   dotnet build 'windows/agent-x64/installer/msi/GODSEYE.Agent.Installer.wixproj' -c Release -p:InstallerPlatform=x64
   if ($LASTEXITCODE -ne 0) { throw 'Could not build related-product upgrade fixture.' }
