@@ -73,8 +73,13 @@ def test_slow_scanner_probes_do_not_block_agent_heartbeats(database, monkeypatch
                              ("db-test", token_hash(key), "TEST-PC", stamp, stamp, stamp)).lastrowid
         c.execute("INSERT INTO devices(mac,ip,status,first_seen,last_seen,classification,missed_scans) VALUES('aa:00:00:00:00:01','192.0.2.1','online',?,?,'known',0)", (stamp, stamp))
     entered, release = threading.Event(), threading.Event()
+    probe_count = 0
 
     def slow_probe(ip):
+        nonlocal probe_count
+        probe_count += 1
+        if probe == "dns" and probe_count == 1:
+            return "first-pc"
         entered.set()
         assert release.wait(5)
         return "new-pc" if probe == "dns" else True
