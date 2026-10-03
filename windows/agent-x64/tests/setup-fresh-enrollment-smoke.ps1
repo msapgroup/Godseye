@@ -8,8 +8,14 @@ foreach ($name in @('agent.json','agent.json.bak','agent.key')) { Remove-Item (J
 Remove-Item $state -ErrorAction Ignore
 $server=Start-Process python -ArgumentList @('windows/agent-x64/tests/enrollment-fixture.py',"`"$state`"") -PassThru
 function Run-Setup {
-  $p=Start-Process $setup -ArgumentList '/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SERVERURL=http://127.0.0.1:8087 /TOKEN=CI-ENROLLMENT /CHECKTRAY=1' -PassThru
-  if (-not $p.WaitForExit(180000)) { Stop-Process $p.Id -Force; throw 'Fresh guided Setup timed out.' }
+  $log=Join-Path $env:RUNNER_TEMP 'godseye-setup-fresh.log'
+  $p=Start-Process $setup -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SERVERURL=http://127.0.0.1:8087 /ALLOWHTTP=1 /TOKEN=CI-ENROLLMENT /CHECKTRAY=1 /LOG=`"$log`"" -PassThru
+  if (-not $p.WaitForExit(180000)) {
+    Get-Content $log -Tail 100 -ErrorAction Continue | Write-Host
+    Get-Content (Join-Path $folder 'agent.log') -Tail 40 -ErrorAction Continue | Write-Host
+    & taskkill.exe /PID $p.Id /T /F | Out-Null
+    throw 'Fresh guided Setup timed out.'
+  }
   if ($p.ExitCode -notin @(0,3010)) { Get-Content (Join-Path $folder 'setup-msi.log') -Tail 60; throw "Guided Setup failed: $($p.ExitCode)" }
   if (-not (Test-Path $exe)) { throw 'Setup did not retain the executable at the tray launch path.' }
   if ((Get-Service GODSEYEWindowsAgent).Status -ne 'Running') { throw 'Service is not running.' }

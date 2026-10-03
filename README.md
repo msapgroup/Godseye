@@ -256,6 +256,14 @@ Use the [Agent 2.4.5 release](https://github.com/msapgroup/Godseye/releases/tag/
 
 **Enrollment and connection settings:** A new install asks for the server URL and current token. An enrolled upgrade keeps its protected key and settings, with an explicit choice to change the URL or TLS settings. TLS verification is enabled by default; the TLS page also offers an explicit self-signed option for a trusted LAN. Setup now checks the tray readiness in the installing Windows session. Confirm a new heartbeat in the app to verify the connection.
 
+![Agent 2.4.5 Setup: preserve existing enrollment or repair the connection](docs/screenshots/agent-245-setup-existing-enrollment.png)
+
+**How to upgrade:** Run Setup and choose your EDR component. Select **Keep existing enrollment and connection settings** to preserve the computer identity and protected key. To correct the server URL or certificate settings, select **Change server connection or TLS settings**; leave the token blank to keep the existing key.
+
+![Agent 2.4.5 Setup: certificate verification choices](docs/screenshots/agent-245-setup-tls.png)
+
+**How to enroll a new computer:** Enter the complete server URL, including its port if needed, and a current enrollment token from GODSEYE. Keep certificate verification enabled for a server with a trusted HTTPS certificate. Use the explicit self-signed option only for your trusted LAN server. Finish Setup, check the tray, and confirm the computer appears with a fresh heartbeat. A pending token alone is not completed enrollment; Setup will ask for connection settings again if no usable enrollment key exists.
+
 **Choose EDR during setup:** Run **GODSEYE-Windows-Agent-x64-Setup-2.4.5.exe**, click **Next** on Welcome, and choose **Install Godseye EDR scanner (YARA-X)** or **Agent only (skip Godseye EDR scanner)**. This choice appears before enrollment on both new and previously enrolled computers. A direct MSI install does not show this screen. The Windows build checks the actual Setup.exe screens for both cases and saves screenshots in its **GODSEYE-Agent-2.4.5-Setup-EDR-screens** artifact.
 
 ![Agent 2.4.5 Setup: choose optional Godseye EDR or Agent only](docs/screenshots/agent-245-setup-edr.png)

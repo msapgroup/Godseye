@@ -126,7 +126,7 @@ begin
   begin
     if (Trim(ConfigPage.Values[0]) = '') or (Lowercase(Trim(ConfigPage.Values[0])) = 'https://') or (Lowercase(Trim(ConfigPage.Values[0])) = 'http://') then
     begin
-      MsgBox('Enter the GODSEYE server URL.', mbError, MB_OK);
+      SuppressibleMsgBox('Enter the GODSEYE server URL.', mbError, MB_OK, IDOK);
       Result := False;
       exit;
     end;
@@ -134,14 +134,15 @@ begin
     if (Pos('https://', Lowercase(Trim(ConfigPage.Values[0]))) <> 1) and
        (Pos('http://', Lowercase(Trim(ConfigPage.Values[0]))) <> 1) then
     begin
-      MsgBox('Enter a GODSEYE URL beginning with https:// or http://.', mbError, MB_OK);
+      SuppressibleMsgBox('Enter a GODSEYE URL beginning with https:// or http://.', mbError, MB_OK, IDOK);
       Result := False;
       exit;
     end;
 
-    if Pos('http://', Lowercase(Trim(ConfigPage.Values[0]))) = 1 then
+    if (Pos('http://', Lowercase(Trim(ConfigPage.Values[0]))) = 1) and
+       not (WizardSilent() and (ExpandConstant('{param:ALLOWHTTP|0}') = '1')) then
     begin
-      if MsgBox('This GODSEYE URL uses unencrypted HTTP. Use this only on a trusted LAN. Continue?', mbConfirmation, MB_YESNO) <> IDYES then
+      if SuppressibleMsgBox('This GODSEYE URL uses unencrypted HTTP. Use this only on a trusted LAN. Continue?', mbConfirmation, MB_YESNO, IDNO) <> IDYES then
       begin
         Result := False;
         exit;
@@ -150,7 +151,7 @@ begin
 
     if (not ExistingKey) and (Trim(ConfigPage.Values[1]) = '') then
     begin
-      MsgBox('Enter a one-time Windows Agent enrollment token from GODSEYE.', mbError, MB_OK);
+      SuppressibleMsgBox('Enter a one-time Windows Agent enrollment token from GODSEYE.', mbError, MB_OK, IDOK);
       Result := False;
       exit;
     end;
