@@ -282,6 +282,8 @@ jobs:
           ) | ForEach-Object {
             Copy-Item (Join-Path 'windows/agent-x64' $_) (Join-Path $stage 'windows/agent-x64' $_) -Force
           }
+          python (Join-Path $stage 'scripts/verify_agent_package.py')
+          if ($LASTEXITCODE -ne 0) { throw 'Full server package contains mismatched agent files.' }
           $stagedMsi = Join-Path $stage 'windows/agent-x64/GODSEYE-Windows-Agent-x64.msi'
           $stagedManifest = Get-Content (Join-Path $stage 'windows/agent-x64/update-manifest.json') -Raw | ConvertFrom-Json
           if ($stagedManifest.sha256 -ne (Get-FileHash $stagedMsi -Algorithm SHA256).Hash) { throw 'Full package Agent manifest does not match its MSI.' }

@@ -109,6 +109,9 @@ if ! "$PYTHON_BIN" -m venv "$VENV_PROBE/check"; then
 fi
 rm -rf "$VENV_PROBE"
 
+# Verify a bundled Windows installer before stopping a working server.
+"$PYTHON_BIN" "$SRC_DIR/scripts/verify_agent_package.py" --optional
+
 # On upgrade, stop services and create a database + version snapshot first.
 if [[ $EXISTING -eq 1 ]]; then
   systemctl stop godseye-web.service 2>/dev/null || true
