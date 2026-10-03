@@ -73,6 +73,8 @@ The workflow publishes SHA-256 files for both the MSI and guided Setup EXE as do
 
 ## Code signing
 
+**Unsigned installer — Windows warning:** The GODSEYE Windows Agent 2.4.5 Setup EXE and MSI are not digitally signed (Authenticode). Windows SmartScreen may warn that the app is unrecognized, and User Account Control may show **Unknown publisher**. These warnings are expected for this unsigned build. Download the installer from this repository or its official GitHub release; published SHA-256 checksums let you verify that the file matches the release.
+
 The MSI and Setup EXE are not yet Authenticode-signed by this build pipeline. Production signing should be added using an MSAPGROUP code-signing certificate or managed signing service stored outside the repository. Do not commit a private signing key to GitHub.
 
 ## Agent updates

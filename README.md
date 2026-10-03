@@ -255,6 +255,8 @@ Alert rules can be used for conditions such as device bursts, offline duration, 
 
 The GODSEYE Windows Agent is the recommended way to connect supported Windows workstations and servers.
 
+**Unsigned installer — Windows warning:** The GODSEYE Windows Agent 2.4.5 Setup EXE and MSI are not digitally signed (Authenticode). Windows SmartScreen may warn that the app is unrecognized, and User Account Control may show **Unknown publisher**. These warnings are expected for this unsigned build. Download the installer from this repository or its official GitHub release; published SHA-256 checksums let you verify that the file matches the release.
+
 Use the [Agent 2.4.5 release](https://github.com/msapgroup/Godseye/releases/tag/v4.31.0-agent-2.4.5) for Remote Access, Cyber Tools, and optional EDR. If the service runs but no tray icon appears, follow the [2.4.5 tray startup repair](docs/WINDOWS_AGENT.md#windows-service-and-tray).
 
 **Keep the server and agent in sync:** Use the full application ZIP from the release to install or upgrade the server (`sudo ./install.sh` or `sudo ./install.sh --upgrade`). Then run the current **Agent 2.4.5 Setup** on Windows computers. Setup replaces existing 2.4.5 and mismatched 2.5.x installations in place. Valid enrollment skips token entry; missing or damaged settings open the connection page. The server shows the actual last-reported endpoint version until its next heartbeat.
