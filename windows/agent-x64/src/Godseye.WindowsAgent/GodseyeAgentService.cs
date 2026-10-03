@@ -15,6 +15,7 @@ using System.Security.Cryptography;
 using System.ServiceProcess;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Windows.Forms;
@@ -259,13 +260,13 @@ namespace Godseye.WindowsAgent
                         ServicePointManager.ServerCertificateValidationCallback = null;
 
                     EnsureEnrolled(cfg);
+                    ProcessTrayTicketQueue(cfg);
                     Dictionary<string, object> hb = Heartbeat(cfg);
                     SyncEdrRules(cfg, hb);
                     WriteTrayStatus(cfg);
                     ApplyServerConfig(cfg, hb);
                     ProcessCommands(cfg, hb);
                     ProcessRechecks(cfg, hb);
-                    ProcessTrayTicketQueue(cfg);
                     if (DateTime.UtcNow >= nextScheduledCollectUtc)
                     {
                         FlushOrCollect(cfg);
@@ -723,6 +724,11 @@ namespace Godseye.WindowsAgent
             string kind = request != null && request.ContainsKey("kind") ? Convert.ToString(request["kind"]) : "";
             if (String.Equals(kind,"ping",StringComparison.OrdinalIgnoreCase)) return new Dictionary<string,object>{{"ok",true},{"ready",true},{"version",AgentVersion}};
             if (String.Equals(kind,"ticket-peek",StringComparison.OrdinalIgnoreCase)) return TrayApp.PeekPendingTicket();
+            if (String.Equals(kind,"ticket-error",StringComparison.OrdinalIgnoreCase))
+            {
+                TrayApp.ReportTicketError(Convert.ToString(request["request_id"]),Convert.ToString(request["error"]));
+                return new Dictionary<string,object>{{"ok",true}};
+            }
             if (String.Equals(kind,"ticket-result",StringComparison.OrdinalIgnoreCase))
             {
                 string requestId=request!=null&&request.ContainsKey("request_id")?Convert.ToString(request["request_id"]):"";
@@ -839,8 +845,7 @@ namespace Godseye.WindowsAgent
 
         Dictionary<string,object> RemoteHelperRequest(string pipeName, Dictionary<string,object> request, int timeout=3000)
         {
-            using(NamedPipeClientStream pipe=new NamedPipeClientStream(".",pipeName,PipeDirection.InOut,PipeOptions.None))
-            { pipe.Connect(timeout); using(StreamReader reader=new StreamReader(pipe,Encoding.UTF8,false,8192,true)) using(StreamWriter writer=new StreamWriter(pipe,new UTF8Encoding(false),8192,true){AutoFlush=true}) { writer.WriteLine(Json.Serialize(request)); string line=reader.ReadLine(); if(String.IsNullOrWhiteSpace(line))throw new Exception("Remote helper returned no response."); return Json.Deserialize<Dictionary<string,object>>(line); } }
+            return RequestTrayPipeAsync(pipeName,request,timeout).GetAwaiter().GetResult();
         }
 
         void WaitForRemoteHelperReady(string pipeName, int timeoutMs=15000)
@@ -1493,29 +1498,58 @@ namespace Godseye.WindowsAgent
         {
             uint sessionId=GetActiveInteractiveSessionId();
             if(sessionId==INVALID_SESSION_ID)return;
-            string pipeName="GODSEYE-Tray-"+sessionId;
+            DeliverTrayTicket(cfg,"GODSEYE-Tray-"+sessionId);
+        }
+
+        // Bound the entire exchange, not only Connect. Consent/capture protocols and their caller timeouts remain unchanged.
+        internal static async Task<Dictionary<string,object>> RequestTrayPipeAsync(string pipeName, Dictionary<string,object> request, int timeout=3000)
+        {
+            using var deadline=new CancellationTokenSource(timeout);
+            using var pipe=new NamedPipeClientStream(".",pipeName,PipeDirection.InOut,PipeOptions.Asynchronous);
+            await pipe.ConnectAsync(deadline.Token);
+            using var reader=new StreamReader(pipe,Encoding.UTF8,false,8192,true);
+            using var writer=new StreamWriter(pipe,new UTF8Encoding(false),8192,true){AutoFlush=true};
+            await writer.WriteLineAsync(Json.Serialize(request).AsMemory(),deadline.Token);
+            string line=await reader.ReadLineAsync(deadline.Token);
+            if(String.IsNullOrWhiteSpace(line))throw new IOException("Windows tray returned no response.");
+            return Json.Deserialize<Dictionary<string,object>>(line);
+        }
+
+        internal static async Task<Dictionary<string,object>> TicketHelperRequest(string pipeName, Dictionary<string,object> request, int timeout=3000)
+        {
+            var response=await RequestTrayPipeAsync(pipeName,request,timeout);
+            if(response==null||!response.ContainsKey("ok")||!Convert.ToBoolean(response["ok"]))
+                throw new IOException("Ticket tray could not process the request.");
+            return response;
+        }
+
+        internal void DeliverTrayTicket(AgentConfig cfg, string pipeName)
+        {
             Dictionary<string,object> pending;
+            try { pending=TicketHelperRequest(pipeName,new Dictionary<string,object>{{"kind","ticket-peek"}},1000).GetAwaiter().GetResult(); }
+            catch { return; } // No tray or no signed-in user: leave its durable queue untouched.
+            if(!pending.ContainsKey("pending")||!Convert.ToBoolean(pending["pending"]))return;
+            string requestId=Convert.ToString(pending["request_id"]);
             try
             {
-                pending=RemoteHelperRequest(pipeName,new Dictionary<string,object>{{"kind","ticket-peek"}},750);
+                var body=new Dictionary<string,object>();
+                foreach(string key in new[]{"request_id","requester_name","requester_department","requester_phone","requester_email","category","issue_notes"})
+                    body[key]=pending.ContainsKey(key)?Convert.ToString(pending[key]):"";
+                var result=Post(cfg,"/api/v1/windows-agents/tickets",body,ReadApiKey());
+                string ticketNumber=result.ContainsKey("ticket_number")?Convert.ToString(result["ticket_number"]):"";
+                if(!result.ContainsKey("ok")||!Convert.ToBoolean(result["ok"])||String.IsNullOrWhiteSpace(ticketNumber)||
+                   !result.ContainsKey("ticket_id")||Convert.ToInt64(result["ticket_id"])<=0)
+                    throw new IOException("The server did not confirm a ticket number. The request remains queued.");
+                TicketHelperRequest(pipeName,new Dictionary<string,object>{{"kind","ticket-result"},{"request_id",requestId},{"ticket_number",ticketNumber}},3000).GetAwaiter().GetResult();
+                Log("Submitted support ticket "+ticketNumber+" from the signed-in Windows user.");
             }
-            catch { return; }
-            if(pending==null||!pending.ContainsKey("pending")||!Convert.ToBoolean(pending["pending"]))return;
-            string requestId=Convert.ToString(pending["request_id"]);
-            var body=new Dictionary<string,object>
+            catch(Exception ex)
             {
-                {"request_id",requestId},
-                {"requester_name",Convert.ToString(pending["requester_name"])},
-                {"requester_department",Convert.ToString(pending["requester_department"])},
-                {"requester_phone",Convert.ToString(pending["requester_phone"])},
-                {"requester_email",Convert.ToString(pending["requester_email"])},
-                {"category",Convert.ToString(pending["category"])},
-                {"issue_notes",Convert.ToString(pending["issue_notes"])}
-            };
-            Dictionary<string,object> result=Post(cfg,"/api/v1/windows-agents/tickets",body,ReadApiKey());
-            string ticketNumber=result.ContainsKey("ticket_number")?Convert.ToString(result["ticket_number"]):"ticket";
-            RemoteHelperRequest(pipeName,new Dictionary<string,object>{{"kind","ticket-result"},{"request_id",requestId},{"ticket_number",ticketNumber}},1000);
-            Log("Submitted support ticket "+ticketNumber+" from the signed-in Windows user.");
+                string error=ex.GetBaseException().Message;
+                Log("Support ticket "+requestId+" remains queued: "+error);
+                try { TicketHelperRequest(pipeName,new Dictionary<string,object>{{"kind","ticket-error"},{"request_id",requestId},{"error",error}},1500).GetAwaiter().GetResult(); }
+                catch { } // Retry the same request ID next cycle; the server deduplicates it.
+            }
         }
 
         Dictionary<string, object> Get(AgentConfig cfg, string path, string bearer)

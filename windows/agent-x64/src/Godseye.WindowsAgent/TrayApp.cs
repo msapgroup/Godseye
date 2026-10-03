@@ -26,6 +26,61 @@ namespace Godseye.WindowsAgent
         static readonly object TicketLock = new object();
         static Dictionary<string, object>? _pendingTicket;
         static NotifyIcon? _notifyIcon;
+        internal static string PendingTicketPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "GODSEYE", "Agent", "pending-ticket.json");
+
+        internal static void RestorePendingTicket()
+        {
+            lock(TicketLock)
+            {
+                if(_pendingTicket!=null||!File.Exists(PendingTicketPath))return;
+                try
+                {
+                    var ticket=new JsonCompat().Deserialize<Dictionary<string,object>>(File.ReadAllText(PendingTicketPath));
+                    if(!ticket.ContainsKey("request_id")||String.IsNullOrWhiteSpace(Convert.ToString(ticket["request_id"])))
+                        throw new IOException("Invalid pending ticket request ID.");
+                    _pendingTicket=ticket;
+                }
+                catch
+                {
+                    // Preserve damaged drafts for diagnosis instead of silently erasing them.
+                    File.Move(PendingTicketPath,PendingTicketPath+".corrupt-"+DateTime.UtcNow.ToString("yyyyMMddHHmmssfff"));
+                }
+            }
+        }
+
+        static void PersistPendingTicket(Dictionary<string,object> ticket)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(PendingTicketPath)!);
+            string staging=PendingTicketPath+".tmp-"+Guid.NewGuid().ToString("N");
+            try
+            {
+                File.WriteAllText(staging,new JsonCompat().Serialize(ticket),new UTF8Encoding(false));
+                File.Move(staging,PendingTicketPath,true);
+            }
+            finally { if(File.Exists(staging))File.Delete(staging); }
+        }
+
+        internal static void ReportTicketError(string requestId,string error)
+        {
+            bool changed=false;
+            lock(TicketLock)
+            {
+                if(_pendingTicket==null||Convert.ToString(_pendingTicket["request_id"])!=requestId)return;
+                string message=(error??"Delivery failed");
+                if(message.Length>500)message=message.Substring(0,500);
+                changed=!_pendingTicket.ContainsKey("last_error")||Convert.ToString(_pendingTicket["last_error"])!=message;
+                _pendingTicket["last_error"]=message;
+                PersistPendingTicket(_pendingTicket);
+            }
+            if(changed)NotifyTicket("GODSEYE Ticket Pending","Your ticket has not been confirmed. It remains queued for retry. Open Submit Ticket for details.");
+        }
+
+        static void NotifyTicket(string title,string message)
+        {
+            Action notify=()=>{if(_notifyIcon==null)return;_notifyIcon.BalloonTipTitle=title;_notifyIcon.BalloonTipText=message;_notifyIcon.ShowBalloonTip(6000);};
+            Control? dispatcher=_uiDispatcher;
+            if(dispatcher!=null&&!dispatcher.IsDisposed&&dispatcher.InvokeRequired)dispatcher.BeginInvoke(notify);else notify();
+        }
 
         public static bool SharingStopRequested => _sharingStopRequested;
 
@@ -94,6 +149,7 @@ namespace Godseye.WindowsAgent
             if (!created) return 0;
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
+            RestorePendingTicket();
             Application.Run(new GodseyeTrayContext());
             return 0;
         }
@@ -118,27 +174,21 @@ namespace Godseye.WindowsAgent
             {
                 if (_pendingTicket != null && String.Equals(Convert.ToString(_pendingTicket["request_id"]), requestId, StringComparison.OrdinalIgnoreCase))
                 {
+                    if(File.Exists(PendingTicketPath))File.Delete(PendingTicketPath);
                     _pendingTicket = null;
                     completed = true;
                 }
             }
             if (!completed) return;
-            Control? dispatcher = _uiDispatcher;
-            Action notify = () =>
-            {
-                if (_notifyIcon == null) return;
-                _notifyIcon.BalloonTipTitle = "GODSEYE Ticket Submitted";
-                _notifyIcon.BalloonTipText = "Your support ticket " + ticketNumber + " was created successfully.";
-                _notifyIcon.ShowBalloonTip(6000);
-            };
-            if (dispatcher != null && !dispatcher.IsDisposed && dispatcher.InvokeRequired) dispatcher.BeginInvoke(notify); else notify();
+            NotifyTicket("GODSEYE Ticket Submitted","Your support ticket "+ticketNumber+" was created successfully.");
         }
 
-        static bool QueueTicket(Dictionary<string, object> ticket)
+        internal static bool QueueTicket(Dictionary<string, object> ticket)
         {
             lock (TicketLock)
             {
                 if (_pendingTicket != null) return false;
+                PersistPendingTicket(ticket);
                 _pendingTicket = ticket;
                 return true;
             }
@@ -456,7 +506,7 @@ namespace Godseye.WindowsAgent
                 {
                     if (_pendingTicket != null)
                     {
-                        MessageBox.Show("A support ticket is already queued and will be submitted at the next agent check-in.", "GODSEYE Submit Ticket", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        MessageBox.Show("A support ticket is still queued; it has not been confirmed by the server.\r\n\r\n" + (_pendingTicket.ContainsKey("last_error")?Convert.ToString(_pendingTicket["last_error"]):"Waiting for the agent service to deliver it.") + "\r\n\r\nThe agent will retry automatically.", "GODSEYE Submit Ticket", MessageBoxButtons.OK, MessageBoxIcon.Information);
                         return;
                     }
                 }
@@ -503,14 +553,22 @@ namespace Godseye.WindowsAgent
                         {"category", Convert.ToString(category.SelectedItem) ?? "Other"},
                         {"issue_notes", notes.Text.Trim()}
                     };
-                    if (!QueueTicket(ticket))
+                    if(!String.IsNullOrWhiteSpace(email.Text))
+                    {
+                        try { var address=new System.Net.Mail.MailAddress(email.Text.Trim());if(address.Address!=email.Text.Trim())throw new FormatException(); }
+                        catch { MessageBox.Show("Enter a valid email address, or leave Email blank.","GODSEYE Submit Ticket",MessageBoxButtons.OK,MessageBoxIcon.Warning);email.Focus();return; }
+                    }
+                    bool queued;
+                    try { queued=QueueTicket(ticket); }
+                    catch(Exception ex){MessageBox.Show("Could not save your ticket locally: "+ex.Message,"GODSEYE Submit Ticket",MessageBoxButtons.OK,MessageBoxIcon.Error);return;}
+                    if (!queued)
                     {
                         MessageBox.Show("A support ticket is already queued.", "GODSEYE Submit Ticket", MessageBoxButtons.OK, MessageBoxIcon.Information);
                         return;
                     }
                     form.DialogResult = DialogResult.OK;
                     form.Close();
-                    MessageBox.Show("Your ticket is queued and will be submitted within a few seconds.", "GODSEYE Submit Ticket", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MessageBox.Show("Your ticket is queued. A Ticket Submitted notification with a ticket number confirms receipt by the server. Until then, the agent keeps it for retry.", "GODSEYE Submit Ticket", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 };
                 form.AcceptButton = submit;
                 form.CancelButton = cancel;

@@ -182,6 +182,12 @@ After a run, review the structured result and scan history. Where supported, res
 
 ![GODSEYE Cyber Tools result](docs/screenshots/v431-cyber-tools-working.png)
 
+### Windows agent support tickets
+
+![Confirmed Windows agent ticket in the Ticket Portal](docs/screenshots/v431-agent-ticket-receipt.png)
+
+**How it works:** Right-click the Windows tray icon and select **Submit Ticket**. Enter your name, category and issue notes, then submit. **Queued** means the request is saved on that Windows user’s profile; wait for **Ticket Submitted** with a ticket number to confirm server receipt. Pending tickets survive tray restarts and retry with the same request ID. If receipt is delayed, open **Submit Ticket** again to see the last delivery error, and verify Agent Status points to the server whose **Tickets** workspace you are checking. The screenshot shows a sample ticket created through the authenticated agent API.
+
 ### About GODSEYE
 
 ![GODSEYE About](docs/screenshots/godseye-about.png)

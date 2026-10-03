@@ -7038,6 +7038,8 @@ html[data-theme="dark"] .sidebar .brand.v430-brand{height:88px!important;padding
 .v430-temp-uptime>div{min-width:0;padding:12px}
 .v430-temp-uptime strong,.v430-temp-uptime span{overflow-wrap:anywhere}
 .v430-health-card b.bad::after{content:" !";color:#ff5968}
+#view-tickets table th:nth-child(4),#view-tickets table td:nth-child(4){min-width:260px;width:28%;white-space:normal;overflow-wrap:anywhere}
+#view-tickets table td:nth-child(4) .muted{line-height:1.45}
 #rulesPanel form [id^="ruleFields"]{min-width:0;max-width:100%;flex-wrap:wrap}
 #rulesPanel form .input,#rulesPanel form .filter{min-width:0;max-width:100%}
 .panel.admin-only.admin-visible{display:block!important}

@@ -90,3 +90,7 @@ Update the server using the full application ZIP from the current release, then 
 A saved token is pending enrollment, not proof that the server accepted it. New installs ask for the server URL and a current enrollment token. An existing protected enrollment key skips token entry by default. Enrolled upgrades can choose **Change server connection or TLS settings** to correct the URL or certificate setting while keeping their key. Certificate verification stays enabled by default. A trusted LAN with a self-signed server certificate has an explicit alternative on the TLS page. Do not select it for an untrusted connection.
 
 Setup checks the tray's readiness in the installing Windows session after launch. An installed service alone is not evidence of a connected agent: confirm a new heartbeat in Windows Agents. SSL failures now include the underlying cause in agent.log.
+
+## Support ticket delivery
+
+Use **Submit Ticket** on the Windows tray. A queued message means the draft has been saved locally; it does not mean the server has received it. Wait for **Ticket Submitted** with a `TKT-` number. The draft survives a tray restart and retries use the same request ID. If receipt is delayed, open **Submit Ticket** again to see the delivery error and check `C:\ProgramData\GODSEYE\Agent\agent.log`. Verify the server URL shown in Agent Status points to the server whose Tickets workspace you are checking.

@@ -95,3 +95,9 @@ The existing consent-based remote support and tray workflow remain in this agent
 Remote support consent, capture, and approved input are owned by the persistent tray application in the signed-in Windows user's active interactive session. The Windows service cannot approve a session on the user's behalf. The server tracks `requested -> waiting_for_tray -> tray_ready -> waiting_for_user -> approved -> capture_started`, and only changes the session to `active` after it receives and validates the first real JPEG frame. Sessions begin view-only. Mouse and keyboard input is accepted only after the operator requests control and the Windows user separately approves it.
 
 The source tree contains only the current x64 agent under `windows/agent-x64`. Older agent files and generated build outputs are excluded from the full app package. A 2.4.5 update manifest is valid only when its canonical `GODSEYE-Windows-Agent-x64.msi` exists and its SHA-256 matches the manifest.
+
+## Submit a support ticket
+
+Right-click the GODSEYE tray icon and select **Submit Ticket**. Enter your name, category and issue notes; contact fields are optional. The form closes only after the request is safely queued on that Windows user’s profile. **Queued** is not a receipt: wait for **GODSEYE Ticket Submitted** with the server’s ticket number, then find it in the server’s **Tickets** workspace.
+
+Pending requests survive a tray restart and are retried with the same request ID to avoid duplicates. Ticket delivery runs before heartbeat-dependent commands and scans. A failed submission stays queued; **Submit Ticket** shows the latest delivery error. The service log records `Support ticket … remains queued` with its cause at `C:\ProgramData\GODSEYE\Agent\agent.log`. Only a confirmed server ticket ID and number clear the queue. A stalled ticket pipe times out without changing remote-access consent or capture handling.
