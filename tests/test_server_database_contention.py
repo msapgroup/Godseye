@@ -18,6 +18,11 @@ def database(tmp_path, monkeypatch):
     monkeypatch.setattr(main, "DB_PATH", path)
     monkeypatch.setattr(scanner, "DB_PATH", path)
     main.init_db()
+    # Isolate SQLite behavior from optional GitHub release metadata latency.
+    monkeypatch.setattr(main, "_windows_agent_update_manifest", lambda: {
+        "version": "2.4.5", "sha256": "A" * 64,
+        "filename": "GODSEYE-Windows-Agent-x64.msi", "url": "https://example.com/agent.msi",
+    })
     return path
 
 
