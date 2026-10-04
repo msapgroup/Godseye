@@ -17,8 +17,39 @@ internal static class Program
         public override void Post(SendOrPostCallback callback, object? state) { } // The caller blocks synchronously, as service/tray helpers can.
     }
 
-    static async Task<int> Main()
+
+    static int VerifyStandardUserStorage()
     {
+        using var identity = System.Security.Principal.WindowsIdentity.GetCurrent();
+        Check(!new System.Security.Principal.WindowsPrincipal(identity).IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator), "Storage test must run as a standard user");
+        string path = TrayApp.PendingTicketPath;
+        string profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile, Environment.SpecialFolderOption.DoNotVerify);
+        Check(Path.IsPathFullyQualified(path) && path.StartsWith(profile + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase), "Draft is outside the signed-in user's profile");
+        Check(!path.StartsWith(Environment.CurrentDirectory + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase), "Draft used the protected working directory");
+        Check(!File.Exists(path), "Refusing to overwrite a pending draft");
+        string id = Guid.NewGuid().ToString("D");
+        try {
+            Check(TrayApp.QueueTicket(new Dictionary<string, object> { ["request_id"] = id, ["requester_name"] = "Standard User", ["category"] = "Hardware", ["issue_notes"] = "Storage permission regression" }), "Standard user could not queue ticket");
+            Check(File.Exists(path), "Draft missing from user's writable profile");
+            typeof(TrayApp).GetField("_pendingTicket", BindingFlags.NonPublic | BindingFlags.Static)!.SetValue(null, null);
+            TrayApp.RestorePendingTicket();
+            Check(Convert.ToString(TrayApp.PeekPendingTicket()["request_id"]) == id, "Standard user restart lost draft");
+            TrayApp.CompletePendingTicket(id, "TKT-TEST");
+            Check(!File.Exists(path), "Standard user could not clear confirmed draft");
+            Console.WriteLine("PASS: non-admin ticket save, restart and receipt from a Program Files working directory.");
+            return 0;
+        } finally { if (File.Exists(path)) File.Delete(path); }
+    }
+
+    static async Task<int> Main(string[] args)
+    {
+        if (args.Contains("--ticket-storage-only")) return VerifyStandardUserStorage();
+        Check(TrayApp.ResolvePendingTicketPath("", @"C:\Users\NewProfile") == @"C:\Users\NewProfile\AppData\Local\GODSEYE\Agent\pending-ticket.json", "Empty known folder became a relative installation path");
+        Check(TrayApp.ResolvePendingTicketPath("relative", @"C:\Users\NewProfile") == @"C:\Users\NewProfile\AppData\Local\GODSEYE\Agent\pending-ticket.json", "Relative known folder was accepted");
+        bool refused = false;
+        try { TrayApp.ResolvePendingTicketPath("", "relative"); } catch (IOException) { refused = true; }
+        Check(refused, "Missing profile silently used the current directory");
+
         string keyPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "GODSEYE", "Agent", "agent.key");
         string pipeName = "GODSEYE-Ticket-Test-" + Guid.NewGuid().ToString("N");
         if (File.Exists(keyPath) || File.Exists(TrayApp.PendingTicketPath)) throw new Exception("Ticket smoke requires a clean CI account; refusing to replace enrollment or a pending ticket.");

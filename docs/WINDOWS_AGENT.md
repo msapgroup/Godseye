@@ -94,3 +94,7 @@ Setup checks the tray's readiness in the installing Windows session after launch
 ## Support ticket delivery
 
 Use **Submit Ticket** on the Windows tray. A queued message means the draft has been saved locally; it does not mean the server has received it. Wait for **Ticket Submitted** with a `TKT-` number. The draft survives a tray restart and retries use the same request ID. If receipt is delayed, open **Submit Ticket** again to see the delivery error and check `C:\ProgramData\GODSEYE\Agent\agent.log`. Verify the server URL shown in Agent Status points to the server whose Tickets workspace you are checking.
+
+### Ticket draft storage permissions
+
+Agent 2.4.5 saves pending tickets in the signed-in user’s `AppData\Local\GODSEYE\Agent` folder. A missing Local AppData folder uses that user’s registered Windows profile; the agent never falls back to its Program Files working directory. Install the current Setup over the existing agent and keep enrollment settings. If an earlier build showed **Could not save your ticket locally: Access to the path is denied**, submit the ticket again after upgrading; that failed save was not queued or sent. A real `TKT-` receipt confirms server delivery. Standard users do not need administrator access to submit tickets.

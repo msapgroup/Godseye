@@ -69,6 +69,11 @@ jobs:
           dotnet run --project windows/agent-x64/tests/ticket-smoke/TicketSmoke.csproj -c Release
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+      - name: Verify support tickets as a standard Windows user
+        shell: pwsh
+        run: |
+          & 'windows/agent-x64/tests/ticket-standard-user-smoke.ps1'
+
       - name: Stage verified optional YARA-X engine
         shell: pwsh
         run: |

@@ -26,7 +26,46 @@ namespace Godseye.WindowsAgent
         static readonly object TicketLock = new object();
         static Dictionary<string, object>? _pendingTicket;
         static NotifyIcon? _notifyIcon;
-        internal static string PendingTicketPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "GODSEYE", "Agent", "pending-ticket.json");
+        static readonly Lazy<string> TicketPath = new Lazy<string>(FindPendingTicketPath);
+        internal static string PendingTicketPath => TicketPath.Value;
+
+        static string FindPendingTicketPath()
+        {
+            // DoNotVerify retains the known-folder path even when AppData\\Local
+            // has not been created. An empty result must never become a relative
+            // path under the installer's Program Files working directory.
+            string local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData, Environment.SpecialFolderOption.DoNotVerify);
+            string profile = "";
+            if (!Path.IsPathFullyQualified(local))
+            {
+                try
+                {
+                    using var identity = System.Security.Principal.WindowsIdentity.GetCurrent();
+                    string? sid = identity.User?.Value;
+                    if (!String.IsNullOrWhiteSpace(sid))
+                    {
+                        string? registered = Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\" + sid, "ProfileImagePath", null) as string;
+                        if (!String.IsNullOrWhiteSpace(registered)) profile = Environment.ExpandEnvironmentVariables(registered);
+                    }
+                }
+                catch { } // Fall back to this user's known profile, never the current directory.
+                if (!Path.IsPathFullyQualified(profile))
+                    profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile, Environment.SpecialFolderOption.DoNotVerify);
+            }
+            return ResolvePendingTicketPath(local, profile);
+        }
+
+        internal static string ResolvePendingTicketPath(string? localAppData, string? userProfile)
+        {
+            string root;
+            if (!String.IsNullOrWhiteSpace(localAppData) && Path.IsPathFullyQualified(localAppData))
+                root = localAppData;
+            else if (!String.IsNullOrWhiteSpace(userProfile) && Path.IsPathFullyQualified(userProfile))
+                root = Path.Combine(userProfile, "AppData", "Local");
+            else
+                throw new IOException("Windows could not locate your user profile for the ticket draft. Sign out and back in, then retry.");
+            return Path.Combine(root, "GODSEYE", "Agent", "pending-ticket.json");
+        }
 
         internal static void RestorePendingTicket()
         {
@@ -149,7 +188,7 @@ namespace Godseye.WindowsAgent
             if (!created) return 0;
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            RestorePendingTicket();
+            try { RestorePendingTicket(); } catch { } // Keep remote support available if the user profile needs repair; submitting explains the storage error.
             Application.Run(new GodseyeTrayContext());
             return 0;
         }
