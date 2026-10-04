@@ -49,9 +49,30 @@ try {
   Write-Host 'Guided Setup replaced related 2.5.1 and repaired 2.4.5; settings, key, state, registry, and running service verified.'
 } finally {
   [IO.File]::WriteAllText($wxs,$original)
-  Stop-Service GODSEYEWindowsAgent -ErrorAction Ignore
+  Write-Host 'Cleanup: requesting agent service stop.'
+  $cleanupError=$null
+  $service=Get-Service GODSEYEWindowsAgent -ErrorAction Ignore
+  if ($service -and $service.Status -ne 'Stopped') {
+    & sc.exe stop GODSEYEWindowsAgent | Out-Host
+    try { $service.WaitForStatus([ServiceProcess.ServiceControllerStatus]::Stopped,[TimeSpan]::FromSeconds(25)) }
+    catch { $cleanupError='Agent service did not stop within 25 seconds.'; Write-Warning $cleanupError }
+  }
+  Write-Host 'Cleanup: removing only the disposable CI agent processes.'
   & taskkill.exe /IM GODSEYE.Agent.exe /T /F 2>$null | Out-Null
   $msi=(Resolve-Path 'windows/agent-x64/GODSEYE-Windows-Agent-x64.msi').Path
-  Start-Process msiexec.exe -ArgumentList @('/x',"`"$msi`"",'/qn','/norestart') -Wait | Out-Null
+  Write-Host 'Cleanup: uninstalling the disposable CI MSI.'
+  $cleanupLog=Join-Path $env:RUNNER_TEMP 'godseye-upgrade-cleanup.log'
+  $uninstall=Start-Process msiexec.exe -ArgumentList @('/x',"`"$msi`"",'/qn','/norestart','/l*v',"`"$cleanupLog`"") -PassThru
+  if (-not $uninstall.WaitForExit(90000)) {
+    Stop-Process $uninstall.Id -Force -ErrorAction Ignore
+    Get-Content $cleanupLog -Tail 100 -ErrorAction Ignore | Out-Host
+    throw 'CI cleanup MSI uninstall exceeded 90 seconds.'
+  }
+  if ($uninstall.ExitCode -notin @(0,1605,3010)) {
+    Get-Content $cleanupLog -Tail 100 -ErrorAction Ignore | Out-Host
+    throw "CI cleanup MSI uninstall failed: $($uninstall.ExitCode)"
+  }
+  Write-Host 'Cleanup: MSI removed.' 
   foreach ($name in @('agent.key','agent.json','agent.json.bak','upgrade-state.sentinel')) { Remove-Item (Join-Path $folder $name) -ErrorAction Ignore }
+  if ($cleanupError) { throw $cleanupError }
 }

@@ -1506,18 +1506,18 @@ namespace Godseye.WindowsAgent
         {
             using var deadline=new CancellationTokenSource(timeout);
             using var pipe=new NamedPipeClientStream(".",pipeName,PipeDirection.InOut,PipeOptions.Asynchronous);
-            await pipe.ConnectAsync(deadline.Token);
+            await pipe.ConnectAsync(deadline.Token).ConfigureAwait(false);
             using var reader=new StreamReader(pipe,Encoding.UTF8,false,8192,true);
             using var writer=new StreamWriter(pipe,new UTF8Encoding(false),8192,true){AutoFlush=true};
-            await writer.WriteLineAsync(Json.Serialize(request).AsMemory(),deadline.Token);
-            string line=await reader.ReadLineAsync(deadline.Token);
+            await writer.WriteLineAsync(Json.Serialize(request).AsMemory(),deadline.Token).ConfigureAwait(false);
+            string line=await reader.ReadLineAsync(deadline.Token).ConfigureAwait(false);
             if(String.IsNullOrWhiteSpace(line))throw new IOException("Windows tray returned no response.");
             return Json.Deserialize<Dictionary<string,object>>(line);
         }
 
         internal static async Task<Dictionary<string,object>> TicketHelperRequest(string pipeName, Dictionary<string,object> request, int timeout=3000)
         {
-            var response=await RequestTrayPipeAsync(pipeName,request,timeout);
+            var response=await RequestTrayPipeAsync(pipeName,request,timeout).ConfigureAwait(false);
             if(response==null||!response.ContainsKey("ok")||!Convert.ToBoolean(response["ok"]))
                 throw new IOException("Ticket tray could not process the request.");
             return response;

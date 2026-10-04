@@ -12,6 +12,11 @@ internal static class Program
     static readonly JsonCompat Json = new();
     static void Check(bool condition, string message) { if (!condition) throw new Exception(message); }
 
+    sealed class NonPumpingContext : SynchronizationContext
+    {
+        public override void Post(SendOrPostCallback callback, object? state) { } // The caller blocks synchronously, as service/tray helpers can.
+    }
+
     static async Task<int> Main()
     {
         string keyPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "GODSEYE", "Agent", "agent.key");
@@ -94,6 +99,18 @@ internal static class Program
             catch (OperationCanceledException) { }
             Check(clock.ElapsedMilliseconds < 2000, "Stalled pipe blocked agent delivery indefinitely");
             await connected;
+            string contextName = pipeName + "-context";
+            using var contextPipe = new NamedPipeServerStream(contextName, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
+            Task contextConnected = contextPipe.WaitForConnectionAsync();
+            Task blockedCaller = Task.Run(() => {
+                SynchronizationContext.SetSynchronizationContext(new NonPumpingContext());
+                try { GodseyeAgentService.TicketHelperRequest(contextName, new Dictionary<string, object> { ["kind"] = "ping" }, 250).GetAwaiter().GetResult(); throw new Exception("Synchronous helper did not time out"); }
+                catch (OperationCanceledException) { }
+                finally { SynchronizationContext.SetSynchronizationContext(null); }
+            });
+            Check(await Task.WhenAny(blockedCaller, Task.Delay(2000)) == blockedCaller, "Synchronous tray helper deadlocked a synchronization context");
+            await blockedCaller;
+            await contextConnected;
             Console.WriteLine("PASS: durable ticket restart, authenticated IPC/API delivery, incomplete reply and HTTP error retry, matching receipt, stable request ID and bounded pipe response.");
             return 0;
         }
