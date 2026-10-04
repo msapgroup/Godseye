@@ -1,12 +1,14 @@
 $ErrorActionPreference='Stop'
 $stage=Join-Path $env:ProgramFiles 'GODSEYE Ticket Storage Test'
-$account='GeTicketTest'
+$account='GeTk'+[Guid]::NewGuid().ToString('N').Substring(0,8)
+$created=$false
 $process=$null
 try {
   dotnet publish 'windows/agent-x64/tests/ticket-smoke/TicketSmoke.csproj' -c Release -r win-x64 --self-contained true -o $stage
   if ($LASTEXITCODE -ne 0) { throw 'Could not publish storage regression harness.' }
   $password=ConvertTo-SecureString ('Aa1!'+[Guid]::NewGuid().ToString('N')) -AsPlainText -Force
-  New-LocalUser -Name $account -Password $password -Description 'Disposable non-admin ticket storage regression account' | Out-Null
+  New-LocalUser -Name $account -Password $password -Description 'Disposable ticket storage test' | Out-Null
+  $created=$true
   Add-LocalGroupMember -Group 'Users' -Member $account
   Start-Service seclogon
   $credential=[PSCredential]::new("$env:COMPUTERNAME\$account",$password)
@@ -19,6 +21,6 @@ try {
   if ($process.ExitCode -ne 0) { throw "Standard-user ticket storage failed: $($process.ExitCode)" }
 } finally {
   if ($process -and -not $process.HasExited) { Stop-Process $process.Id -Force -ErrorAction Ignore }
-  Remove-LocalUser -Name $account -ErrorAction Ignore
+  if ($created) { Remove-LocalUser -Name $account -ErrorAction Ignore }
   Remove-Item $stage -Recurse -Force -ErrorAction Ignore
 }
