@@ -6,11 +6,34 @@ $setup=(Resolve-Path $SetupPath).Path
 $state=Join-Path $env:RUNNER_TEMP 'fresh-enrollment-state.json'
 # Prior tests can leave an installed executable behind and mask an early tray
 # launch. This case must begin with no installed service executable at all.
-Stop-Service GODSEYEWindowsAgent -ErrorAction Ignore
-& taskkill.exe /IM GODSEYE.Agent.exe /T /F 2>$null | Out-Null
-$msi=(Resolve-Path 'windows/agent-x64/GODSEYE-Windows-Agent-x64.msi').Path
-$remove=Start-Process msiexec.exe -ArgumentList @('/x',"`"$msi`"",'/qn','/norestart') -Wait -PassThru
-if ($remove.ExitCode -notin @(0,3010,1605)) { throw "Could not prepare a genuinely fresh install: $($remove.ExitCode)" }
+function Remove-TestAgent {
+  Write-Host 'Cleanup: requesting disposable CI service stop.'
+  $stopError=$null
+  $service=Get-Service GODSEYEWindowsAgent -ErrorAction Ignore
+  if ($service -and $service.Status -ne 'Stopped') {
+    & sc.exe stop GODSEYEWindowsAgent | Out-Host
+    try { $service.WaitForStatus([System.ServiceProcess.ServiceControllerStatus]::Stopped,[TimeSpan]::FromSeconds(25)) }
+    catch { $stopError='CI service did not stop within 25 seconds.' }
+  }
+  & taskkill.exe /IM GODSEYE.Agent.exe /T /F 2>$null | Out-Null
+  $msi=(Resolve-Path 'windows/agent-x64/GODSEYE-Windows-Agent-x64.msi').Path
+  $log=Join-Path $env:RUNNER_TEMP 'godseye-fresh-cleanup.log'
+  $remove=Start-Process msiexec.exe -ArgumentList @('/x',('"'+$msi+'"'),'/qn','/norestart','/l*v',('"'+$log+'"')) -PassThru
+  # Wait only for this MSI client. PowerShell -Wait also waits for descendant
+  # installer processes that Windows keeps alive after the uninstall is done.
+  if (-not $remove.WaitForExit(90000)) {
+    Stop-Process $remove.Id -Force -ErrorAction Ignore
+    Get-Content $log -Tail 100 -ErrorAction Ignore | Out-Host
+    throw 'Disposable CI MSI uninstall exceeded 90 seconds.'
+  }
+  if ($remove.ExitCode -notin @(0,3010,1605)) {
+    Get-Content $log -Tail 100 -ErrorAction Ignore | Out-Host
+    throw "Disposable CI MSI uninstall failed: $($remove.ExitCode)"
+  }
+  if ($stopError) { throw $stopError }
+  Write-Host 'Cleanup: disposable CI agent removed.'
+}
+Remove-TestAgent
 if (Test-Path $exe) { throw 'Fresh Setup regression requires the installed executable to be absent.' }
 Write-Host 'Fresh-install precondition verified: installed executable is absent.'
 
@@ -29,7 +52,8 @@ function Run-Setup {
   if ($p.ExitCode -notin @(0,3010)) { Get-Content (Join-Path $folder 'setup-msi.log') -Tail 60; throw "Guided Setup failed: $($p.ExitCode)" }
   if (-not (Test-Path $exe)) { throw 'Setup did not retain the executable at the tray launch path.' }
   if ((Get-Service GODSEYEWindowsAgent).Status -ne 'Running') { throw 'Service is not running.' }
-  $tray=Start-Process $exe -ArgumentList '--check-tray' -Wait -PassThru
+  $tray=Start-Process $exe -ArgumentList '--check-tray' -PassThru
+  if (-not $tray.WaitForExit(10000)) { Stop-Process $tray.Id -Force; throw 'Tray readiness check exceeded 10 seconds.' }
   if ($tray.ExitCode -ne 0) { throw 'Tray readiness handshake failed in the installing session.' }
 }
 try {
@@ -54,10 +78,9 @@ try {
   if ($result.enrollments -ne 1) { throw 'Existing enrollment was repeated instead of preserved.' }
   Write-Host 'Fresh Setup configuration, enrollment, heartbeat, final tray launch/readiness, and enrolled repair passed.'
 } finally {
-  Stop-Service GODSEYEWindowsAgent -ErrorAction Ignore
-  & taskkill.exe /IM GODSEYE.Agent.exe /T /F 2>$null | Out-Null
-  $msi=(Resolve-Path 'windows/agent-x64/GODSEYE-Windows-Agent-x64.msi').Path
-  Start-Process msiexec.exe -ArgumentList @('/x',"`"$msi`"",'/qn','/norestart') -Wait | Out-Null
-  Stop-Process $server.Id -ErrorAction Ignore
-  foreach ($name in @('agent.json','agent.json.bak','agent.key')) { Remove-Item (Join-Path $folder $name) -ErrorAction Ignore }
+  try { Remove-TestAgent }
+  finally {
+    Stop-Process $server.Id -ErrorAction Ignore
+    foreach ($name in @('agent.json','agent.json.bak','agent.key')) { Remove-Item (Join-Path $folder $name) -ErrorAction Ignore }
+  }
 }
