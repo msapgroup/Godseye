@@ -29,29 +29,42 @@ namespace Godseye.WindowsAgent
         static readonly Lazy<string> TicketPath = new Lazy<string>(FindPendingTicketPath);
         internal static string PendingTicketPath => TicketPath.Value;
 
+        [System.Runtime.InteropServices.DllImport("userenv.dll", CharSet=System.Runtime.InteropServices.CharSet.Unicode, SetLastError=true)]
+        static extern bool GetUserProfileDirectory(IntPtr token, StringBuilder? path, ref uint size);
+        [System.Runtime.InteropServices.DllImport("shell32.dll")]
+        static extern int SHGetKnownFolderPath(ref Guid folder, uint flags, IntPtr token, out IntPtr path);
+
         static string FindPendingTicketPath()
         {
-            // DoNotVerify retains the known-folder path even when AppData\\Local
-            // has not been created. An empty result must never become a relative
-            // path under the installer's Program Files working directory.
-            string local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData, Environment.SpecialFolderOption.DoNotVerify);
+            // Query the running Windows account explicitly. A tray launched by
+            // the service or installer may inherit somebody else's environment.
+            using var identity = System.Security.Principal.WindowsIdentity.GetCurrent();
+            IntPtr token = identity.AccessToken.DangerousGetHandle();
             string profile = "";
-            if (!Path.IsPathFullyQualified(local))
+            uint size = 0;
+            GetUserProfileDirectory(token, null, ref size);
+            if (size > 0)
             {
-                try
-                {
-                    using var identity = System.Security.Principal.WindowsIdentity.GetCurrent();
-                    string? sid = identity.User?.Value;
-                    if (!String.IsNullOrWhiteSpace(sid))
-                    {
-                        string? registered = Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\" + sid, "ProfileImagePath", null) as string;
-                        if (!String.IsNullOrWhiteSpace(registered)) profile = Environment.ExpandEnvironmentVariables(registered);
-                    }
-                }
-                catch { } // Fall back to this user's known profile, never the current directory.
-                if (!Path.IsPathFullyQualified(profile))
-                    profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile, Environment.SpecialFolderOption.DoNotVerify);
+                var buffer = new StringBuilder((int)size);
+                if (GetUserProfileDirectory(token, buffer, ref size)) profile = buffer.ToString();
             }
+            if (!Path.IsPathFullyQualified(profile))
+            {
+                string? sid = identity.User?.Value;
+                string? registered = String.IsNullOrWhiteSpace(sid) ? null : Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\" + sid, "ProfileImagePath", null) as string;
+                if (!String.IsNullOrWhiteSpace(registered)) profile = Environment.ExpandEnvironmentVariables(registered);
+            }
+
+            string local = "";
+            Guid folder = new Guid("F1B32785-6FBA-4FCF-9D55-7B8E7F157091"); // FOLDERID_LocalAppData
+            IntPtr nativePath = IntPtr.Zero;
+            try
+            {
+                // KF_FLAG_DONT_VERIFY retains the path before its folder exists.
+                if (SHGetKnownFolderPath(ref folder, 0x4000, token, out nativePath) == 0 && nativePath != IntPtr.Zero)
+                    local = System.Runtime.InteropServices.Marshal.PtrToStringUni(nativePath) ?? "";
+            }
+            finally { if (nativePath != IntPtr.Zero) System.Runtime.InteropServices.Marshal.FreeCoTaskMem(nativePath); }
             return ResolvePendingTicketPath(local, profile);
         }
 

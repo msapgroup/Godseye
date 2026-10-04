@@ -23,7 +23,10 @@ internal static class Program
         using var identity = System.Security.Principal.WindowsIdentity.GetCurrent();
         Check(!new System.Security.Principal.WindowsPrincipal(identity).IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator), "Storage test must run as a standard user");
         string path = TrayApp.PendingTicketPath;
-        string profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile, Environment.SpecialFolderOption.DoNotVerify);
+        string profile = Convert.ToString(Microsoft.Win32.Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\" + identity.User!.Value, "ProfileImagePath", null)) ?? "";
+        profile = Environment.ExpandEnvironmentVariables(profile);
+        Console.WriteLine("Windows identity: " + identity.Name + "; registered profile: " + profile + "; ticket draft: " + path);
+        Check(Path.IsPathFullyQualified(profile), "Test user has no registered profile");
         Check(Path.IsPathFullyQualified(path) && path.StartsWith(profile + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase), "Draft is outside the signed-in user's profile");
         Check(!path.StartsWith(Environment.CurrentDirectory + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase), "Draft used the protected working directory");
         Check(!File.Exists(path), "Refusing to overwrite a pending draft");
