@@ -16,6 +16,24 @@ The goal is simple: bring the tools you use every day into one practical platfor
 
 ---
 
+
+### Clickable summary cards
+
+![Godseye EDR cards open protection, detections, pending actions, and rules](docs/screenshots/v431-edr-clickable-cards.png)
+
+**How to use:** Click **Protected now** to see protected computers, **Needs review** to open detections, **Pending actions** to see queued/delivered commands, or **YARA rule pack** to open Rule Center. Choose **Show all endpoints/activity** to clear a filter. The screenshot uses labeled demo endpoints; your app uses live agent reports.
+
+![Pending actions opened by clicking the EDR summary card](docs/screenshots/v431-edr-pending-actions.png)
+
+The summary cards in **Network Findings**, **Windows Event Findings**, **Tickets**, and **Monitoring** also filter their matching records; **Show all** resets the list. **Reports** cards jump to history, schedules, the latest row, or PDF/CSV exports. Traffic summary cards open source settings or measured device usage. Existing Dashboard, Devices, Calendar, CRM, KB, Sites, and System Health card actions remain available. Use **Tab**, then **Enter** or **Space**, to activate a summary card with the keyboard. Existing role permissions apply to record actions.
+
+### Animated network map preview
+
+![Network Map Overview with moving connection pulses and a pause control](docs/screenshots/v431-map-animated-hops.png)
+
+**How to use:** Watch the pulses move along the preview's connection lines. Select **Pause animation** or **Resume animation**, or select **Open Network Map** to inspect discovered topology. Motion is illustrative; the counters show live totals. The animation respects your operating system's reduced-motion preference. This screenshot shows an empty preview server; your server displays its own counts.
+
+
 ## Why GODSEYE
 
 Small and growing MSPs often end up juggling separate products for discovery, monitoring, reporting, security investigations, Windows event collection, ticketing, remote support, email, and maintenance planning.

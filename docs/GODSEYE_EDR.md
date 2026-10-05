@@ -7,6 +7,19 @@ Godseye's EDR page manages two complementary Windows capabilities:
 
 The endpoint must report EDR capability. The integrated 2.4.5 package supports status, quick scans, YARA scans, and queued **Update signatures**. The core remote-support agent remains available if Godseye EDR is excluded. The server does not mark an agent protected merely because EDR is selected; Defender real-time protection must report active in a recent check-in.
 
+## Clickable summary cards
+
+![Clickable EDR summaries using labeled demo endpoints](screenshots/v431-edr-clickable-cards.png)
+
+- **Protected now:** opens Overview filtered to enabled endpoints with a recent active Defender report.
+- **Needs review:** opens Alerts & review with reported detections and YARA matches.
+- **Pending actions:** opens Scans & activity filtered to pending or delivered commands.
+- **YARA rule pack:** opens Rule Center, including its empty state when no validated pack exists.
+
+Select **Show all endpoints** or **Show all activity** to clear a filter. Clicking a summary opens information; scan, removal, policy, and publishing actions still use their existing buttons and permissions. Keyboard users can Tab to a card and press Enter or Space.
+
+![Pending action drilldown](screenshots/v431-edr-pending-actions.png)
+
 ## How to use it
 
 ![Godseye EDR endpoint cards with Defender status and actions, using labeled demo data](screenshots/v431-godseye-edr-defender-guide.png)
