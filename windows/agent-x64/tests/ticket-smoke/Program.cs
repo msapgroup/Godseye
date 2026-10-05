@@ -98,6 +98,13 @@ internal static class Program
                     string? line = await reader.ReadLineAsync(stopping.Token);
                     if (line != null) await writer.WriteLineAsync(GodseyeAgentService.HandleTrayPipeLine(line));
                 } catch (OperationCanceledException) when (stopping.IsCancellationRequested) { break; }
+                catch (IOException ex) {
+                    // A client may close immediately after receiving the flushed reply.
+                    // StreamWriter.Dispose can then observe the disconnect. Keep the
+                    // fake tray listening, like RemotePipeLoop does in production;
+                    // all delivery/receipt assertions below still have to pass.
+                    Console.WriteLine("Ticket pipe peer disconnected: " + ex.Message);
+                }
             }
         });
         try
@@ -151,9 +158,11 @@ internal static class Program
         finally
         {
             stopping.Cancel(); listener.Stop();
-            await Task.WhenAll(api, tray);
-            File.Delete(keyPath);
-            if (File.Exists(TrayApp.PendingTicketPath)) File.Delete(TrayApp.PendingTicketPath);
+            try { await Task.WhenAll(api, tray); }
+            finally {
+                File.Delete(keyPath);
+                if (File.Exists(TrayApp.PendingTicketPath)) File.Delete(TrayApp.PendingTicketPath);
+            }
         }
     }
 }
