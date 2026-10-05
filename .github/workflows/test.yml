@@ -29,3 +29,5 @@ jobs:
           tests/test_cyber_results_gui.py
           tests/test_admin_password_reset.py
           tests/test_summary_card_actions.py
+          tests/test_audit_gui.py
+          tests/test_audit_analytics_sorting_v22.py

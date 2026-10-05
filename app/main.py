@@ -918,6 +918,14 @@ def dashboard_map_reference():
 def godseye_approved_asset():
     return FileResponse(BASE_DIR / "app" / "assets" / "godseye-approved.png", media_type="image/png", headers={"Cache-Control":"public, max-age=86400"})
 
+@app.get("/assets/audit.css", include_in_schema=False)
+def audit_css_asset():
+    return FileResponse(BASE_DIR / "app" / "assets" / "audit.css", media_type="text/css")
+
+@app.get("/assets/audit.js", include_in_schema=False)
+def audit_js_asset():
+    return FileResponse(BASE_DIR / "app" / "assets" / "audit.js", media_type="application/javascript")
+
 @app.get("/assets/sites.css", include_in_schema=False)
 def sites_css_asset():
     return FileResponse(BASE_DIR / "app" / "assets" / "sites.css", media_type="text/css")
@@ -7221,7 +7229,7 @@ html:not([data-theme="dark"]) :is(.v430-global-search,.v430-bell,.user-chip,.aut
 .cyber-report-heading{display:flex;align-items:start;gap:10px;justify-content:space-between;margin-bottom:12px}.cyber-report-status{font-size:10px;border:1px solid currentColor;border-radius:20px;padding:2px 7px;text-transform:capitalize}
 .cyber-report-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(80px,1fr));gap:8px;margin-bottom:12px}.cyber-report-metric{padding:9px;border:1px solid #31516a;border-radius:8px;background:rgba(69,156,219,.08)}.cyber-report-metric strong{display:block;font-size:22px;color:#60bfff}.cyber-report-metric span{font-size:10px}
 .cyber-report-section{border:1px solid #31516a;border-radius:8px;margin:8px 0;padding:8px}.cyber-report-section summary{cursor:pointer;font-weight:600;overflow-wrap:anywhere}.cyber-report-field{display:grid;grid-template-columns:minmax(90px,1fr) minmax(0,1.5fr);gap:8px;padding:6px 0;border-bottom:1px solid rgba(128,158,183,.18)}.cyber-report-field strong{white-space:pre-wrap;overflow-wrap:anywhere;font-weight:500}.cyber-report-field>span{opacity:.8}.cyber-report-item{padding:6px 0;overflow-wrap:anywhere}.cyber-report-empty{opacity:.75}
-</style><link rel="stylesheet" href="/assets/sites.css"><link rel="stylesheet" href="/assets/crm.css"><link rel="stylesheet" href="/assets/kb.css"></head>
+</style><link rel="stylesheet" href="/assets/sites.css"><link rel="stylesheet" href="/assets/crm.css"><link rel="stylesheet" href="/assets/kb.css"><link rel="stylesheet" href="/assets/audit.css"></head>
 <body>
 <div id="authOverlay" class="overlay" style="display:none">
   <div class="authcard">
@@ -8016,9 +8024,19 @@ sudo godseye-https-setup godseye.example.com letsencrypt</pre></div></section>
 </div>
 
 <div class="view" id="view-audit" style="display:none">
-<section class="panel" id="auditPanel"><div class="table-head"><h2>Audit Log</h2><div style="display:flex;align-items:center;gap:10px"><div class="muted">Security and administrative history</div><button type="button" class="danger admin-only" id="clearAuditBtn" onclick="openClearData('audit')">Clear Audit Log</button></div></div>
-<div style="overflow:auto"><table><thead><tr><th>Time</th><th>Actor</th><th>Action</th><th>Target</th><th>Details</th><th>IP</th></tr></thead><tbody id="auditRows"></tbody></table></div>
-</section>
+<div id="auditPanel" class="audit-workspace">
+ <div class="audit-hero"><div><h1>Audit Log</h1><p>Explore security, endpoint, and administrative activity. Open a card to inspect its recorded results.</p></div><div class="actions"><button class="secondary" type="button" onclick="loadAudit()">↻ Refresh</button><a class="secondary" href="/api/v1/audit/export.csv?limit=2000">Export latest CSV</a><button type="button" class="danger admin-only" id="clearAuditBtn" onclick="openClearData('audit')">Clear Audit Log</button></div></div>
+ <div class="audit-summary">
+  <button type="button" data-audit-filter="all" aria-pressed="true" onclick="auditSetFilter('all')"><span>LOADED ACTIVITY</span><strong id="auditCount-all">—</strong></button>
+  <button type="button" data-audit-filter="access" aria-pressed="false" onclick="auditSetFilter('access')"><span>SIGN-INS &amp; ACCESS</span><strong id="auditCount-access">—</strong></button>
+  <button type="button" data-audit-filter="endpoint" aria-pressed="false" onclick="auditSetFilter('endpoint')"><span>ENDPOINT ACTIONS</span><strong id="auditCount-endpoint">—</strong></button>
+  <button type="button" data-audit-filter="review" aria-pressed="false" onclick="auditSetFilter('review')"><span>FAILED ACTIONS</span><strong id="auditCount-review">—</strong></button>
+ </div>
+ <div class="audit-toolbar"><label>Find activity<input id="auditSearch" class="input" type="search" placeholder="Search user, action, IP, target, or details…" oninput="AUDIT_PAGE=0;renderAudit()"></label><label>Category<select id="auditCategory" class="filter" onchange="AUDIT_PAGE=0;renderAudit()"><option value="all">All activity</option><option value="access">Sign-ins &amp; access</option><option value="endpoint">Endpoint actions</option><option value="administration">Administration</option><option value="review">Failed actions</option><option value="other">Other activity</option></select></label><label>Time window<select id="auditPeriod" class="filter" onchange="AUDIT_PAGE=0;renderAudit()"><option value="all">All loaded history</option><option value="1">Last 24 hours</option><option value="7">Last 7 days</option><option value="30">Last 30 days</option></select></label><button class="secondary" type="button" onclick="auditResetFilters()">Reset filters</button></div>
+ <p class="audit-notice" id="auditNotice" role="status"></p>
+ <div class="audit-results-head"><h2>Activity timeline</h2><span id="auditResultCount" role="status"></span></div><div class="audit-results" id="auditResults" tabindex="-1"><div class="audit-empty">Loading audit activity…</div></div>
+ <div class="audit-pagination"><button class="secondary" type="button" id="auditPrev" onclick="auditPage(-1)">← Previous</button><span id="auditPageLabel"></span><button class="secondary" type="button" id="auditNext" onclick="auditPage(1)">Next →</button></div>
+</div>
 </div>
 
 </div></main>
@@ -8149,7 +8167,7 @@ sudo godseye-https-setup godseye.example.com letsencrypt</pre></div></section>
     <div id="headerHelpModalBody" class="header-help-body"></div>
   </div>
 </div>
-<script src="/assets/sites.js"></script><script src="/assets/crm.js"></script><script src="/assets/kb.js"></script>
+<script src="/assets/sites.js"></script><script src="/assets/crm.js"></script><script src="/assets/kb.js"></script><script src="/assets/audit.js"></script>
 <script>
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const CLASS_CYCLE={new:'investigate',investigate:'known',known:'managed',managed:'ignored',ignored:'new'};
@@ -9405,15 +9423,6 @@ async function changeUserRole(id,role){
   if(!confirm('Change this user to '+role+'? Their current sessions will end.')){await loadUsers();return}
   try{await json('/api/v1/users/'+id+'/role',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({role})});await loadUsers()}
   catch(e){alert('Could not change role: '+e.message);await loadUsers()}
-}
-async function loadAudit(){
-  const panel=document.getElementById('auditPanel'),tbody=document.getElementById('auditRows');
-  if(!ME||!['admin','auditor'].includes(ME.role)){if(panel)panel.style.display='none';return}
-  if(panel)panel.style.display='block';
-  try{
-    const rows=await json('/api/v1/audit?limit=50');
-    if(tbody)tbody.innerHTML=rows.length?rows.map(x=>{const protectedNow=x.protected_until&&new Date(x.protected_until)>new Date();return `<tr class="${protectedNow?'protected-audit':''}"><td>${x.created_at?esc(new Date(x.created_at).toLocaleString()):'—'}</td><td>${esc(x.actor)}</td><td><span class="pill">${esc(x.action)}</span>${protectedNow?' <span class="pill warning">Protected 7 days</span>':''}</td><td>${esc(x.target||'—')}</td><td>${esc(x.details||'')}</td><td>${esc(x.ip||'—')}</td></tr>`}).join(''):'<tr><td colspan="6" class="empty">No audit entries yet.</td></tr>';
-  }catch(e){if(tbody)tbody.innerHTML='<tr><td colspan="6" class="empty">Unable to load audit log.</td></tr>'}
 }
 async function loadSecurity(){
   const el=document.getElementById('mfaStatus');if(!el||!ME)return;

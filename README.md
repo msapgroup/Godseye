@@ -17,6 +17,16 @@ The goal is simple: bring the tools you use every day into one practical platfor
 ---
 
 
+### Audit Log activity cards
+
+![Audit activity cards with search and clickable category summaries](docs/screenshots/v431-audit-activity-guide.png)
+
+**How to use:** Open **Audit Log**, select a summary card or category, and search by user, action, IP, target, or recorded details. Click an activity card to expand it. Defender results appear as labeled protection fields and detection cards instead of a long JSON row. **Reset filters** restores the loaded activity list.
+
+![Expanded Windows Agent audit entry with readable Defender results](docs/screenshots/v431-audit-defender-details.png)
+
+The screenshots use labeled demonstration records; your app displays its own audit history. The view loads the latest 500 records, with 25 per page. Summary counts and filters apply to those loaded records. **Export latest CSV** exports up to 2,000 latest records independently of the on-screen filters. **Original record · technical view** preserves the recorded details for investigation. Existing access permissions and admin-only clearing protections remain in place. [Read the Audit Log guide](docs/AUDIT_LOG.md).
+
 ### Clickable summary cards
 
 ![Godseye EDR cards open protection, detections, pending actions, and rules](docs/screenshots/v431-edr-clickable-cards.png)
