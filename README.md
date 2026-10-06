@@ -659,3 +659,9 @@ It gives small and mid-sized teams a practical platform they can host, understan
 Deploy GODSEYE only on networks and systems you own or are authorized to administer, monitor, test, or support.
 
 Review the repository license before redistribution.
+
+## License
+
+Copyright (c) 2026 MSAP Group LLC.
+
+GODSEYE is licensed under the [GNU General Public License v3.0](LICENSE) (GPL-3.0-only). Third-party components retain their respective licenses.
