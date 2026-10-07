@@ -1,4 +1,4 @@
-# About-page legal notices
+# GODSEYE legal notices
 
 The About page includes two informational cards in the same blue 3D style as GODSEYE.
 

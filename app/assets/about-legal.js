@@ -1,4 +1,4 @@
-/* Informational legal cards: no acceptance gate or changes to access permissions. */
+/* GODSEYE About-page legal notices; informational cards preserve existing access permissions. */
 let ABOUT_LEGAL_KIND='notice',ABOUT_LEGAL_ORIGIN=null;
 function openAboutLegal(kind='notice'){
  const dialog=document.getElementById('aboutLegalDialog');if(!dialog)return;

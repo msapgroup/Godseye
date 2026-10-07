@@ -222,7 +222,9 @@ After a run, review the structured result and scan history. Where supported, res
 
 **How it works:** About GODSEYE explains the four parts of the platform: network discovery and device intelligence, security investigation, day-to-day MSP workflows, and self-hosted control of your operational data. Select **GODSEYE Wiki** or **Open Wiki** to open the setup, configuration, and feature guides in a new tab while keeping the app open.
 
-**License and legal notices:** Select **License & Legal Notice** beside the Wiki button to read the user-responsibility, warranty, liability, and GPL notices. Select **Terms of Use** beneath those buttons for the operational terms card. You can switch between the two cards without closing them. **View GNU GPL v3.0** opens the complete bundled license in a new tab and works without Internet access. Close with **Close**, **×**, **Escape**, or by clicking outside the card; keyboard focus returns to the About-page button. These notices are informational and do not require an acceptance checkbox or change app permissions.
+#### Legal Notice
+
+Select **License & Legal Notice** beside the Wiki button to read the user-responsibility, warranty, liability, and GPL notices. Select **Terms of Use** beneath those buttons for the operational terms card. You can switch between the two cards without closing them. **View GNU GPL v3.0** opens the complete bundled license in a new tab and works without Internet access. Close with **Close**, **×**, **Escape**, or by clicking outside the card; keyboard focus returns to the About-page button. These notices are informational and do not require an acceptance checkbox or change app permissions.
 
 ![GODSEYE License and Legal Notice card](docs/screenshots/v431-about-license-notice.png)
 

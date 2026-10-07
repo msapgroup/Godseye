@@ -13,6 +13,7 @@ on:
       - 'install.sh'
       - 'doctor.sh'
       - 'app/main.py'
+      # Keep the legal notice and its usage guide in the published full-app ZIP.
       - 'README.md'
       - 'LICENSE'
       - 'app/assets/about-legal.*'
