@@ -101,3 +101,16 @@ Review structured results and scan history, create Findings or Tickets where sup
 ![About GODSEYE](screenshots/godseye-about.png)
 
 The About workspace explains GODSEYE's network intelligence, security operations, MSP workflows, and self-hosted control, with links to setup and technical documentation.
+
+
+## License & Legal Notice
+
+![License and Legal Notice](screenshots/v431-about-license-notice.png)
+
+Open **About → License & Legal Notice** to read the notice. **View GNU GPL v3.0** opens the locally bundled complete license. Close using **Close**, **×**, or **Escape**.
+
+## Terms of Use
+
+![Terms of Use](screenshots/v431-about-terms-of-use.png)
+
+Open **About → Terms of Use** beneath the About-page links. Review responsibilities for access, data, backups, scans, updates, third-party products, and liability. The cards are draft notices and preserve GPL rights.

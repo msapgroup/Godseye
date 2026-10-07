@@ -918,6 +918,18 @@ def dashboard_map_reference():
 def godseye_approved_asset():
     return FileResponse(BASE_DIR / "app" / "assets" / "godseye-approved.png", media_type="image/png", headers={"Cache-Control":"public, max-age=86400"})
 
+@app.get("/assets/about-legal.css", include_in_schema=False)
+def about_legal_css_asset():
+    return FileResponse(BASE_DIR / "app" / "assets" / "about-legal.css", media_type="text/css")
+
+@app.get("/assets/about-legal.js", include_in_schema=False)
+def about_legal_js_asset():
+    return FileResponse(BASE_DIR / "app" / "assets" / "about-legal.js", media_type="application/javascript")
+
+@app.get("/assets/LICENSE.txt", include_in_schema=False)
+def about_license_asset():
+    return FileResponse(BASE_DIR / "LICENSE", media_type="text/plain")
+
 @app.get("/assets/audit.css", include_in_schema=False)
 def audit_css_asset():
     return FileResponse(BASE_DIR / "app" / "assets" / "audit.css", media_type="text/css")
@@ -7229,7 +7241,7 @@ html:not([data-theme="dark"]) :is(.v430-global-search,.v430-bell,.user-chip,.aut
 .cyber-report-heading{display:flex;align-items:start;gap:10px;justify-content:space-between;margin-bottom:12px}.cyber-report-status{font-size:10px;border:1px solid currentColor;border-radius:20px;padding:2px 7px;text-transform:capitalize}
 .cyber-report-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(80px,1fr));gap:8px;margin-bottom:12px}.cyber-report-metric{padding:9px;border:1px solid #31516a;border-radius:8px;background:rgba(69,156,219,.08)}.cyber-report-metric strong{display:block;font-size:22px;color:#60bfff}.cyber-report-metric span{font-size:10px}
 .cyber-report-section{border:1px solid #31516a;border-radius:8px;margin:8px 0;padding:8px}.cyber-report-section summary{cursor:pointer;font-weight:600;overflow-wrap:anywhere}.cyber-report-field{display:grid;grid-template-columns:minmax(90px,1fr) minmax(0,1.5fr);gap:8px;padding:6px 0;border-bottom:1px solid rgba(128,158,183,.18)}.cyber-report-field strong{white-space:pre-wrap;overflow-wrap:anywhere;font-weight:500}.cyber-report-field>span{opacity:.8}.cyber-report-item{padding:6px 0;overflow-wrap:anywhere}.cyber-report-empty{opacity:.75}
-</style><link rel="stylesheet" href="/assets/sites.css"><link rel="stylesheet" href="/assets/crm.css"><link rel="stylesheet" href="/assets/kb.css"><link rel="stylesheet" href="/assets/audit.css"></head>
+</style><link rel="stylesheet" href="/assets/sites.css"><link rel="stylesheet" href="/assets/crm.css"><link rel="stylesheet" href="/assets/kb.css"><link rel="stylesheet" href="/assets/audit.css"><link rel="stylesheet" href="/assets/about-legal.css"></head>
 <body>
 <div id="authOverlay" class="overlay" style="display:none">
   <div class="authcard">
@@ -7950,7 +7962,9 @@ sudo godseye-https-setup godseye.example.com letsencrypt</pre></div></section>
     <div class="about-actions">
       <a class="primary about-button" href="https://github.com/msapgroup/Godseye" target="_blank" rel="noopener">GitHub Repository</a>
       <a class="secondary about-button" href="https://github.com/msapgroup/Godseye/wiki" target="_blank" rel="noopener noreferrer">GODSEYE Wiki</a>
+      <button type="button" class="secondary about-button" id="aboutLegalNoticeButton" onclick="openAboutLegal('notice')">▤ License &amp; Legal Notice</button>
     </div>
+    <div class="about-terms-link"><button type="button" class="secondary about-button" id="aboutTermsButton" onclick="openAboutLegal('terms')">▤ Terms of Use</button><small>User responsibilities and operational terms.</small></div>
   </div>
 
   <div class="about-feature-grid">
@@ -8158,6 +8172,30 @@ sudo godseye-https-setup godseye.example.com letsencrypt</pre></div></section>
   </div>
 </div>
 
+<dialog id="aboutLegalDialog" class="about-legal-dialog" aria-labelledby="aboutLegalTitle" aria-describedby="aboutLegalSubtitle">
+ <div class="about-legal-shell">
+  <header class="about-legal-heading"><div><h2 id="aboutLegalTitle">License &amp; Legal Notice</h2><p id="aboutLegalSubtitle">GODSEYE · MSAP Group LLC</p></div><button type="button" class="about-legal-x" aria-label="Close legal notice" onclick="closeAboutLegal()" autofocus>×</button></header>
+  <div class="about-legal-badge">GNU GPL v3.0</div>
+  <div class="about-legal-body">
+   <div id="aboutLegalNoticeContent">
+    <section><h3>1. Your responsibility</h3><p>You are responsible for deployment, configuration, permissions, backups, and all actions performed through GODSEYE and its agents. Obtain authorization before accessing or testing any device or network.</p></section>
+    <section><h3>2. No warranty</h3><p>GODSEYE is provided AS IS, without warranties of merchantability, fitness for a particular purpose, security, accuracy, or uninterrupted operation, to the extent permitted by applicable law.</p></section>
+    <section><h3>3. Limitation of liability</h3><p>To the extent permitted by applicable law, and unless agreed otherwise in writing, MSAP Group LLC and contributors are not liable for device or network damage, data loss, downtime, security incidents, lost profits, or other damages arising from use of, or inability to use, GODSEYE.</p></section>
+    <section><h3>4. License and legal rights</h3><p>The full GNU GPL v3.0 governs the software. This notice does not restrict GPL rights or exclude liability that applicable law does not permit to be excluded.</p></section>
+   </div>
+   <div id="aboutLegalTermsContent" hidden>
+    <section><h3>1. Authorized use &amp; account security</h3><p>Operate only on systems you own or have permission to manage. Protect credentials and tokens, control access, and obtain consent for remote support.</p></section>
+    <section><h3>2. Your data &amp; backups</h3><p>You retain ownership of your data. You are responsible for lawful collection, retention, access permissions, and tested backups of your self-hosted installation.</p></section>
+    <section><h3>3. Scans, updates &amp; remediation</h3><p>Review targets and findings before taking action. Test changes and keep recovery plans. Detection, scanning, updates, and remediation may be incomplete or disrupt systems.</p></section>
+    <section><h3>4. Third-party tools &amp; support</h3><p>Connected products, feeds, and services have separate terms and availability. Paid support or managed services require a separate written agreement.</p></section>
+    <section><h3>5. Warranty &amp; liability</h3><p>GODSEYE is provided AS IS. To the extent permitted by law, and unless agreed otherwise in writing, MSAP Group LLC disclaims warranties and liability for device or network damage, data loss, downtime, and other damages arising from use.</p></section>
+    <section><h3>6. Open-source rights &amp; legal limits</h3><p>GNU GPL v3.0 governs the software. This notice does not add restrictions to GPL rights or exclude liability that applicable law requires.</p></section>
+   </div>
+  </div>
+  <footer class="about-legal-footer"><div class="about-legal-links"><a class="secondary" href="/assets/LICENSE.txt" target="_blank" rel="noopener noreferrer">View GNU GPL v3.0 ↗</a><button type="button" class="secondary" id="aboutLegalSwitch" onclick="switchAboutLegal()">Terms of Use</button></div><small>Draft notice · Attorney review recommended before publication</small><button type="button" class="primary" onclick="closeAboutLegal()">Close</button></footer>
+ </div>
+</dialog>
+
 <div id="headerHelpModal" class="header-help-modal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="headerHelpModalTitle">
   <div class="header-help-dialog">
     <div class="header-help-modal-head">
@@ -8167,7 +8205,7 @@ sudo godseye-https-setup godseye.example.com letsencrypt</pre></div></section>
     <div id="headerHelpModalBody" class="header-help-body"></div>
   </div>
 </div>
-<script src="/assets/sites.js"></script><script src="/assets/crm.js"></script><script src="/assets/kb.js"></script><script src="/assets/audit.js"></script>
+<script src="/assets/sites.js"></script><script src="/assets/crm.js"></script><script src="/assets/kb.js"></script><script src="/assets/audit.js"></script><script src="/assets/about-legal.js"></script>
 <script>
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const CLASS_CYCLE={new:'investigate',investigate:'known',known:'managed',managed:'ignored',ignored:'new'};

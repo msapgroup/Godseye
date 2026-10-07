@@ -74,6 +74,22 @@ def capture() -> None:
         ]:
             assert phrase in about_text, phrase
 
+        # Capture the real About legal cards and verify their dismissal controls.
+        for button, title, filename in [
+            ("#aboutLegalNoticeButton", "License & Legal Notice", "godseye-license-notice.png"),
+            ("#aboutTermsButton", "GODSEYE Terms of Use", "godseye-terms-of-use.png"),
+        ]:
+            page.locator(button).click()
+            expect(page.locator("#aboutLegalDialog")).to_be_visible()
+            expect(page.locator("#aboutLegalTitle")).to_have_text(title)
+            page.locator("#aboutLegalDialog").screenshot(path=str(OUT / filename))
+            page.keyboard.press("Escape")
+            expect(page.locator("#aboutLegalDialog")).to_be_hidden()
+            expect(page.locator(button)).to_be_focused()
+        license_response = page.request.get(BASE + "/assets/LICENSE.txt")
+        assert license_response.status == 200
+        assert "GNU GENERAL PUBLIC LICENSE" in license_response.text()
+
         browser.close()
 
 
