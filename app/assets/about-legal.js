@@ -7,7 +7,7 @@ function openAboutLegal(kind='notice'){
  document.getElementById('aboutLegalSubtitle').textContent=terms?'MSAP Group LLC · Draft for review':'GODSEYE · MSAP Group LLC';
  document.getElementById('aboutLegalNoticeContent').hidden=terms;
  document.getElementById('aboutLegalTermsContent').hidden=!terms;
- document.getElementById('aboutLegalSwitch').textContent=terms?'License & Legal Notice':'Terms of Use';
+ document.getElementById('aboutLegalSwitchLabel').textContent=terms?'License & Legal Notice':'Terms of Use';
  if(!dialog.open){ABOUT_LEGAL_ORIGIN=document.activeElement;dialog.showModal()}
  dialog.querySelector('.about-legal-body').scrollTop=0;
 }
