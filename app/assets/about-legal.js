@@ -4,7 +4,7 @@ function openAboutLegal(kind='notice'){
  const dialog=document.getElementById('aboutLegalDialog');if(!dialog)return;
  const terms=kind==='terms';ABOUT_LEGAL_KIND=terms?'terms':'notice';
  document.getElementById('aboutLegalTitle').textContent=terms?'GODSEYE Terms of Use':'License & Legal Notice';
- document.getElementById('aboutLegalSubtitle').textContent=terms?'MSAP Group LLC · Draft for review':'GODSEYE · MSAP Group LLC';
+ document.getElementById('aboutLegalSubtitle').textContent=terms?'MSAP Group LLC':'GODSEYE · MSAP Group LLC';
  document.getElementById('aboutLegalNoticeContent').hidden=terms;
  document.getElementById('aboutLegalTermsContent').hidden=!terms;
  document.getElementById('aboutLegalSwitchLabel').textContent=terms?'License & Legal Notice':'Terms of Use';
