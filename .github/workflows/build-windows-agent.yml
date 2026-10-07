@@ -13,6 +13,11 @@ on:
       - 'install.sh'
       - 'doctor.sh'
       - 'app/main.py'
+      - 'README.md'
+      - 'LICENSE'
+      - 'app/assets/about-legal.*'
+      - 'docs/LEGAL_NOTICES.md'
+      - 'docs/SCREENSHOTS.md'
       - 'docs/screenshots/v431-godseye-edr-defender-guide.png'
   pull_request:
     paths:

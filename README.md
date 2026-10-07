@@ -228,7 +228,7 @@ After a run, review the structured result and scan history. Where supported, res
 
 ![GODSEYE Terms of Use card](docs/screenshots/v431-about-terms-of-use.png)
 
-The notices are drafts for attorney review. They preserve GNU GPL v3.0 rights and exclusions required by applicable law; they do not guarantee immunity from every claim. [Read the legal-notice guide](docs/LEGAL_NOTICES.md).
+The notices preserve GNU GPL v3.0 rights and exclusions required by applicable law; they do not guarantee immunity from every claim. [Read the legal-notice guide](docs/LEGAL_NOTICES.md).
 
 ---
 

@@ -25,6 +25,6 @@ The text is original GODSEYE wording for MSAP Group LLC. Microsoft does not prov
 
 The notices are available to all users who can open About. They add no acceptance gate, change no role permissions, and do not modify the server or Windows Agent's operational behavior.
 
-## Draft status and license precedence
+## Legal effect and license precedence
 
-These are drafts for attorney review, not a guarantee of enforceability or immunity from every claim. Liability exclusions apply only to the extent permitted by applicable law and may be affected by a separate written agreement. The full GNU GPL v3.0 in [LICENSE](../LICENSE) governs the software. These notices do not impose additional restrictions on GPL rights or exclude liability that applicable law does not permit to be excluded. Third-party components retain their respective licenses.
+These notices do not guarantee enforceability or immunity from every claim. Liability exclusions apply only to the extent permitted by applicable law and may be affected by a separate written agreement. The full GNU GPL v3.0 in [LICENSE](../LICENSE) governs the software. These notices do not impose additional restrictions on GPL rights or exclude liability that applicable law does not permit to be excluded. Third-party components retain their respective licenses.

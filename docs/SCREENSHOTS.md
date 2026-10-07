@@ -113,4 +113,4 @@ Open **About → License & Legal Notice** to read the notice. **View GNU GPL v3.
 
 ![Terms of Use](screenshots/v431-about-terms-of-use.png)
 
-Open **About → Terms of Use** beneath the About-page links. Review responsibilities for access, data, backups, scans, updates, third-party products, and liability. The cards are draft notices and preserve GPL rights.
+Open **About → Terms of Use** beneath the About-page links. Review responsibilities for access, data, backups, scans, updates, third-party products, and liability. The notices preserve GPL rights.
