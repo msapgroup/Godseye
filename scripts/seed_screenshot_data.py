@@ -108,12 +108,13 @@ def seed() -> None:
             (iso(1), iso(1), "", len(devices), 1280),
         )
 
+        # Screenshot-only monitor fixtures must never contact private example targets.
         for idx, (name, kind, target, enabled, interval) in enumerate(monitors, 1):
             ts = iso(idx)
             c.execute(
                 """INSERT INTO integration_settings(id,name,kind,target,enabled,interval_seconds,options_json,created_at,updated_at)
                    VALUES(?,?,?,?,?,?,?,?,?)""",
-                (idx, name, kind, target, enabled, interval, "{}", iso(1440), ts),
+                (idx, name, kind, target, 0, interval, "{}", iso(1440), ts),
             )
             state = "down" if name == "Backup Service" else "up"
             latency = 220.0 if state == "down" else 8.0 + idx * 2

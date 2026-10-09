@@ -3,7 +3,7 @@ import json
 
 PAGES = {
     "overview": "Dashboard", "devices": "Devices", "network": "Network Map",
-    "sites": "Sites", "crm": "CRM", "monitoring": "Monitoring",
+    "weather": "Weather Alerts", "sites": "Sites", "crm": "CRM", "monitoring": "Monitoring",
     "findings": "Findings", "tools": "Tools", "cyber-tools": "Cyber Tools",
     "integrations": "Integrations", "reports": "Reports", "calendar": "Calendar",
     "email": "Email", "event-findings": "Event Findings",
@@ -15,11 +15,11 @@ PAGES = {
 }
 GROUPS = {
     "Monitoring": ["overview", "devices", "network", "sites", "crm", "monitoring", "findings"],
-    "Operations": ["tools", "cyber-tools", "integrations", "reports", "calendar", "email", "event-findings", "remote-access", "windows-updates", "windows-agent", "antivirus", "edr", "tickets"],
+    "Operations": ["weather", "tools", "cyber-tools", "integrations", "reports", "calendar", "email", "event-findings", "remote-access", "windows-updates", "windows-agent", "antivirus", "edr", "tickets"],
     "Administration": ["health", "rules", "audit", "security", "about"],
 }
 API_PREFIXES = (
-    ("/sites", "sites"), ("/customers", "crm"),
+    ("/weather", "weather"), ("/sites", "sites"), ("/customers", "crm"),
     ("/crm", "crm"), ("/devices", "devices"),
     ("/network", "network"), ("/topology", "network"),
     ("/scan", "devices"), ("/discovery", "network"),

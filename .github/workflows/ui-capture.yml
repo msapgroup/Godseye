@@ -54,6 +54,8 @@ jobs:
           curl -fsS http://127.0.0.1:8080/ >/dev/null
       - name: Verify personal dashboard workflows
         run: PYTHONPATH=. python scripts/verify_visual_dashboard.py
+      - name: Verify Weather Alerts and dropdown contrast
+        run: PYTHONPATH=. python scripts/verify_weather_workspace.py
       - name: Capture real running app screens
         run: python scripts/capture_ui.py
       - name: Show application errors if capture fails

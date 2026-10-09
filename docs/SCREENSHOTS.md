@@ -116,3 +116,11 @@ Open **About → License & Legal Notice** to read the notice. **View GNU GPL v3.
 ![Terms of Use](screenshots/v431-about-terms-of-use.png)
 
 Open **About → Terms of Use** beneath the About-page links. Review responsibilities for access, data, backups, scans, updates, third-party products, and liability. The notices preserve GPL rights.
+
+## Weather Alerts and dropdown updates
+
+See the [Weather Alerts usage guide](WEATHER_ALERTS.md). Weather captures use live provider responses; city stars use actual coordinates. Cyber Tools and Reports captures reflect the shared native dropdown contrast correction.
+
+![Weather Alerts](screenshots/v431-weather-alerts.png)
+
+![Add monitored city](screenshots/v431-weather-add-city.png)

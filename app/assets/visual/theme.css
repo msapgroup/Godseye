@@ -58,3 +58,10 @@ html[data-theme="dark"] .about-legal-dialog{background:linear-gradient(145deg,#1
 
 html[data-theme="dark"] .about-feature:nth-child(1){--surface-accent:#31d7d6}html[data-theme="dark"] .about-feature:nth-child(2){--surface-accent:#f1bb61}html[data-theme="dark"] .about-feature:nth-child(3){--surface-accent:#b184fa}html[data-theme="dark"] .about-feature:nth-child(4){--surface-accent:#f07f9f}html[data-theme="dark"] .about-feature-icon{color:var(--surface-accent)!important;border-color:color-mix(in srgb,var(--surface-accent) 40%,#274359)!important;background:color-mix(in srgb,var(--surface-accent) 16%,#102131)!important}
 html[data-theme="dark"] .audit-summary>button:nth-child(1){--surface-accent:#31d7d6}html[data-theme="dark"] .audit-summary>button:nth-child(2){--surface-accent:#f1bb61}html[data-theme="dark"] .audit-summary>button:nth-child(3){--surface-accent:#b184fa}html[data-theme="dark"] .audit-summary>button:nth-child(4){--surface-accent:#f07f9f}
+
+/* Native dropdown menus need solid surfaces, including unclassed dialog controls. */
+html[data-theme="dark"] select{color-scheme:dark!important;background-color:#102338!important;color:#edf5ff!important}
+html[data-theme="dark"] :is(option,optgroup){background-color:#102338!important;color:#edf5ff!important}
+html[data-theme="dark"] option:checked{background-color:#24516d!important;color:#fff!important}
+html[data-theme="dark"] :is(select,option):disabled{color:#98a9ba!important}
+html:not([data-theme="dark"]) :is(select,option,optgroup){color-scheme:light;background-color:#fff;color:#172b40}

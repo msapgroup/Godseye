@@ -20,6 +20,7 @@ CAPTURES = [
     ("findings", "v431-findings.png"),
     ("tickets", "v431-tickets.png"),
     ("reports", "v431-reports.png"),
+    ("weather", "v431-weather-alerts.png"),
     ("integrations", "v431-integrations.png"),
     ("tools", "v431-tools.png"),
     ("security", "v431-settings.png"),
@@ -86,6 +87,13 @@ async def main():
             print("Capturing", view, flush=True)
             await page.evaluate("(v)=>showView(v,true)", view)
             await page.wait_for_timeout(1500)
+            if view == "weather":
+                frame = page.frame_locator('#weatherWorkspace')
+                await frame.locator('#cityList .citytile').first.wait_for()
+                await page.wait_for_timeout(14000)
+                await frame.locator('#add').click()
+                await frame.locator('#addDialog').screenshot(path=str(OUT / 'v431-weather-add-city.png'))
+                await frame.get_by_role('button', name='Close add city').click()
             if view == "custom-dashboard":
                 await page.wait_for_function("() => customDashboardStatus.textContent.startsWith('Live data')")
                 assert await page.locator("#customDashboardGrid > .custom-card").count() == 10
