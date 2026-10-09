@@ -31,3 +31,4 @@ jobs:
           tests/test_summary_card_actions.py
           tests/test_audit_gui.py
           tests/test_audit_analytics_sorting_v22.py
+          tests/test_v430_personal_card_layouts.py

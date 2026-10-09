@@ -17,6 +17,20 @@ The goal is simple: bring the tools you use every day into one practical platfor
 ---
 
 
+### Dark workspace and custom dashboard
+
+![Custom dashboard with live network, security, ticket, and linked-site cards](docs/screenshots/v431-custom-dashboard.png)
+
+The refreshed dark workspace uses cyan, teal, violet, amber, and rose accents with continuous raised card borders. The original GODSEYE logo, existing Dashboard arrangement, and device workflows are preserved. Realistic device artwork appears in inventory, icon selection, and topology. Linked Sites uses the approved city artwork.
+
+**How to customize:** Open **Dashboard → Customize dashboard → Customize cards**. Select **Add cards**, search the catalog, and add the cards you need. Choose a card size, then drag cards or use their arrow buttons to arrange them. **Save layout** stores your workspace for your account on this server; it is included in full backups. **Cancel** discards unsaved edits. **Reset** restores the default custom cards; select **Save layout** to keep that reset. Use **← Dashboard** to return to the original Dashboard.
+
+![Searchable dashboard card catalog and size/order controls](docs/screenshots/v431-custom-dashboard-picker.png)
+
+Cards show the app's current records and measurements, refresh while the dashboard is visible, and open the existing workspaces. Your assigned sidebar permissions determine which cards are available. Personal layout changes do not grant access to restricted features. Refresh and animation stop drawing while signed out or the tab is hidden. The Earth globe can spin, pause, or be dragged; reduced-motion preferences start it paused. World-map pulse locations use city coordinates; the routes are illustrative, while **Open Network Map** shows actual discovered topology.
+
+Screenshots come from a running test instance with labeled demonstration endpoints and traffic samples. Your installation displays its own data. [See every refreshed page and the workspace guide](docs/CUSTOM_DASHBOARD.md).
+
 ### Audit Log activity cards
 
 ![Audit activity cards with search and clickable category summaries](docs/screenshots/v431-audit-activity-guide.png)
@@ -84,7 +98,7 @@ Administrators can use **Reboot server** at the bottom of the sidebar. Confirm t
 
 ![GODSEYE Dashboard](docs/screenshots/v431-dashboard-map-logo.png)
 
-**How it works:** The Dashboard gives you a quick view of device totals, security findings, traffic, monitored services, tickets, and appliance health. Select a summary or card to open the related workspace. The Network Map Overview shows illustrative map artwork alongside totals from the running app. Select **Open Network Map** to inspect actual network devices and connections. The preview contains only the map artwork, and cards adapt to narrower screens without clipping their details.
+**How it works:** The Dashboard gives you a quick view of device totals, security findings, traffic, monitored services, tickets, and appliance health. Select a summary or card to open the related workspace. The Network Map Overview shows illustrative map artwork alongside totals from the running app. Select **Open Network Map** to inspect actual network devices and connections. The preview includes moving clouds and pulsing illustrative routes anchored to city coordinates, and cards adapt to narrower screens without clipping their details.
 
 ### Devices and inventory
 

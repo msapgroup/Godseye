@@ -2,6 +2,7 @@ from __future__ import annotations
 import asyncio
 import os
 import socket
+import sys
 import subprocess
 import tempfile
 from pathlib import Path
@@ -14,6 +15,16 @@ PASSWORD = "GodseyeDemo!2026"
 CAPTURES = [
     ("overview", "v431-dashboard-map-logo.png"),
     ("devices", "v431-devices-guide.png"),
+    ("custom-dashboard", "v431-custom-dashboard.png"),
+    ("monitoring", "v431-monitoring.png"),
+    ("findings", "v431-findings.png"),
+    ("tickets", "v431-tickets.png"),
+    ("reports", "v431-reports.png"),
+    ("integrations", "v431-integrations.png"),
+    ("tools", "v431-tools.png"),
+    ("security", "v431-settings.png"),
+    ("audit", "v431-audit-activity-guide.png"),
+    ("kb", "v431-kb-outlook-guide.png"),
     ("network", "v431-network-map-card.png"),
     ("crm", "v431-crm-live.png"),
     ("calendar", "v431-calendar-guide.png"),
@@ -24,6 +35,9 @@ CAPTURES = [
     ("cyber-tools", "v431-cyber-tools-overview.png"),
     ("edr", "v431-godseye-edr-defender-guide.png"),
     ("about", "godseye-about.png"),
+    ("windows-updates", "v431-windows-updates.png"),
+    ("antivirus", "v431-antivirus.png"),
+    ("rules", "v431-alert-rules.png"),
 ]
 
 async def main():
@@ -34,6 +48,9 @@ async def main():
         await page.goto(BASE, wait_until="networkidle")
         await page.evaluate("localStorage.setItem('godseye-theme','dark')")
         await page.reload(wait_until="networkidle")
+
+        errors = []
+        page.on("pageerror", lambda error: errors.append(str(error)))
 
         # Fresh screenshot DB: complete first-run password setup.
         if await page.locator("#setupOverlay").is_visible():
@@ -66,8 +83,26 @@ async def main():
         """)
 
         for view, filename in CAPTURES:
+            print("Capturing", view, flush=True)
             await page.evaluate("(v)=>showView(v,true)", view)
             await page.wait_for_timeout(1500)
+            if view == "custom-dashboard":
+                await page.wait_for_function("() => customDashboardStatus.textContent.startsWith('Live data')")
+                assert await page.locator("#customDashboardGrid > .custom-card").count() == 10
+                await page.get_by_role("button", name="Customize cards", exact=True).click()
+                await page.get_by_role("button", name="＋ Add cards", exact=True).click()
+                await page.locator("#dashboardCardPicker").wait_for(state="visible")
+                await page.screenshot(path=str(OUT / "v431-custom-dashboard-picker.png"), full_page=True)
+                await page.get_by_role("button", name="Close card picker", exact=True).click()
+                await page.get_by_role("button", name="Cancel", exact=True).click()
+            if view == "kb":
+                await page.locator("#kbList .crm-customer-card").first.click()
+                await page.locator("#kbRecord .kb-step").first.wait_for()
+            if view == "about":
+                for kind, filename in [("notice", "v431-about-license-notice.png"), ("terms", "v431-about-terms-of-use.png")]:
+                    await page.evaluate("kind=>openAboutLegal(kind)", kind)
+                    await page.locator("#aboutLegalDialog").screenshot(path=str(OUT / filename))
+                    await page.keyboard.press("Escape")
             if view == "crm":
                 await page.get_by_role('button', name='+ Add Customer').click()
                 await page.fill('#crmCustomerForm [name=name]', 'North Shore Dental')
@@ -122,9 +157,22 @@ async def main():
                 await page.get_by_role("tab", name="Scans & activity").click()
                 assert "pending" in (await page.locator("#edrJobs").inner_text()).lower()
 
+        await page.evaluate("()=>showView('kb',true)")
+        await page.evaluate("()=>kbNew()")
+        await page.screenshot(path=str(OUT / "v431-kb-new-article.png"), full_page=True)
+        await page.evaluate("()=>kbClose()")
+        await page.evaluate("()=>showView('devices',true)")
+        await page.wait_for_timeout(700)
+        await page.evaluate("()=>openDeviceIconFromButton(document.querySelector('[data-icon-id]'))")
+        for category, filename in [("home", "v431-device-icons-home.png"), ("security", "v431-device-icons-security.png")]:
+            await page.evaluate("c=>setDeviceIconCategory(c)", category)
+            await page.wait_for_timeout(600)
+            await page.locator("#deviceIconModal .modal-card").screenshot(path=str(OUT / filename))
+        await page.evaluate("()=>closeDeviceIcon()")
+
         # Pair a second, seeded GODSEYE over authenticated HTTPS and capture
         # the actual workspace, including remotely loaded devices and tickets.
-        private_ip = socket.gethostbyname(socket.gethostname())
+        private_ip = os.environ.get("GODSEYE_CAPTURE_REMOTE_IP") or socket.gethostbyname(socket.gethostname())
         with tempfile.TemporaryDirectory() as temp:
             cert, key = Path(temp) / 'site.crt', Path(temp) / 'site.key'
             subprocess.run(['openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes',
@@ -135,30 +183,31 @@ async def main():
                            check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             env = dict(os.environ, GODSEYE_DB=str(Path(temp) / 'remote.db'), GODSEYE_COOKIE_SECURE='false',
                        GODSEYE_DATA_DIR=str(Path(temp) / 'remote-data'), PYTHONPATH=str(Path.cwd()))
-            subprocess.run(['python', 'scripts/seed_screenshot_data.py'], env=env, check=True)
+            subprocess.run([sys.executable, 'scripts/seed_screenshot_data.py'], env=env, check=True)
             log = open(Path(temp) / 'remote.log', 'w')
-            remote = subprocess.Popen(['python', '-m', 'uvicorn', 'app.main:app',
+            remote = subprocess.Popen([sys.executable, '-m', 'uvicorn', 'app.main:app',
                                        '--host', '0.0.0.0', '--port', '8443',
                                        '--ssl-certfile', str(cert), '--ssl-keyfile', str(key)],
                                       env=env, stdout=log, stderr=subprocess.STDOUT)
             try:
                 address = f'https://{private_ip}:8443'
+                connect_address = 'https://' + (os.environ.get('GODSEYE_CAPTURE_REMOTE_CONNECT') or private_ip) + ':8443'
                 context = await p.request.new_context(ignore_https_errors=True)
                 for attempt in range(50):
                     try:
-                        response = await context.get(address + '/api/v1/auth/setup/status', timeout=1000)
+                        response = await context.get(connect_address + '/api/v1/auth/setup/status', timeout=1000)
                         if response.ok: break
                     except Exception:
                         await asyncio.sleep(.2)
                 else:
                     raise RuntimeError('Remote screenshot instance did not start')
-                response = await context.post(address + '/api/v1/auth/setup', data={'current_password': '', 'new_password': PASSWORD})
+                response = await context.post(connect_address + '/api/v1/auth/setup', data={'current_password': '', 'new_password': PASSWORD})
                 assert response.ok, await response.text()
-                response = await context.post(address + '/api/v1/auth/login', data={'username': 'admin', 'password': PASSWORD})
+                response = await context.post(connect_address + '/api/v1/auth/login', data={'username': 'admin', 'password': PASSWORD})
                 assert response.ok, await response.text()
                 cookies = (await context.storage_state())['cookies']
                 csrf = next(c['value'] for c in cookies if c['name'] == 'godseye_csrf')
-                response = await context.post(address + '/api/v1/federation/pairing-tokens', headers={'X-CSRF-Token': csrf})
+                response = await context.post(connect_address + '/api/v1/federation/pairing-tokens', headers={'X-CSRF-Token': csrf})
                 assert response.ok, await response.text()
                 token = (await response.json())['pairing_token']
                 linked = await page.evaluate('async data => json("/api/v1/sites", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)})',
@@ -168,6 +217,9 @@ async def main():
                 await page.locator('.site-card').first.click()
                 await page.locator('#siteWorkspace table').first.wait_for()
                 await page.screenshot(path=str(OUT / 'v431-sites-management.png'), full_page=True)
+                await page.evaluate("()=>showView('custom-dashboard',true)")
+                await page.wait_for_function("() => customDashboardStatus.textContent.startsWith('Live data')")
+                await page.screenshot(path=str(OUT / 'v431-custom-dashboard.png'), full_page=True)
                 await context.dispose()
             finally:
                 remote.terminate()
@@ -185,6 +237,24 @@ async def main():
         await backup_card.screenshot(path=str(OUT / 'v431-full-backup-restore.png'))
         await page.evaluate("document.getElementById('healthAdvanced').open=false")
 
+        # Capture the existing admin reset dialog without resetting an account.
+        await page.evaluate("async()=>{await json('/api/v1/users',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:'demo-operator',display_name:'Demo Operator',role:'operator',password:'Demo-Only!2026-Strong'})});await loadUsers()}")
+        await page.evaluate("()=>showView('users',true)")
+        await page.get_by_role('button', name='Reset password', exact=True).first.click()
+        await page.locator('#userPasswordResetModal .modal-card').screenshot(path=str(OUT / 'v431-user-password-reset.png'))
+        await page.evaluate("()=>closeUserPasswordReset()")
+
+        await page.evaluate("()=>showView('audit',true)")
+        await page.wait_for_timeout(800)
+        await page.fill('#auditSearch', 'PC-07 (demo)')
+        await page.locator('.audit-entry').first.locator(':scope > summary').click()
+        await page.screenshot(path=str(OUT / 'v431-audit-defender-details.png'), full_page=True)
+        await page.evaluate("()=>auditResetFilters()")
+        await page.evaluate("()=>showView('edr',true)")
+        await page.wait_for_timeout(800)
+        await page.evaluate("()=>openEdrSummary('pending')")
+        await page.screenshot(path=str(OUT / 'v431-edr-pending-actions.png'), full_page=True)
+
         # Record the actual installer target and endpoint versions from the API.
         await page.evaluate("()=>openWindowsAgentModal()")
         await page.wait_for_timeout(1500)
@@ -199,6 +269,27 @@ async def main():
         await page.wait_for_timeout(1000)
         await page.screenshot(path=str(OUT / "v431-cyber-tools-working.png"), full_page=True)
 
+        # A real receipt through the authenticated demo Agent API.
+        agent_context = await p.request.new_context()
+        receipt = await agent_context.post(BASE + '/api/v1/windows-agents/tickets',
+            headers={'Authorization':'Bearer demo-edr-key-1'}, data={
+              'request_id':'visual-refresh-demo-ticket', 'requester_name':'Demo user',
+              'requester_email':'demo@example.com', 'category':'Email',
+              'issue_notes':'Demonstration ticket: Outlook needs a profile review.'})
+        assert receipt.ok, await receipt.text()
+        await agent_context.dispose()
+        await page.evaluate("()=>showView('tickets',true)")
+        await page.wait_for_timeout(800)
+        await page.screenshot(path=str(OUT / 'v431-agent-ticket-receipt.png'), full_page=True)
+
+        # The same real overview serves the EDR clickable-card guide.
+        import shutil
+        shutil.copyfile(OUT / "v431-godseye-edr-defender-guide.png", OUT / "v431-edr-clickable-cards.png")
+        shutil.copyfile(OUT / "v431-dashboard-map-logo.png", OUT / "v431-map-animated-hops.png")
+        for path, filename in [('/device/1', 'v431-device-details.png'), ('/tools', 'v431-tools-standalone.png'), ('/monitoring', 'v431-monitoring-standalone.png')]:
+            await page.goto(BASE + path, wait_until='networkidle')
+            await page.screenshot(path=str(OUT / filename), full_page=True)
+        assert not errors, errors
         await browser.close()
 
 if __name__ == "__main__":

@@ -144,6 +144,21 @@ def seed() -> None:
                 (computer, channel, provider, event_id, level, category, severity, title, message, iso(mins+10), key, rec, json.dumps(actions), iso(mins+120), iso(mins)),
             )
 
+        # Labeled demonstration samples only; production collectors remain unchanged.
+        import math
+        from app.appliance_hardening import ensure_schema as ensure_traffic_schema
+        ensure_traffic_schema(c)
+        for minute in range(180, 0, -1):
+            rx = 2800000 + 1900000 * (1 + math.sin(minute / 13)) + (minute % 17) * 70000
+            tx = 800000 + 400000 * (1 + math.cos(minute / 17))
+            c.execute("INSERT INTO traffic_samples(captured_at,interface,rx_bytes,tx_bytes,rx_bps,tx_bps) VALUES(?,?,?,?,?,?)",
+                      (iso(minute), "demo-interface", int(rx * minute), int(tx * minute), rx, tx))
+        # Labeled demo activity for the expanded audit guide.
+        main.audit(c, "demo-agent", "windows_agent_command_completed", "PC-07 (demo)",
+                   json.dumps({"ok": True, "command_type": "defender_review", "details": {
+                     "RealTimeProtectionEnabled": True, "AntivirusEnabled": True,
+                     "AMRunningMode": "Normal", "SignatureLastUpdated": iso(25),
+                     "RecentDetections": []}}), "192.168.1.50")
         c.commit()
 
 
