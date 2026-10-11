@@ -251,6 +251,30 @@ sudo usermod -aG adm godseye
 sudo systemctl restart godseye
 ```
 
+![Windows Defender best-practice setup guide](docs/screenshots/v431-defender-best-practices-guide.svg)
+
+**Windows Defender best-practice setup:** Use this before relying on **Cyber Tools → Windows Defender Response** for review, quick scans, or admin-confirmed threat removal. On each managed Windows computer, open **PowerShell as Administrator** and confirm Defender is healthy:
+
+```powershell
+Get-MpComputerStatus
+Update-MpSignature
+```
+
+Recommended baseline settings:
+
+```powershell
+Set-MpPreference -MAPSReporting Advanced
+Set-MpPreference -SubmitSamplesConsent SendSafeSamples
+Set-MpPreference -PUAProtection Enabled
+Set-MpPreference -DisableRealtimeMonitoring $false
+Set-MpPreference -DisableBehaviorMonitoring $false
+Set-MpPreference -DisableIOAVProtection $false
+Set-MpPreference -DisableScriptScanning $false
+Set-MpPreference -EnableControlledFolderAccess Enabled
+```
+
+Then open the **Windows Security** app and verify **Virus & threat protection → Manage settings → Tamper Protection** is **On**. For business-managed devices, use Intune, Group Policy, or Microsoft Defender for Endpoint policy so users cannot weaken the baseline. Keep exclusions narrow, documented, and reviewed; broad exclusions such as an entire user profile or downloads folder can hide malware. Microsoft references: [manage Defender Antivirus](https://learn.microsoft.com/en-us/defender-endpoint/configuration-management-reference-microsoft-defender-antivirus), [tamper protection](https://learn.microsoft.com/en-us/defender-endpoint/tamper-protection-overview), and [PowerShell Defender cmdlets](https://learn.microsoft.com/en-us/powershell/module/defender/).
+
 **Malware response:** In **Cyber Tools → Windows Defender Response**, select a PC and choose **Review threats**. If a scan is needed, select **Quick scan** and use **Check status** to see the agent result. An admin can select **Remove threats**, enter the exact PC name, and review the result after Defender runs `Remove-MpThreat`. This command acts on all active threats Defender detected on that PC; review the PC again to verify the outcome. In **ClamAV Second Opinion**, update signatures first, then scan Windows user profiles. ClamAV on Windows does not provide on-access protection, so keep Defender enabled for real-time coverage. Both endpoint cards require Windows Agent 2.4.5; install the [current agent release](https://github.com/msapgroup/Godseye/releases/tag/v4.31.0-agent-2.4.5) before using them.
 
 ![GODSEYE Cyber Tools result](docs/screenshots/v431-cyber-tools-working.png)
