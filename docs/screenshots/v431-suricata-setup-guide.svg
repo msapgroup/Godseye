@@ -44,7 +44,8 @@
     <rect x="28" y="30" width="62" height="62" rx="14" fill="#123b60" stroke="#3bb7ff" stroke-width="2"/>
     <path d="M45 60h29M52 48v28M66 48v28M48 70l10 10 18-26" fill="none" stroke="#9fe8ff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
     <text x="108" y="55" style="font:800 25px Inter,Segoe UI,Arial,sans-serif;fill:#f5fbff">Network Threat Detection</text>
-    <text x="108" y="86" class="small">Review recent Suricata alerts from the network sensor.</text>
+    <text x="108" y="80" class="small">Review recent Suricata alerts</text>
+    <text x="108" y="104" class="small">from the network sensor.</text>
     <rect x="28" y="112" width="142" height="30" rx="15" fill="#173f28" stroke="#43d27f"/>
     <text x="48" y="132" style="font:800 11px Inter,Segoe UI,Arial,sans-serif;fill:#f6d85e;letter-spacing:1.2px">SETUP REQUIRED</text>
     <text x="28" y="174" class="small">History depth</text>
