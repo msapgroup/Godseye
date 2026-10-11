@@ -45,7 +45,8 @@
     <path d="M59 47 80 57v17c0 15-9 25-21 29-12-4-21-14-21-29V57Z" fill="none" stroke="#9fe8ff" stroke-width="4" stroke-linejoin="round"/>
     <path d="m48 74 8 8 16-22" class="check"/>
     <text x="108" y="55" class="h2">Defender Response</text>
-    <text x="108" y="86" class="small">Review protection, quick scan, and remove active threats.</text>
+    <text x="108" y="80" class="small">Review protection, run scans,</text>
+    <text x="108" y="104" class="small">and confirm threat cleanup.</text>
     <rect x="28" y="132" width="374" height="58" rx="13" fill="#0a2034" stroke="#5798c9" stroke-width="2"/>
     <text x="48" y="168" class="body">PC: LAW-FL-WS-04</text>
     <g transform="translate(28 224)">
