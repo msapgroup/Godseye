@@ -98,6 +98,12 @@ Run bounded, authorized security and diagnostic checks from eight focused tool c
 
 Review structured results and scan history, create Findings or Tickets where supported, export results, or schedule recurring supported checks.
 
+## Network Threat Detection setup
+
+![Network Threat Detection Suricata setup guide](screenshots/v431-suricata-setup-guide.svg)
+
+Install Suricata on the GODSEYE server or the Linux sensor that watches the network, confirm `/var/log/suricata/eve.json` exists, then open **Cyber Tools → Network Threat Detection** and use that path for the alert source. Select **Review alerts** to read recent Suricata EVE alerts. If GODSEYE cannot read the file, add the GODSEYE service account to a log-readable group such as `adm`, then restart the GODSEYE service.
+
 ## About GODSEYE
 
 ![About GODSEYE](screenshots/godseye-about.png)
