@@ -104,6 +104,12 @@ Review structured results and scan history, create Findings or Tickets where sup
 
 Install Suricata on the GODSEYE server or the Linux sensor that watches the network, confirm `/var/log/suricata/eve.json` exists, then open **Cyber Tools → Network Threat Detection** and use that path for the alert source. Select **Review alerts** to read recent Suricata EVE alerts. If GODSEYE cannot read the file, add the GODSEYE service account to a log-readable group such as `adm`, then restart the GODSEYE service.
 
+## Windows Defender best-practice setup
+
+![Windows Defender best-practice setup guide](screenshots/v431-defender-best-practices-guide.svg)
+
+Before using **Cyber Tools → Windows Defender Response**, confirm Microsoft Defender is active, signatures are updated, cloud protection is enabled, potentially unwanted app protection is enabled, behavior and script scanning are on, controlled folder access is enabled where appropriate, and tamper protection is on. Then select an enrolled Windows PC in GODSEYE to review threats, start a quick scan, or have an admin confirm threat removal.
+
 ## About GODSEYE
 
 ![About GODSEYE](screenshots/godseye-about.png)
