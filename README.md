@@ -232,6 +232,25 @@ The full backup contains sensitive operational data and the appliance encryption
 
 After a run, review the structured result and scan history. Where supported, results can be turned into Findings or Tickets, exported, or scheduled for another check.
 
+![Network Threat Detection Suricata setup guide](docs/screenshots/v431-suricata-setup-guide.svg)
+
+**Network Threat Detection setup:** The **Setup Required** badge means GODSEYE has not detected a readable Suricata EVE alert log yet. On the GODSEYE server or the Linux sensor watching the network, install and start Suricata:
+
+```bash
+sudo apt update
+sudo apt install -y suricata
+sudo systemctl enable --now suricata
+sudo systemctl status suricata
+sudo ls -l /var/log/suricata/eve.json
+```
+
+Then open **Cyber Tools → Network Threat Detection**, use `/var/log/suricata/eve.json` as the log path, and select **Review alerts**. If GODSEYE cannot read the file, add the service account that runs GODSEYE to a log-readable group such as `adm`, then restart GODSEYE:
+
+```bash
+sudo usermod -aG adm godseye
+sudo systemctl restart godseye
+```
+
 **Malware response:** In **Cyber Tools → Windows Defender Response**, select a PC and choose **Review threats**. If a scan is needed, select **Quick scan** and use **Check status** to see the agent result. An admin can select **Remove threats**, enter the exact PC name, and review the result after Defender runs `Remove-MpThreat`. This command acts on all active threats Defender detected on that PC; review the PC again to verify the outcome. In **ClamAV Second Opinion**, update signatures first, then scan Windows user profiles. ClamAV on Windows does not provide on-access protection, so keep Defender enabled for real-time coverage. Both endpoint cards require Windows Agent 2.4.5; install the [current agent release](https://github.com/msapgroup/Godseye/releases/tag/v4.31.0-agent-2.4.5) before using them.
 
 ![GODSEYE Cyber Tools result](docs/screenshots/v431-cyber-tools-working.png)
