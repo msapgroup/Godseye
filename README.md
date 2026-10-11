@@ -21,7 +21,7 @@ The goal is simple: bring the tools you use every day into one practical platfor
 
 Monitor the weather around your managed sites with a movable world map, ZIP-code city stars, live NWS observations and official alerts, NOAA radar, and a major-city ticker. Each user chooses their own refresh interval, including manual-only mode. Cities and preferences are saved to their account.
 
-![Weather Alerts](docs/screenshots/v431-weather-alerts.png?cache=20261011-controls)
+![Weather Alerts](docs/screenshots/v431-weather-alerts-controls.png)
 
 Open **Weather Alerts** → select **Florida → Tampa** or **New York → Buffalo**. Use **Add city by ZIP** to monitor another location and **Auto-refresh** to set your update interval. Admins control access through the existing sidebar permissions.
 

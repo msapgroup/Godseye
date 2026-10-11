@@ -2,7 +2,7 @@
 
 Weather Alerts adds a geographic view of the locations you manage, with current station observations, official NOAA / National Weather Service alerts, radar, and a major-city weather ticker.
 
-![Weather Alerts workspace](screenshots/v431-weather-alerts.png?cache=20261011-controls)
+![Weather Alerts workspace](screenshots/v431-weather-alerts-controls.png)
 
 ## Open a location
 
