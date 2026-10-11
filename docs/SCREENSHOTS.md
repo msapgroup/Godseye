@@ -133,6 +133,6 @@ Open **About → Terms of Use** beneath the About-page links. Review responsibil
 
 See the [Weather Alerts usage guide](WEATHER_ALERTS.md). Weather captures use live provider responses; city stars use actual coordinates. Cyber Tools and Reports captures reflect the shared native dropdown contrast correction.
 
-![Weather Alerts](screenshots/v431-weather-alerts.png)
+![Weather Alerts](screenshots/v431-weather-alerts.png?cache=20261011-controls)
 
 ![Add monitored city](screenshots/v431-weather-add-city.png)
