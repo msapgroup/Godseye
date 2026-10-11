@@ -36,15 +36,15 @@
   <circle cx="1130" cy="80" r="210" fill="#123a5d" opacity=".28"/>
   <circle cx="110" cy="690" r="260" fill="#0f7ab8" opacity=".12"/>
 
-  <text x="70" y="86" class="h1">Set Up Network Threat Detection</text>
-  <text x="72" y="124" class="body">Install Suricata, point GODSEYE to the EVE alert log, then review alerts from the Cyber Tools card.</text>
+  <text x="70" y="86" class="h1">Network Threat Detection Setup</text>
+  <text x="72" y="124" class="body">Install Suricata first, then connect the alert log to this Cyber Tools card.</text>
 
   <g transform="translate(70 170)" filter="url(#shadow)">
     <rect width="470" height="430" rx="18" class="rim"/>
     <rect x="28" y="30" width="62" height="62" rx="14" fill="#123b60" stroke="#3bb7ff" stroke-width="2"/>
     <path d="M45 60h29M52 48v28M66 48v28M48 70l10 10 18-26" fill="none" stroke="#9fe8ff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
     <text x="108" y="55" class="h2">Network Threat Detection</text>
-    <text x="108" y="86" class="small">Summarize recent Suricata EVE alerts with source and destination evidence.</text>
+    <text x="108" y="86" class="small">Review recent Suricata alerts from the network sensor.</text>
     <rect x="340" y="28" width="104" height="30" rx="15" fill="#173f28" stroke="#43d27f"/>
     <text x="358" y="48" style="font:800 11px Inter,Segoe UI,Arial,sans-serif;fill:#f6d85e;letter-spacing:1.2px">SETUP REQUIRED</text>
     <text x="28" y="154" class="small">History depth</text>
@@ -56,13 +56,13 @@
     <rect x="168" y="300" width="102" height="52" rx="10" fill="#0a2034" stroke="#4f789f"/>
     <text x="193" y="333" class="small" fill="#e7f7ff">Schedule</text>
     <rect x="28" y="368" width="416" height="44" rx="10" fill="#061827" stroke="#214d6c"/>
-    <text x="46" y="396" style="font:600 15px Inter,Segoe UI,Arial,sans-serif;fill:#b4c5d6">Ready after Suricata writes /var/log/suricata/eve.json.</text>
+    <text x="46" y="396" style="font:600 15px Inter,Segoe UI,Arial,sans-serif;fill:#b4c5d6">Ready after GODSEYE can read the Suricata log.</text>
   </g>
 
   <g transform="translate(590 170)" filter="url(#shadow)">
     <rect width="620" height="430" rx="18" fill="#071827" stroke="#3d85b9" stroke-width="2.5"/>
-    <text x="34" y="50" class="h2">Server commands</text>
-    <text x="34" y="84" class="small">Run these on the GODSEYE server or the sensor that watches the network.</text>
+    <text x="34" y="50" class="h2">Run These Commands</text>
+    <text x="34" y="84" class="small">Use the GODSEYE server or the Linux sensor watching the network.</text>
 
     <g transform="translate(34 118)">
       <circle cx="17" cy="17" r="17" fill="url(#accent)"/>
@@ -76,7 +76,7 @@
     <g transform="translate(34 258)">
       <circle cx="17" cy="17" r="17" fill="url(#accent)"/>
       <text x="10" y="24" class="step">2</text>
-      <text x="52" y="24" class="body">Start the service and confirm logs</text>
+      <text x="52" y="24" class="body">Start Suricata and confirm the log</text>
       <rect x="52" y="44" width="510" height="106" rx="10" fill="#020b14" stroke="#244761"/>
       <text x="76" y="76" class="mono">sudo systemctl enable --now suricata</text>
       <text x="76" y="106" class="mono">sudo systemctl status suricata</text>
@@ -84,10 +84,11 @@
     </g>
   </g>
 
-  <g transform="translate(70 640)">
+  <g transform="translate(70 626)">
     <rect width="1140" height="70" rx="16" fill="#071827" stroke="#2c5d82" stroke-width="2"/>
-    <text x="28" y="44" class="body">In GODSEYE, open Cyber Tools → Network Threat Detection, set the log path to </text>
-    <text x="742" y="44" class="mono green">/var/log/suricata/eve.json</text>
-    <text x="1038" y="44" class="body">, then click Review alerts.</text>
+    <text x="28" y="34" class="body">In GODSEYE: open Cyber Tools → Network Threat Detection.</text>
+    <text x="28" y="59" class="body">Set the log path to </text>
+    <text x="230" y="59" class="mono green">/var/log/suricata/eve.json</text>
+    <text x="520" y="59" class="body">, then click Review alerts.</text>
   </g>
 </svg>
