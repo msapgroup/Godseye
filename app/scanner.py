@@ -12,6 +12,8 @@ from pathlib import Path
 
 from . import notifications
 from .intelligence import correlate_device
+from .device_identity import ensure_schema as ensure_identity_schema, find_device
+from .enrichment import normalize_mac
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DB_PATH = Path(os.environ.get("GODSEYE_DB", BASE_DIR / "data" / "godseye.db"))
@@ -204,6 +206,7 @@ def init_db():
         _add_column_if_missing(c, "events", "severity", "severity TEXT NOT NULL DEFAULT 'info'")
         # Backfill classification from the legacy trusted flag so existing data isn't lost.
         c.execute("UPDATE devices SET classification='known' WHERE trusted=1 AND classification='new'")
+        ensure_identity_schema(c)
 
 
 def local_subnet():
@@ -311,16 +314,28 @@ def record_scan(found):
     snapshot_connection = db()
     try:
         snapshot = {r["mac"]: dict(r) for r in snapshot_connection.execute("SELECT * FROM devices")}
+        observations = []
+        for observation in found:
+            address = normalize_mac(observation.get('mac'))
+            if not address:
+                continue
+            remembered = find_device(snapshot_connection, address)
+            observations.append({**observation, 'observed_mac': address,
+                                 'mac': remembered['mac'] if remembered else address})
+        found = observations
     finally:
         snapshot_connection.close()
     seen = {d["mac"] for d in found}
     hostnames = {d["mac"]: resolve_hostname(d["ip"]) for d in found if d["mac"] not in snapshot}
+    occupied_ips = {d['ip'] for d in found}
     reachable = {mac: (old["ip"], ping_reachable(old["ip"]))
-                 for mac, old in snapshot.items() if mac not in seen and old["ip"]}
+                 for mac, old in snapshot.items() if mac not in seen and old["ip"]
+                 and old['ip'] not in occupied_ips}
     with db() as c:
         existing = {r["mac"]: r for r in c.execute("SELECT * FROM devices")}
         for d in found:
-            mac = d["mac"]
+            remembered = find_device(c, d['observed_mac'])
+            mac = remembered['mac'] if remembered else d['observed_mac']
             found_macs.add(mac)
             old = existing.get(mac)
             if old is None:
@@ -343,6 +358,7 @@ def record_scan(found):
                     (d["ip"], d["vendor"] or old["vendor"], timestamp, mac),
                 )
                 correlate_device(c, mac, d["ip"], old["hostname"], d["vendor"] or old["vendor"], source="arp-scan", details=d)
+            existing[mac] = c.execute('SELECT * FROM devices WHERE mac=?', (mac,)).fetchone()
         for mac, old in existing.items():
             if mac in found_macs:
                 continue

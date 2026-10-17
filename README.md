@@ -118,6 +118,14 @@ Administrators can use **Reboot server** at the bottom of the sidebar. Confirm t
 
 **How it works:** Search by device or address and filter the inventory by type, status, platform, or site. Open a device to review its identity, classification, first and last seen information, history, findings, and recent activity. Devices that discovery has not found can also be added manually.
 
+### Remember devices after reconnecting
+
+Names, icons (including uploaded icons), types, classifications, and notes stay with a saved device when it goes offline, reconnects, changes IP address, or GODSEYE restarts. Discovery recognizes alternate spellings of the same MAC address and previously linked addresses.
+
+![Remember a changed private MAC address as an existing device](docs/screenshots/v431-device-memory.png)
+
+**How to use:** Edit the device normally; no extra save or remember switch is needed. If a phone or other device changes its private Wi-Fi MAC address and appears as a new entry, confirm its identity, then open the new entry's **••• → Remember as existing device**. Select its original saved entry and choose **Remember device**. GODSEYE keeps that entry's name, icon, settings, and history and remembers both addresses. This action requires an administrator; it refuses to overwrite another customized device. Deleting the saved device also deletes its remembered addresses. A newly rotated private address must be confirmed again, or use a fixed private address for that Wi-Fi network. GODSEYE never assumes two devices are the same solely from their IP address or hostname.
+
 ### Device icons
 
 ![Home and IoT device icons in the picker](docs/screenshots/v431-device-icons-home.png)

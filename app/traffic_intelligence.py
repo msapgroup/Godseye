@@ -9,6 +9,7 @@ from pathlib import Path
 
 from .appliance_hardening import decrypt_secret
 from .discovery_intelligence import unifi_client_observations, normalize_mac
+from .device_identity import find_device
 
 TRAFFIC_MODES = {
     "unifi": "UniFi / Controller",
@@ -157,9 +158,12 @@ def save_settings(c, values):
 def _device_for(c, mac, ip):
     mac = normalize_mac(mac) or ""
     if mac:
-        row = c.execute("SELECT id FROM devices WHERE lower(mac)=lower(?)", (mac,)).fetchone()
+        row = find_device(c, mac)
         if row:
-            return row["id"], mac
+            return row["id"], row['mac']
+        # A different observed MAC must not inherit another device's traffic
+        # simply because DHCP reused its previous address.
+        return None, mac
     if ip:
         row = c.execute("SELECT id,mac FROM devices WHERE ip=? ORDER BY last_seen DESC LIMIT 1", (ip,)).fetchone()
         if row:

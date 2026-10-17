@@ -1,6 +1,8 @@
 """GODSEYE device intelligence: correlate discovery/integration data into one inventory."""
 from __future__ import annotations
 import datetime as dt, json, re, subprocess, shutil
+from .device_identity import find_device, field_is_saved
+from .enrichment import normalize_mac
 
 VENDOR_PREFIXES = {
     "b827eb":"Raspberry Pi Foundation","dc:a6:32":"Raspberry Pi","e4:5f:01":"Raspberry Pi",
@@ -49,7 +51,6 @@ def vendor_for_mac(mac):
 
 def record_source(c, source, mac, ip=None, hostname=None, vendor=None, details=None):
     if not mac: return
-    mac=mac.lower()
     ts=now()
     ensure_schema(c)
     c.execute("""INSERT INTO device_sources(mac,source,ip,hostname,vendor,details,first_seen,last_seen)
@@ -64,14 +65,18 @@ def record_source(c, source, mac, ip=None, hostname=None, vendor=None, details=N
 
 def correlate_device(c, mac, ip=None, hostname=None, vendor=None, source="unknown", details=None):
     if not mac: return
-    mac=mac.lower()
+    mac=normalize_mac(mac) or mac.lower()
+    row=find_device(c,mac)
+    if row:
+        mac=row['mac']
     record_source(c,source,mac,ip,hostname,vendor,details)
-    row=c.execute("SELECT * FROM devices WHERE mac=?",(mac,)).fetchone()
     ts=now()
     detected_vendor=vendor or vendor_for_mac(mac)
     if row:
         updates=[]; vals=[]
         for col,val in [("ip",ip),("hostname",hostname),("vendor",detected_vendor)]:
+            if col == 'hostname' and field_is_saved(c, row['id'], col):
+                continue
             if val and not row[col]:
                 updates.append(f"{col}=?"); vals.append(val)
         if updates:

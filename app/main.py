@@ -55,6 +55,7 @@ from .crm import ensure_schema as ensure_crm_schema, register_routes as register
 from .weather_alerts import ensure_schema as ensure_weather_schema, register_routes as register_weather_routes
 from . import godseye_edr as edr
 from . import access_control as acl
+from .device_identity import ensure_schema as ensure_identity_schema, remember_address, find_device
 from .appliance_hardening import BACKUP_DIR, KEY_PATH
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -712,6 +713,7 @@ def init_db():
         _add_column_if_missing(c, "integration_checks", "monitor_id", "monitor_id INTEGER")
         c.execute("UPDATE devices SET classification='known' WHERE trusted=1 AND classification='new'")
         ensure_weather_schema(c)
+        ensure_identity_schema(c)
         acl.ensure_schema(c)
 
         if c.execute("SELECT COUNT(*) FROM users").fetchone()[0] == 0:
@@ -1904,10 +1906,33 @@ def update_device(device_id: int, payload: DeviceUpdate, request: Request, admin
         cur = c.execute(f"UPDATE devices SET {', '.join(fields)} WHERE id=?", values)
         if cur.rowcount == 0:
             raise HTTPException(404, "Device not found")
+        for field in fields:
+            c.execute('INSERT OR REPLACE INTO device_saved_fields(device_id,field,updated_at) VALUES(?,?,?)',
+                      (device_id, field.split('=')[0], now()))
         device = c.execute("SELECT mac FROM devices WHERE id=?", (device_id,)).fetchone()
         audit(c, admin["username"], "device_updated", target=device["mac"] if device else str(device_id),
               details=", ".join(fields), ip=client_ip(request))
     return {"ok": True}
+
+
+class DeviceRememberAddress(BaseModel):
+    mac: str
+
+
+@app.post(f"{router_prefix}/devices/{{device_id}}/remember-address")
+def remember_device_address(device_id: int, payload: DeviceRememberAddress, request: Request,
+                            admin=Depends(require_admin)):
+    with db() as c:
+        c.execute('BEGIN IMMEDIATE')
+        try:
+            canonical = remember_address(c, device_id, payload.mac, now())
+        except LookupError as exc:
+            raise HTTPException(404, str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(409, str(exc)) from exc
+        audit(c, admin['username'], 'device_address_remembered', target=canonical,
+              details=f'Confirmed address {payload.mac}; saved device id={device_id}', ip=client_ip(request))
+    return {'ok': True, 'device_id': device_id}
 
 
 class DeviceDeleteRequest(BaseModel):
@@ -1958,6 +1983,8 @@ def _delete_device_record(c, device_id: int):
     if not row:
         return None
     mac = row["mac"]
+    c.execute('DELETE FROM device_mac_aliases WHERE device_id=?', (device_id,))
+    c.execute('DELETE FROM device_saved_fields WHERE device_id=?', (device_id,))
     # Delete device-owned evidence/history while intentionally preserving the audit log.
     c.execute("DELETE FROM device_sources WHERE mac=?", (mac,))
     c.execute("DELETE FROM device_ip_history WHERE mac=?", (mac,))
@@ -2154,7 +2181,7 @@ class DeviceCreate(BaseModel):
 def create_device(payload: DeviceCreate, request: Request, admin=Depends(require_admin)):
     timestamp = now()
     with db() as c:
-        existing = c.execute("SELECT id FROM devices WHERE mac=?", (payload.mac,)).fetchone()
+        existing = find_device(c, payload.mac)
         if existing:
             raise HTTPException(409, "A device with that MAC address already exists")
         c.execute(
@@ -8144,6 +8171,19 @@ sudo godseye-https-setup godseye.example.com letsencrypt</pre></div></section>
     </form>
   </div>
 </div>
+<div id="rememberDeviceModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="rememberDeviceTitle" style="display:none">
+ <div class="modal-card" style="max-width:600px">
+  <div class="modal-head"><div><h2 id="rememberDeviceTitle">Remember as existing device</h2><p class="muted">Use this only after confirming both entries are the same physical device.</p></div><button class="icon-btn" aria-label="Close remember device" onclick="closeRememberDevice()">×</button></div>
+  <form class="modal-form" onsubmit="return submitRememberDevice(event)">
+   <label>Newly discovered address<input class="input" id="rememberDeviceMac" readonly></label>
+   <label>Keep this saved device<select class="filter" style="width:100%" id="rememberDeviceTarget" required><option value="">Select the original device…</option></select></label>
+   <p class="muted">Its saved name, icon, type, classification, notes, and history will stay. The uncustomized discovery entry will be consolidated. Both addresses will be remembered until the saved device is deleted.</p>
+   <p class="muted">Private Wi-Fi addresses can change again. A fixed private address for this network avoids repeated linking.</p>
+   <div class="err" id="rememberDeviceErr" role="alert"></div>
+   <div class="modal-actions"><button type="button" class="secondary" onclick="closeRememberDevice()">Cancel</button><button type="submit" id="rememberDeviceSave" class="primary">Remember device</button></div>
+  </form>
+ </div>
+</div>
 <div id="classifyDeviceModal" class="modal" style="display:none">
   <div class="modal-card" style="max-width:520px">
     <div class="modal-head"><div><h2>Classify Device</h2><div class="muted">Set what the device is and how GODSEYE should manage it.</div></div><button class="icon-btn" onclick="closeClassifyDevice()">×</button></div>
@@ -9783,6 +9823,18 @@ function openRenameDevice(id,currentName,identity){const m=document.getElementBy
 function openRenameDeviceFromButton(btn){openRenameDevice(Number(btn.dataset.renameId),btn.dataset.renameName||'',btn.dataset.renameIdentity||'')}
 function closeRenameDevice(){const m=document.getElementById('renameDeviceModal');if(m)m.style.display='none'}
 async function submitRenameDevice(e){e.preventDefault();const id=Number(renameDeviceId.value),name=renameDeviceName.value.trim();renameDeviceErr.textContent='';if(!id||!name){renameDeviceErr.textContent='Enter a device name.';return false}try{await json('/api/v1/devices/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});closeRenameDevice();await Promise.allSettled([loadInventory(),loadDevices(),loadDashboard()])}catch(err){renameDeviceErr.textContent='Could not save device name: '+err.message}return false}
+function closeRememberDevice(){document.getElementById('rememberDeviceModal').style.display='none'}
+async function openRememberDevice(btn){
+ const modal=document.getElementById('rememberDeviceModal'),target=document.getElementById('rememberDeviceTarget'),error=document.getElementById('rememberDeviceErr');
+ document.getElementById('rememberDeviceMac').value=btn.dataset.rememberMac||'';error.textContent='';target.innerHTML='<option value="">Select the original device…</option>';modal.style.display='grid';
+ try{const devices=await json('/api/v1/devices');target.innerHTML+=[...devices].filter(d=>d.id!==Number(btn.dataset.rememberId)).sort((a,b)=>(a.name||a.hostname||a.mac).localeCompare(b.name||b.hostname||b.mac)).map(d=>`<option value="${Number(d.id)}">${esc(d.name||d.hostname||'Unknown device')} · ${esc(d.mac)} · ${esc(d.status)}</option>`).join('');target.focus()}catch(e){error.textContent='Could not load saved devices: '+e.message}
+}
+async function submitRememberDevice(e){
+ e.preventDefault();const target=document.getElementById('rememberDeviceTarget'),error=document.getElementById('rememberDeviceErr'),button=document.getElementById('rememberDeviceSave');if(!target.value)return false;button.disabled=true;error.textContent='';
+ try{await json('/api/v1/devices/'+Number(target.value)+'/remember-address',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mac:document.getElementById('rememberDeviceMac').value})});closeRememberDevice();await Promise.allSettled([loadInventory(),loadDevices(),loadDashboard()])}catch(e){error.textContent='Could not remember device: '+e.message}finally{button.disabled=false}return false;
+}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeRememberDevice()});
+document.getElementById('rememberDeviceModal').addEventListener('click',e=>{if(e.target.id==='rememberDeviceModal')closeRememberDevice()});
 function openClassifyDevice(id,type,classification,identity){classifyDeviceId.value=id;classifyDeviceType.value=type||'';classifyDeviceClass.value=classification||'new';classifyDeviceIdentity.textContent=identity||'';classifyDeviceErr.textContent='';classifyDeviceModal.style.display='grid';setTimeout(()=>classifyDeviceType.focus(),20)}
 function openClassifyDeviceFromButton(btn){openClassifyDevice(Number(btn.dataset.classifyId),btn.dataset.classifyType||'',btn.dataset.classifyClass||'new',btn.dataset.classifyIdentity||'')}
 function closeClassifyDevice(){classifyDeviceModal.style.display='none'}
@@ -9836,7 +9888,7 @@ async function loadInventory(){
   const set=(id,value)=>{const el=document.getElementById(id);if(el)el.textContent=value};set('inventoryTotalSummary',total);set('inventoryOnlineSummary',online);set('inventoryOfflineSummary',unmanaged);set('inventoryNewSummary',recentChanges);set('inventoryOnlinePercent',total?Math.round(online*100/total)+'% online':'0% online');set('inventoryOfflinePercent',unmanaged?unmanaged+' need review':'Managed');
   const pageSize=10,pageCount=Math.max(1,Math.ceil(d.length/pageSize));INVENTORY_PAGE=Math.min(INVENTORY_PAGE,pageCount);const start=(INVENTORY_PAGE-1)*pageSize,visible=d.slice(start,start+pageSize),pager=document.getElementById('inventoryPager');if(ce)ce.textContent=d.length?`Showing ${start+1}–${start+visible.length} of ${d.length} devices`:'Showing 0 devices';
   if(pager){const pageButtons=Array.from({length:Math.min(pageCount,5)},(_,i)=>i+1).map(p=>`<button type="button" class="${p===INVENTORY_PAGE?'active':''}" onclick="setInventoryPage(${p})">${p}</button>`).join('');pager.innerHTML=`<button type="button" onclick="setInventoryPage(${INVENTORY_PAGE-1})" ${INVENTORY_PAGE<=1?'disabled':''}>‹</button>${pageButtons}${pageCount>5?`<span>…</span><button type="button" onclick="setInventoryPage(${pageCount})">${pageCount}</button>`:''}<button type="button" onclick="setInventoryPage(${INVENTORY_PAGE+1})" ${INVENTORY_PAGE>=pageCount?'disabled':''}>›</button><span class="v430-page-size">10 / page⌄</span>`}
-  tbody.innerHTML=visible.length?visible.map(x=>{const status=String(x.status||'').toLowerCase(),needsReview=['new','investigate'].includes(String(x.classification||'new').toLowerCase());return `<tr data-inventory-id="${x.id}" tabindex="0" onclick="selectInventoryDevice(${x.id})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();selectInventoryDevice(${x.id})}"><td><input type="checkbox" aria-label="Select ${esc(x.name||x.hostname||'device')}" onclick="event.stopPropagation()"></td><td><div class="device-name">${deviceIconHtml(x)}<button class="link name" onclick="event.stopPropagation();goDevice(${x.id})">${esc(x.name||x.hostname||'Unknown device')}</button></div></td><td class="v430-ip">${esc(x.ip||'—')}</td><td><span class="v430-type-cell">${deviceIconHtml(x)}${esc(x.device_type||'Unclassified')}</span></td><td><span class="v430-cell-primary">${esc(x.mac||'—')}</span><small>${esc(x.vendor||'Unknown vendor')}</small></td><td><span class="v430-device-state ${status==='online'?'online':'offline'}">${esc(x.status||'unknown')}</span></td><td>${esc(inventoryPlatformName(x))}</td><td>${x.last_seen?esc(new Date(x.last_seen).toLocaleString()):'—'}</td><td><span class="v430-finding-count ${needsReview?'bad':'good'}">${needsReview?'!':'✓'} &nbsp;${needsReview?'1':'0'}</span></td><td class="v430-row-actions"><button class="secondary v430-icon-action" title="View device" aria-label="View device" onclick="event.stopPropagation();goDevice(${x.id})">◉</button><button class="secondary v430-icon-action" title="Rename device" aria-label="Rename device" data-rename-id="${x.id}" data-rename-name="${esc(x.name||'')}" data-rename-identity="${esc([x.hostname,x.ip,x.mac].filter(Boolean).join(' · '))}" onclick="event.stopPropagation();openRenameDeviceFromButton(this)">✎</button><details class="v430-row-menu" onclick="event.stopPropagation()"><summary title="More actions">•••</summary><div><button type="button" data-classify-id="${x.id}" data-classify-type="${esc(x.device_type||'')}" data-classify-class="${esc(x.classification||'new')}" data-classify-identity="${esc([x.name||x.hostname,x.ip,x.mac].filter(Boolean).join(' · '))}" onclick="openClassifyDeviceFromButton(this)">Classify</button><button type="button" data-icon-id="${x.id}" data-icon-key="${esc(x.icon_key||'auto')}" data-icon-name="${esc(x.name||x.hostname||'Unknown device')}" data-icon-ip="${esc(x.ip||x.mac||'')}" data-icon-type="${esc(x.device_type||'Unclassified')}" onclick="openDeviceIconFromButton(this)">Change Icon</button><button type="button" class="danger admin-only" data-delete-id="${x.id}" data-delete-name="${esc(x.name||x.hostname||x.mac||'Device')}" data-delete-status="${esc(x.status||'unknown')}" onclick="openDeleteDeviceFromButton(this)">Delete</button></div></details></td></tr>`}).join(''):'<tr><td colspan="10" class="empty">No matching devices. Adjust the filters or discover the network.</td></tr>';applyRoleVisibility();selectInventoryDevice(d.some(x=>x.id===SELECTED_INVENTORY_ID)?SELECTED_INVENTORY_ID:d[0]?.id??null)}catch(e){tbody.innerHTML='<tr><td colspan="10" class="empty">Unable to load devices: '+esc(e.message)+'</td></tr>';INVENTORY_DEVICE_LIST=[];selectInventoryDevice(null)}
+  tbody.innerHTML=visible.length?visible.map(x=>{const status=String(x.status||'').toLowerCase(),needsReview=['new','investigate'].includes(String(x.classification||'new').toLowerCase());return `<tr data-inventory-id="${x.id}" tabindex="0" onclick="selectInventoryDevice(${x.id})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();selectInventoryDevice(${x.id})}"><td><input type="checkbox" aria-label="Select ${esc(x.name||x.hostname||'device')}" onclick="event.stopPropagation()"></td><td><div class="device-name">${deviceIconHtml(x)}<button class="link name" onclick="event.stopPropagation();goDevice(${x.id})">${esc(x.name||x.hostname||'Unknown device')}</button></div></td><td class="v430-ip">${esc(x.ip||'—')}</td><td><span class="v430-type-cell">${deviceIconHtml(x)}${esc(x.device_type||'Unclassified')}</span></td><td><span class="v430-cell-primary">${esc(x.mac||'—')}</span><small>${esc(x.vendor||'Unknown vendor')}</small></td><td><span class="v430-device-state ${status==='online'?'online':'offline'}">${esc(x.status||'unknown')}</span></td><td>${esc(inventoryPlatformName(x))}</td><td>${x.last_seen?esc(new Date(x.last_seen).toLocaleString()):'—'}</td><td><span class="v430-finding-count ${needsReview?'bad':'good'}">${needsReview?'!':'✓'} &nbsp;${needsReview?'1':'0'}</span></td><td class="v430-row-actions"><button class="secondary v430-icon-action" title="View device" aria-label="View device" onclick="event.stopPropagation();goDevice(${x.id})">◉</button><button class="secondary v430-icon-action" title="Rename device" aria-label="Rename device" data-rename-id="${x.id}" data-rename-name="${esc(x.name||'')}" data-rename-identity="${esc([x.hostname,x.ip,x.mac].filter(Boolean).join(' · '))}" onclick="event.stopPropagation();openRenameDeviceFromButton(this)">✎</button><details class="v430-row-menu" onclick="event.stopPropagation()"><summary title="More actions">•••</summary><div><button type="button" data-classify-id="${x.id}" data-classify-type="${esc(x.device_type||'')}" data-classify-class="${esc(x.classification||'new')}" data-classify-identity="${esc([x.name||x.hostname,x.ip,x.mac].filter(Boolean).join(' · '))}" onclick="openClassifyDeviceFromButton(this)">Classify</button><button type="button" data-icon-id="${x.id}" data-icon-key="${esc(x.icon_key||'auto')}" data-icon-name="${esc(x.name||x.hostname||'Unknown device')}" data-icon-ip="${esc(x.ip||x.mac||'')}" data-icon-type="${esc(x.device_type||'Unclassified')}" onclick="openDeviceIconFromButton(this)">Change Icon</button><button type="button" class="admin-only" data-remember-id="${x.id}" data-remember-mac="${esc(x.mac||'')}" onclick="openRememberDevice(this)">Remember as existing device</button><button type="button" class="danger admin-only" data-delete-id="${x.id}" data-delete-name="${esc(x.name||x.hostname||x.mac||'Device')}" data-delete-status="${esc(x.status||'unknown')}" onclick="openDeleteDeviceFromButton(this)">Delete</button></div></details></td></tr>`}).join(''):'<tr><td colspan="10" class="empty">No matching devices. Adjust the filters or discover the network.</td></tr>';applyRoleVisibility();selectInventoryDevice(d.some(x=>x.id===SELECTED_INVENTORY_ID)?SELECTED_INVENTORY_ID:d[0]?.id??null)}catch(e){tbody.innerHTML='<tr><td colspan="10" class="empty">Unable to load devices: '+esc(e.message)+'</td></tr>';INVENTORY_DEVICE_LIST=[];selectInventoryDevice(null)}
 }
 
 

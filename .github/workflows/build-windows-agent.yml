@@ -10,16 +10,6 @@ on:
       - 'windows/agent-x64/installer/**'
       - 'windows/agent-x64/tests/**'
       - 'windows/agent-x64/prepare-edr-engine.ps1'
-      - 'install.sh'
-      - 'doctor.sh'
-      - 'app/main.py'
-      # Keep the legal notice and its usage guide in the published full-app ZIP.
-      - 'README.md'
-      - 'LICENSE'
-      - 'app/assets/about-legal.*'
-      - 'docs/LEGAL_NOTICES.md'
-      - 'docs/SCREENSHOTS.md'
-      - 'docs/screenshots/v431-godseye-edr-defender-guide.png'
   pull_request:
     paths:
       - '.github/workflows/build-windows-agent.yml'
@@ -27,8 +17,6 @@ on:
       - 'windows/agent-x64/installer/**'
       - 'windows/agent-x64/tests/**'
       - 'windows/agent-x64/prepare-edr-engine.ps1'
-      - 'install.sh'
-      - 'doctor.sh'
 
 # This workflow builds and validates the latest Windows Agent artifacts after
 # source changes, then publishes the verified packages as release assets.
@@ -36,7 +24,38 @@ permissions:
   contents: write
 
 jobs:
+  agent_changes:
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.detect.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Detect Windows Agent changes
+        id: detect
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before || github.event.pull_request.base.sha }}
+          AFTER: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          python - <<'PYCODE'
+          import os, subprocess
+          paths = ['windows/agent-x64/src', 'windows/agent-x64/installer',
+                   'windows/agent-x64/tests', 'windows/agent-x64/prepare-edr-engine.ps1']
+          before, after = os.environ.get('BEFORE', ''), os.environ['AFTER']
+          if os.environ['EVENT_NAME'] == 'workflow_dispatch':
+              changed = True
+          elif not before or set(before) == {'0'}:
+              changed = bool(subprocess.check_output(['git', 'ls-tree', '-r', '--name-only', after, '--', *paths]).strip())
+          else:
+              changed = bool(subprocess.check_output(['git', 'diff', '--name-only', before, after, '--', *paths]).strip())
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('changed=' + str(changed).lower() + '\n')
+          PYCODE
   build:
+    needs: agent_changes
+    if: needs.agent_changes.outputs.changed == 'true'
     runs-on: windows-latest
     timeout-minutes: 35
 

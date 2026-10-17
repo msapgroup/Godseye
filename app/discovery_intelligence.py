@@ -20,6 +20,7 @@ from http.cookiejar import CookieJar
 from pathlib import Path
 
 from .intelligence import correlate_device, ensure_schema, now
+from .device_identity import find_device
 from .discovery import nmap_discover, ip_neighbors
 from .collectors import dhcp_leases
 from .integrations import pihole_auth, pihole_json
@@ -256,6 +257,9 @@ def ingest_observations(c, source, observations, gateway=None):
         vendor = item.get("vendor")
         details = dict(item)
         correlate_device(c, mac, ip, hostname, vendor, source=source, details=details)
+        remembered = find_device(c, mac)
+        if remembered:
+            mac = remembered['mac']
         parent = normalize_mac(item.get("parent_id")) or item.get("parent_id")
         ap = normalize_mac(item.get("access_point_id")) or item.get("access_point_id")
         if ap:
