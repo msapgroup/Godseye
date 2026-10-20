@@ -93,15 +93,15 @@ def test_explicit_private_address_link_retains_identity_history_and_deletion_res
             assert c.execute('SELECT count(*) FROM device_mac_aliases').fetchone()[0] == 0
 
 
-def test_ip_reuse_does_not_transfer_saved_details_or_rescue_old_device(inventory, monkeypatch):
+def test_online_device_is_not_replaced_by_another_mac_at_the_same_ip(inventory, monkeypatch):
     scan(); original = saved()
     with main.db() as c:
         c.execute("UPDATE devices SET name='Original TV',icon_key='tv' WHERE id=?", (original['id'],))
     monkeypatch.setattr(scanner, 'ping_reachable', lambda ip: True)
-    for _ in range(scanner.OFFLINE_THRESHOLD + 1): scan('06:11:22:33:44:66')
+    scan('06:11:22:33:44:66')
     with main.db() as c:
         rows = list(c.execute('SELECT * FROM devices ORDER BY id'))
-        assert rows[0]['status'] == 'offline' and rows[0]['name'] == 'Original TV'
+        assert rows[0]['status'] == 'suspected_offline' and rows[0]['name'] == 'Original TV'
         assert rows[1]['name'] is None and rows[1]['icon_key'] == 'auto'
         assert _device_for(c, '0a:11:22:33:44:77', original['ip'])[0] is None
 
@@ -152,3 +152,124 @@ def test_repeated_observations_in_one_scan_do_not_create_duplicates(inventory):
     ])
     with main.db() as c:
         assert c.execute('SELECT count(*) FROM devices').fetchone()[0] == 1
+
+
+def test_manual_names_override_refreshed_discovery_data_in_all_views(inventory):
+    scan(); original = saved()
+    with TestClient(main.app) as client:
+        headers = login(client)
+        customize(client, headers, original['id'])
+        # Reproduce a discovery refresh that replaces the row's display values.
+        with main.db() as c:
+            c.execute("UPDATE devices SET name=NULL,hostname='automatic-dhcp-name'")
+        detail = client.get(f"/api/v1/devices/{original['id']}").json()
+        listing = client.get('/api/v1/devices').json()[0]
+        report = client.get(f"/api/v1/devices/{original['id']}/intelligence").json()['device']
+        for device in (detail, listing, report):
+            assert device['name'] == 'Office TV' and device['hostname'] == 'office-tv'
+        # Polling reads must stay read-only, including when SQLite is busy.
+        import sqlite3
+        blocker = sqlite3.connect(inventory)
+        try:
+            blocker.execute('BEGIN IMMEDIATE')
+            assert client.get(f"/api/v1/devices/{original['id']}").json()['hostname'] == 'office-tv'
+        finally:
+            blocker.rollback(); blocker.close()
+        for _ in range(scanner.OFFLINE_THRESHOLD + 1): scanner.record_scan([])
+        scan(ip='192.0.2.123')
+        assert saved()['hostname'] == 'office-tv' and saved()['name'] == 'Office TV'
+
+
+def test_saved_hostname_survives_internal_row_recreation_and_explicit_delete_clears_it(inventory):
+    scan(); original = saved()
+    with TestClient(main.app) as client:
+        headers = login(client)
+        customize(client, headers, original['id'])
+        with main.db() as c:
+            # Internal rediscovery must not be treated as an administrator deletion.
+            c.execute('DELETE FROM devices WHERE id=?', (original['id'],))
+        scan()
+        assert saved()['hostname'] == 'office-tv' and saved()['name'] == 'Office TV'
+        current_id = saved()['id']
+        assert client.request('DELETE', f'/api/v1/devices/{current_id}', headers=headers,
+                              json={'reason': 'Retire device'}).status_code == 200
+        scan()
+        assert saved()['name'] is None and saved()['hostname'] == 'discovered-host'
+
+
+def test_upgrade_preserves_existing_manual_hostname_and_empty_override(inventory):
+    from app.device_identity import ensure_schema
+    scan(); original = saved()
+    with main.db() as c:
+        c.execute("UPDATE devices SET hostname='legacy-manual-host'")
+        c.execute('INSERT INTO device_saved_fields VALUES(?,?,?)', (original['id'], 'hostname', main.now()))
+        # The old release stored only the edited-field marker.
+        c.execute('DROP TABLE device_saved_names')
+        ensure_schema(c)
+    with main.db() as c:
+        c.execute("UPDATE devices SET hostname='new-dhcp-name'")
+    main.init_db(); scanner.init_db()
+    assert saved()['hostname'] == 'legacy-manual-host'
+    with TestClient(main.app) as client:
+        headers = login(client)
+        assert client.patch(f"/api/v1/devices/{original['id']}", headers=headers, json={'hostname': ''}).status_code == 200
+        with main.db() as c:
+            c.execute("UPDATE devices SET hostname='detected-again'")
+            correlate_device(c, original['mac'], hostname='discovered-again', source='dhcp')
+        assert saved()['hostname'] == ''
+
+
+def test_pre_marker_release_names_migrate_from_existing_labels_and_audit(inventory):
+    from app.device_identity import ensure_schema
+    scan(); original = saved()
+    with main.db() as c:
+        c.execute("UPDATE devices SET name='Legacy friendly name',hostname='legacy-entered-host'")
+        main.audit(c, 'admin', 'device_updated', target=original['mac'], details='hostname=?')
+        c.execute('DELETE FROM device_saved_fields')
+        c.execute('DROP TABLE device_saved_names')
+        ensure_schema(c)
+        c.execute("UPDATE devices SET name=NULL,hostname='dhcp-name'")
+    main.init_db(); scanner.init_db()
+    assert saved()['name'] == 'Legacy friendly name'
+    assert saved()['hostname'] == 'legacy-entered-host'
+
+
+@pytest.mark.parametrize('returning_mac', ['02:11:22:33:44:55', '06:11:22:33:44:66'])
+def test_offline_saved_device_at_same_ip_automatically_keeps_hostname(inventory, returning_mac):
+    scan(); original = saved()
+    with TestClient(main.app) as client:
+        headers = login(client)
+        customize(client, headers, original['id'])
+        for _ in range(scanner.OFFLINE_THRESHOLD + 1): scanner.record_scan([])
+        assert saved()['status'] == 'offline'
+        scan(returning_mac, original['ip'])
+        rows = client.get('/api/v1/devices').json()
+        assert len(rows) == 1 and rows[0]['id'] == original['id']
+        assert rows[0]['hostname'] == 'office-tv' and rows[0]['name'] == 'Office TV'
+        assert rows[0]['status'] == 'online' and rows[0]['icon_key'] == 'tv'
+        scanner.init_db()
+        scan(returning_mac, '192.0.2.90')
+        assert saved()['hostname'] == 'office-tv' and saved()['ip'] == '192.0.2.90'
+
+
+def test_same_ip_reconnect_consolidates_existing_uncustomized_duplicate(inventory):
+    scan(); original = saved()
+    with TestClient(main.app) as client:
+        headers = login(client)
+        customize(client, headers, original['id'])
+        scan('06:11:22:33:44:66', original['ip'])
+        assert len(client.get('/api/v1/devices').json()) == 2
+        for _ in range(scanner.OFFLINE_THRESHOLD + 1): scanner.record_scan([])
+        scan('06:11:22:33:44:66', original['ip'])
+        rows = client.get('/api/v1/devices').json()
+        assert len(rows) == 1 and rows[0]['id'] == original['id']
+        assert rows[0]['hostname'] == 'office-tv' and rows[0]['name'] == 'Office TV'
+
+
+def test_saved_offline_device_is_not_assumed_at_a_different_ip(inventory):
+    scan(); original = saved()
+    with TestClient(main.app) as client:
+        headers = login(client); customize(client, headers, original['id'])
+        for _ in range(scanner.OFFLINE_THRESHOLD + 1): scanner.record_scan([])
+        scan('06:11:22:33:44:66', '192.0.2.99')
+        assert len(client.get('/api/v1/devices').json()) == 2

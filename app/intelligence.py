@@ -1,7 +1,7 @@
 """GODSEYE device intelligence: correlate discovery/integration data into one inventory."""
 from __future__ import annotations
 import datetime as dt, json, re, subprocess, shutil
-from .device_identity import find_device, field_is_saved
+from .device_identity import find_device, field_is_saved, named_device, restore_names
 from .enrichment import normalize_mac
 
 VENDOR_PREFIXES = {
@@ -73,6 +73,7 @@ def correlate_device(c, mac, ip=None, hostname=None, vendor=None, source="unknow
     ts=now()
     detected_vendor=vendor or vendor_for_mac(mac)
     if row:
+        row = named_device(c, row)
         updates=[]; vals=[]
         for col,val in [("ip",ip),("hostname",hostname),("vendor",detected_vendor)]:
             if col == 'hostname' and field_is_saved(c, row['id'], col):
@@ -81,12 +82,15 @@ def correlate_device(c, mac, ip=None, hostname=None, vendor=None, source="unknow
                 updates.append(f"{col}=?"); vals.append(val)
         if updates:
             vals.append(mac); c.execute(f"UPDATE devices SET {','.join(updates)} WHERE mac=?",vals)
+        restore_names(c, row['id'])
     else:
         # Source records can precede ARP discovery; create a useful inventory row.
-        c.execute("""INSERT OR IGNORE INTO devices
+        created = c.execute("""INSERT OR IGNORE INTO devices
           (mac,ip,hostname,vendor,status,first_seen,last_seen,classification,missed_scans)
           VALUES(?,?,?,?,?,?,?,?,?)""",
           (mac,ip,hostname,detected_vendor,"online",ts,ts,"new",0))
+        if created.rowcount:
+            restore_names(c, created.lastrowid)
         c.execute("INSERT INTO events(mac,event_type,ip,created_at,details,severity) VALUES(?,?,?,?,?,?)",
                   (mac,"device_discovered",ip,ts,f"source={source}","info"))
 

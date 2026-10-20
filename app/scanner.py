@@ -12,7 +12,8 @@ from pathlib import Path
 
 from . import notifications
 from .intelligence import correlate_device
-from .device_identity import ensure_schema as ensure_identity_schema, find_device
+from .device_identity import (ensure_schema as ensure_identity_schema, find_device,
+                              restore_names, match_discovery, remember_address)
 from .enrichment import normalize_mac
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -207,6 +208,7 @@ def init_db():
         # Backfill classification from the legacy trusted flag so existing data isn't lost.
         c.execute("UPDATE devices SET classification='known' WHERE trusted=1 AND classification='new'")
         ensure_identity_schema(c)
+        restore_names(c)
 
 
 def local_subnet():
@@ -319,7 +321,7 @@ def record_scan(found):
             address = normalize_mac(observation.get('mac'))
             if not address:
                 continue
-            remembered = find_device(snapshot_connection, address)
+            remembered = match_discovery(snapshot_connection, address, observation.get('ip'))
             observations.append({**observation, 'observed_mac': address,
                                  'mac': remembered['mac'] if remembered else address})
         found = observations
@@ -332,9 +334,16 @@ def record_scan(found):
                  for mac, old in snapshot.items() if mac not in seen and old["ip"]
                  and old['ip'] not in occupied_ips}
     with db() as c:
+        restore_names(c)
         existing = {r["mac"]: r for r in c.execute("SELECT * FROM devices")}
         for d in found:
-            remembered = find_device(c, d['observed_mac'])
+            remembered = match_discovery(c, d['observed_mac'], d['ip'])
+            if remembered:
+                current = find_device(c, d['observed_mac'])
+                if not current or current['id'] != remembered['id']:
+                    remember_address(c, remembered['id'], d['observed_mac'], timestamp)
+                    # Linking may have consolidated an uncustomized discovery row.
+                    existing = {r['mac']: r for r in c.execute('SELECT * FROM devices')}
             mac = remembered['mac'] if remembered else d['observed_mac']
             found_macs.add(mac)
             old = existing.get(mac)

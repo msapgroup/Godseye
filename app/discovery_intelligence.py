@@ -20,7 +20,7 @@ from http.cookiejar import CookieJar
 from pathlib import Path
 
 from .intelligence import correlate_device, ensure_schema, now
-from .device_identity import find_device
+from .device_identity import find_device, named_device, saved_names
 from .discovery import nmap_discover, ip_neighbors
 from .collectors import dhcp_leases
 from .integrations import pihole_auth, pihole_json
@@ -280,7 +280,8 @@ def build_live_topology(c):
     gateway_id = gateway or "gateway"
     nodes.append({"id":gateway_id,"label":"Gateway / Router","type":"gateway","ip":gateway,"status":"online"})
     links = [{"parent":"internet","child":gateway_id,"link_type":"wan","details":{}}]
-    devs = [dict(r) for r in c.execute("SELECT * FROM devices ORDER BY status DESC,last_seen DESC")]
+    profiles = saved_names(c)
+    devs = [named_device(c, r, profiles) for r in c.execute("SELECT * FROM devices ORDER BY status DESC,last_seen DESC")]
     known_ids = {"internet", gateway_id}
     for d in devs:
         node_id = d.get("mac") or d.get("ip") or f"device:{d['id']}"

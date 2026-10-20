@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+from .device_identity import named_device
 
 
 def _parse_iso(value: str | None):
@@ -37,7 +38,7 @@ def build_device_intelligence(c, device_id: int) -> dict | None:
     device = c.execute("SELECT * FROM devices WHERE id=?", (device_id,)).fetchone()
     if not device:
         return None
-    d = dict(device)
+    d = named_device(c, device)
     mac = (d.get("mac") or "").lower()
     ip = d.get("ip")
 
