@@ -14,6 +14,20 @@ ENV_FILE="/etc/godseye.env"
 SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKUP_DIR="$DATA_DIR/install-backups"
 MODE="auto"
+WHEELHOUSE=""
+cleanup_wheelhouse() {
+  if [[ -n "$WHEELHOUSE" && -d "$WHEELHOUSE" ]]; then rm -rf -- "$WHEELHOUSE"; fi
+}
+trap cleanup_wheelhouse EXIT
+
+check_python_version() {
+  if ! "$PYTHON_BIN" -c 'import sys; sys.exit(sys.version_info < (3, 11))'; then
+    echo "GODSEYE requires Python 3.11 or newer at $PYTHON_BIN for its security updates." >&2
+    echo "Upgrade the server operating system to a supported release with Python 3.11 or newer, then retry." >&2
+    echo "The existing GODSEYE services and application files have not been stopped or replaced." >&2
+    exit 1
+  fi
+}
 
 usage() {
   cat <<'USAGE'
@@ -61,6 +75,7 @@ esac
 [[ -f "$SRC_DIR/app/main.py" && -f "$SRC_DIR/requirements.txt" && -f "$SRC_DIR/VERSION" ]] || {
   echo "This does not look like a complete GODSEYE release directory."; exit 1;
 }
+if [[ -x "$PYTHON_BIN" ]]; then check_python_version; fi
 
 EXISTING=0
 if [[ -f "$INSTALL_DIR/VERSION" || -f /etc/systemd/system/godseye-web.service || -f "$DATA_DIR/godseye.db" ]]; then
@@ -88,6 +103,12 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y \
   snmp wakeonlan traceroute curl jq sqlite3 net-tools ethtool iw wireless-tools mosquitto-clients nginx openssl certbot python3-certbot-nginx rsync unzip sudo \
   clamav yara lynis tcpdump
 
+# Pillow's current security release builds from source on 32-bit Raspberry Pi.
+if [[ "$(dpkg --print-architecture)" == "armhf" ]]; then
+  DEBIAN_FRONTEND=noninteractive apt-get install -y build-essential python3-dev zlib1g-dev libjpeg-dev
+fi
+check_python_version
+
 for bin in python3 ip ping nmap arp-scan dig traceroute avahi-browse nbtscan snmpget snmpwalk sqlite3 rsync; do
   command -v "$bin" >/dev/null 2>&1 || { echo "Required program missing after install: $bin"; exit 1; }
 done
@@ -105,6 +126,20 @@ if ! "$PYTHON_BIN" -m venv "$VENV_PROBE/check"; then
   echo "Could not create a Python virtual environment with $PYTHON_BIN." >&2
   echo "Check free space with: df -h $INSTALL_DIR" >&2
   echo "Reinstall the matching package: apt-get install --reinstall python3-venv" >&2
+  exit 1
+fi
+# Resolve, build and install all dependencies while the existing app is still
+# running. Reuse the verified wheels after stopping services so an unavailable
+# package or an ARM build failure cannot interrupt an existing installation.
+WHEELHOUSE="$(mktemp -d "$DATA_DIR/.python-wheels.XXXXXX")"
+if ! "$VENV_PROBE/check/bin/python" -m pip wheel --wheel-dir "$WHEELHOUSE" -r "$SRC_DIR/requirements.txt" pip; then
+  rm -rf "$VENV_PROBE"
+  echo "Could not prepare GODSEYE Python dependencies; the existing installation was not stopped or replaced." >&2
+  exit 1
+fi
+if ! "$VENV_PROBE/check/bin/python" -m pip install --no-index --find-links "$WHEELHOUSE" -r "$SRC_DIR/requirements.txt"; then
+  rm -rf "$VENV_PROBE"
+  echo "Could not verify GODSEYE Python dependencies; the existing installation was not stopped or replaced." >&2
   exit 1
 fi
 rm -rf "$VENV_PROBE"
@@ -153,8 +188,8 @@ restore_previous_venv() {
   exit 1
 }
 "$PYTHON_BIN" -m venv "$INSTALL_DIR/.venv" || restore_previous_venv
-"$INSTALL_DIR/.venv/bin/pip" install --upgrade pip || restore_previous_venv
-"$INSTALL_DIR/.venv/bin/pip" install -r "$INSTALL_DIR/requirements.txt" || restore_previous_venv
+"$INSTALL_DIR/.venv/bin/pip" install --no-index --find-links "$WHEELHOUSE" --upgrade pip || restore_previous_venv
+"$INSTALL_DIR/.venv/bin/pip" install --no-index --find-links "$WHEELHOUSE" -r "$INSTALL_DIR/requirements.txt" || restore_previous_venv
 
 # Persistent runtime data belongs to the service account. Application code is
 # readable by the service but remains owned by root after deployment.

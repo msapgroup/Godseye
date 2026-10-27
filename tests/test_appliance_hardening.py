@@ -27,6 +27,16 @@ def test_secret_encryption_roundtrip(tmp_path, monkeypatch):
     assert (tmp_path/'secret.key').stat().st_mode & 0o777 == 0o600
 
 
+def test_decrypts_credential_created_with_previous_cryptography(tmp_path, monkeypatch):
+    # Synthetic Fernet token generated with cryptography 45.0.6.
+    key_path = tmp_path / 'secret.key'
+    key_path.write_bytes(b'MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=')
+    monkeypatch.setattr(ah, 'KEY_PATH', key_path)
+    token = ('gAAAAABlU_EAMpINMV30Yd5hbpaye6EU36PC0erPa_zRN7dIzflIzK6ASJgGrdIUZmDTNpBVo'
+             '5peOE0_pjf4ZT_qCrDWnK-YJOzd6kLPvWERx2CXKSvsjqU=')
+    assert ah.decrypt_secret('enc:v1:' + token) == 'legacy integration credential'
+
+
 def test_prometheus_key_is_hashed(tmp_path):
     p,c=db(tmp_path)
     key=ah.generate_prometheus_key(c)

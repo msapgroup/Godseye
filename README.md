@@ -573,7 +573,7 @@ GODSEYE is intended for trusted LAN or VPN access. Do not expose the application
 
 ## Installation
 
-GODSEYE installs directly on supported Raspberry Pi OS, Debian, or Ubuntu-style Linux systems using systemd. Docker is not required.
+GODSEYE installs directly on supported Raspberry Pi OS, Debian, or Ubuntu-style Linux systems using systemd. Python 3.11 or newer is required for the updated security dependencies. Docker is not required. On 32-bit Raspberry Pi OS, installation also prepares the tools needed to build Pillow from source.
 
 ### Storage recommendation
 
