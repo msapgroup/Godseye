@@ -39,3 +39,9 @@ def test_crm_role_permissions_through_real_sessions(role, allowed, tmp_path, mon
         assert client.get("/api/v1/crm/customers").status_code == 200
         response = client.post("/api/v1/crm/customers", json={"name": "RBAC Customer"}, headers=csrf)
         assert response.status_code == (201 if allowed else 403), response.text
+        assert client.get("/api/v1/kb/articles").status_code == 200
+        article = client.post("/api/v1/kb/articles", headers=csrf, json={
+            "title": "Role permission article", "product": "Printer", "category": "Hardware",
+            "summary": "Test", "steps": [{"title": "Check", "instructions": "Run checks"}]
+        })
+        assert article.status_code == (201 if allowed else 403), article.text
