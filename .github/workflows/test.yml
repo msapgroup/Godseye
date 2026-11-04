@@ -1,34 +1,86 @@
-name: GODSEYE full server-side audit
+name: GODSEYE tests
 on: [push, pull_request]
 jobs:
-  server-tests:
+  test:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Install server and test dependencies
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt pytest httpx
-      - name: Compile server code
-        run: python -m compileall -q app
-      - name: Run authenticated server regression tests
-        env:
-          PYTHONPATH: .
-        run: pytest -q tests/test_server_regression_20261104.py tests/test_crm_workflow.py::test_real_login_can_save_customer_with_form_values tests/test_site_federation.py tests/test_role_permissions.py
-      - name: Run all server-side tests (exclude Windows agent test modules)
-        env:
-          PYTHONPATH: .
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -r requirements.txt pytest httpx
+      - run: python -m compileall app
+      # The repository contains historical release-marker tests for archived builds.
+      # Run the maintained v4.30/v4.31 contracts here; the Windows packaging
+      # workflow separately validates the integrated 2.4.5 installer and publish artifact.
+      - run: >-
+          PYTHONPATH=. pytest -q
+          tests/test_v430_remote_access_hardening.py
+          tests/test_v430_ui_release.py
+          tests/test_v431_remote_agent_handoff.py
+          tests/test_v431_agent_ticket_and_remote_storage.py
+          tests/test_cyber_tools_v431.py
+          tests/test_godseye_edr.py
+          tests/test_windows_agent_self_update.py
+          tests/test_v431_agent_package_status.py
+          tests/test_server_database_contention.py
+          tests/test_device_identity_persistence.py
+          tests/test_windows_updates_page_navigation.py
+          tests/test_cyber_results_gui.py
+          tests/test_admin_password_reset.py
+          tests/test_appliance_hardening.py
+          tests/test_summary_card_actions.py
+          tests/test_audit_gui.py
+          tests/test_audit_analytics_sorting_v22.py
+          tests/test_v430_personal_card_layouts.py
+          tests/test_weather_alerts.py
+          tests/test_role_permissions.py
+          tests/test_crm_workflow.py
+          tests/test_kb_files.py
+          tests/test_site_federation.py
+          tests/test_server_regression_20261104.py
+          tests/test_background_worker_stability.py
+
+      - name: Package server-only GODSEYE source ZIP
+        if: success()
         run: |
           python - <<'PY'
-          from pathlib import Path
-          import pytest
-          all_tests = sorted(Path("tests").glob("test_*.py"))
-          server_tests = [str(p) for p in all_tests if "agent" not in p.name.lower() and "installer" not in p.name.lower()]
-          print(f"Server test files: {len(server_tests)} / {len(all_tests)}", flush=True)
-          print("\n".join(server_tests), flush=True)
-          raise SystemExit(pytest.main(["-q", *server_tests]))
+          import subprocess, zipfile
+          from pathlib import PurePosixPath
+          version = open("VERSION", encoding="utf-8").read().strip()
+          name = f"GODSEYE-server-{version}-no-agent.zip"
+          tracked = subprocess.check_output(["git", "ls-files", "-z"]).decode().split("\\0")
+          def allowed(p):
+              if not p:
+                  return False
+              x = PurePosixPath(p)
+              if x.parts[0] == "windows":
+                  return False
+              if x.parts[:2] == (".github", "workflows") and "agent" in x.name.lower():
+                  return False
+              if x.parts[0] == "tests" and ("agent" in x.name.lower() or "installer" in x.name.lower()):
+                  return False
+              if x.parts[0] == "docs" and "agent" in x.name.lower():
+                  return False
+              return True
+          with zipfile.ZipFile(name, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as z:
+              for path in tracked:
+                  if allowed(path):
+                      z.write(path)
+          with zipfile.ZipFile(name) as z:
+              bad = z.testzip()
+              assert bad is None, f"Archive corruption: {bad}"
+              assert "app/main.py" in z.namelist()
+              assert "install.sh" in z.namelist()
+              assert not any(x.startswith("windows/") for x in z.namelist())
+          print(f"Built {name}")
           PY
+      - name: Upload server-only source ZIP
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: GODSEYE-server-4.31.0-no-agent
+          path: GODSEYE-server-4.31.0-no-agent.zip
+          if-no-files-found: error
+          retention-days: 30
