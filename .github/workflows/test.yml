@@ -1,37 +1,30 @@
-name: GODSEYE tests
+name: GODSEYE full server-side audit
 on: [push, pull_request]
 jobs:
-  test:
+  server-tests:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: python -m pip install --upgrade pip
-      - run: python -m pip install -r requirements.txt pytest httpx
-      - run: python -m compileall app
-      # The repository contains historical release-marker tests for archived builds.
-      # Run the maintained v4.30/v4.31 contracts here; the Windows packaging
-      # workflow separately validates the integrated 2.4.5 installer and publish artifact.
-      - run: >-
-          PYTHONPATH=. pytest -q
-          tests/test_v430_remote_access_hardening.py
-          tests/test_v430_ui_release.py
-          tests/test_v431_remote_agent_handoff.py
-          tests/test_v431_agent_ticket_and_remote_storage.py
-          tests/test_cyber_tools_v431.py
-          tests/test_godseye_edr.py
-          tests/test_windows_agent_self_update.py
-          tests/test_v431_agent_package_status.py
-          tests/test_server_database_contention.py
-          tests/test_device_identity_persistence.py
-          tests/test_windows_updates_page_navigation.py
-          tests/test_cyber_results_gui.py
-          tests/test_admin_password_reset.py
-          tests/test_appliance_hardening.py
-          tests/test_summary_card_actions.py
-          tests/test_audit_gui.py
-          tests/test_audit_analytics_sorting_v22.py
-          tests/test_v430_personal_card_layouts.py
-          tests/test_weather_alerts.py
+      - name: Install server and test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pytest httpx
+      - name: Compile server code
+        run: python -m compileall -q app
+      - name: Run all server-side tests (exclude Windows agent test modules)
+        env:
+          PYTHONPATH: .
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import pytest
+          all_tests = sorted(Path("tests").glob("test_*.py"))
+          server_tests = [str(p) for p in all_tests if "agent" not in p.name.lower() and "installer" not in p.name.lower()]
+          print(f"Server test files: {len(server_tests)} / {len(all_tests)}", flush=True)
+          print("\n".join(server_tests), flush=True)
+          raise SystemExit(pytest.main(["-q", *server_tests]))
+          PY
