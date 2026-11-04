@@ -754,30 +754,43 @@ class CalendarSyncManager:
     def _loop(self):
         while not self._stop.wait(60):
             try:
+                # Fetch the schedule without keeping a transaction open during
+                # remote calls. Commit each calendar independently so a later
+                # provider timeout cannot hold an earlier provider's write lock.
                 with self.db_factory() as c:
-                    rows=c.execute("SELECT * FROM calendar_integrations WHERE enabled=1").fetchall()
-                    now_dt=dt.datetime.now(dt.timezone.utc)
-                    for row in rows:
-                        due=True
-                        if row["last_sync_at"]:
-                            try:
-                                last=dt.datetime.fromisoformat(row["last_sync_at"])
-                                if last.tzinfo is None:
-                                    last=last.replace(tzinfo=dt.timezone.utc)
-                                due=(now_dt-last).total_seconds() >= max(5,int(row["sync_interval_minutes"]))*60
-                            except Exception:
-                                due=True
-                        if not due:
-                            continue
+                    rows=[dict(row) for row in c.execute(
+                        "SELECT * FROM calendar_integrations WHERE enabled=1").fetchall()]
+                now_dt=dt.datetime.now(dt.timezone.utc)
+                for row in rows:
+                    if self._stop.is_set():
+                        break
+                    due=True
+                    if row["last_sync_at"]:
                         try:
-                            _sync_calendar_integration(c,row)
-                        except Exception as exc:
-                            ts=now()
-                            c.execute("UPDATE calendar_integrations SET last_sync_at=?,last_status='error',last_error=?,updated_at=? WHERE id=?",
-                                      (ts,str(exc)[:500],ts,row["id"]))
-                    c.commit()
+                            last=dt.datetime.fromisoformat(row["last_sync_at"])
+                            if last.tzinfo is None:
+                                last=last.replace(tzinfo=dt.timezone.utc)
+                            due=(now_dt-last).total_seconds() >= max(5,int(row["sync_interval_minutes"]))*60
+                        except Exception:
+                            due=True
+                    if not due:
+                        continue
+                    try:
+                        with self.db_factory() as c:
+                            try:
+                                _sync_calendar_integration(c,row)
+                            except Exception as exc:
+                                ts=now()
+                                c.execute("UPDATE calendar_integrations SET last_sync_at=?,last_status='error',last_error=?,updated_at=? WHERE id=?",
+                                          (ts,str(exc)[:500],ts,row["id"]))
+                            c.commit()
+                    except Exception:
+                        import logging
+                        logging.getLogger("godseye.calendar").exception(
+                            "Calendar integration %s failed", row["id"])
             except Exception:
-                pass
+                import logging
+                logging.getLogger("godseye.calendar").exception("Calendar sync scheduler failed")
 
 
 class WindowsEventCollectorManager:
