@@ -31,6 +31,7 @@ jobs:
           tests/test_admin_password_reset.py
           tests/test_appliance_hardening.py
           tests/test_summary_card_actions.py
+          tests/test_network_findings_clear.py
           tests/test_audit_gui.py
           tests/test_audit_analytics_sorting_v22.py
           tests/test_v430_personal_card_layouts.py

@@ -2431,6 +2431,33 @@ def intelligence_issues(status: str = "open", user=Depends(get_current_user)):
             rows=c.execute("SELECT * FROM network_issues WHERE status=? ORDER BY last_seen DESC LIMIT 200",(status,)).fetchall()
     return [dict(r) for r in rows]
 
+@app.get(f"{router_prefix}/intelligence/issues-summary")
+def intelligence_issues_summary(user=Depends(get_current_user)):
+    with db() as c:
+        row=c.execute("""SELECT COUNT(*) AS total,
+            COALESCE(SUM(status='open'),0) AS open_count,
+            COALESCE(SUM(status='resolved'),0) AS resolved_count,
+            COALESCE(SUM(lower(severity) IN ('critical','high')),0) AS critical_count
+            FROM network_issues""").fetchone()
+    return dict(row)
+
+class NetworkFindingsClearRequest(BaseModel):
+    category: str
+
+@app.post(f"{router_prefix}/intelligence/issues-clear")
+def clear_network_findings(req: NetworkFindingsClearRequest, request: Request, user=Depends(require_admin)):
+    conditions={'resolved': "status='resolved'", 'critical': "lower(severity) IN ('critical','high')", 'all': '1=1'}
+    if req.category not in conditions:
+        raise HTTPException(400, 'Choose resolved, critical, or all findings')
+    condition=conditions[req.category]
+    with db() as c:
+        # Preserve related records and prevent stale IDs from pointing at new findings.
+        c.execute(f"UPDATE tickets SET linked_type='network_finding_deleted' WHERE linked_type='network_finding' AND linked_id IN (SELECT id FROM network_issues WHERE {condition})")
+        c.execute(f"UPDATE cyber_tool_runs SET finding_id=NULL WHERE finding_id IN (SELECT id FROM network_issues WHERE {condition})")
+        deleted=c.execute(f"DELETE FROM network_issues WHERE {condition}").rowcount
+        audit(c,user['username'],'network_findings_cleared',details=json.dumps({'category':req.category,'deleted':deleted}),ip=client_ip(request))
+    return {'ok':True,'deleted':deleted}
+
 @app.get(f"{router_prefix}/intelligence/issues/{{issue_id}}/suggested-fix")
 def issue_suggested_fix(issue_id: int, user=Depends(get_current_user)):
     from .remediation import suggested_fix
@@ -7487,7 +7514,7 @@ html:not([data-theme="dark"]) :is(.v430-global-search,.v430-bell,.user-chip,.aut
 <div class="hero"><div><h1>Network Findings</h1><div class="muted">Issues and notable events detected by GODSEYE</div></div></div>
 <div class="cards"><button type="button" class="card summary-action" onclick="openSummaryFilter('finding','open')"><div class="label">Open</div><div class="num red" id="findingOpen">—</div></button><button type="button" class="card summary-action" onclick="openSummaryFilter('finding','resolved')"><div class="label">Resolved</div><div class="num green" id="findingResolved">—</div></button><button type="button" class="card summary-action" onclick="openSummaryFilter('finding','all')"><div class="label">All Findings</div><div class="num" id="findingAll">—</div></button><button type="button" class="card summary-action" onclick="openSummaryFilter('finding','critical')"><div class="label">Critical</div><div class="num red" id="findingCritical">—</div></button></div>
 <div class="summary-filter-bar" id="findingSummaryFilter" hidden><span></span><button class="secondary" type="button" onclick="openSummaryFilter('finding','all')">Show all</button></div>
-<section class="panel"><div class="table-head"><h2>Findings / Issues</h2><div class="muted">Explainable recommendations</div></div><div style="overflow:auto"><table><thead><tr><th>Severity</th><th>Title</th><th>Device</th><th>Detected</th><th>Status</th><th>Action</th></tr></thead><tbody id="findingRows"></tbody></table></div></section>
+<section class="panel"><div class="table-head"><div><h2>Findings / Issues</h2><div class="muted">Showing up to 200 recent findings per status</div></div><div class="actions admin-only"><button type="button" class="danger" onclick="clearNetworkFindings('resolved')">Clear Resolved</button><button type="button" class="danger" onclick="clearNetworkFindings('critical')">Clear Critical / High</button><button type="button" class="danger" onclick="clearNetworkFindings('all')">Clear All Findings</button></div></div><div style="overflow:auto"><table><thead><tr><th>Severity</th><th>Title</th><th>Device</th><th>Detected</th><th>Status</th><th>Action</th></tr></thead><tbody id="findingRows"></tbody></table></div></section>
 </div>
 <div class="view" id="view-tools" style="display:none">
 <div class="hero"><div><h1>Network Tools</h1><div class="muted">Diagnostics and management tools</div></div></div>
@@ -9946,7 +9973,13 @@ function openMonitorEditor(id=null){EDIT_MONITOR_ID=id;const x=id?MONITORS.find(
 function closeMonitorEditor(){monitorModal.style.display='none';document.body.style.overflow=''}
 async function saveMonitor(){try{let options={};try{options=JSON.parse(monOptions.value||'{}')}catch(_){throw new Error('Options must be valid JSON')}const body={name:monName.value.trim(),kind:monKind.value,target:monTarget.value.trim(),interval_seconds:+monInterval.value,enabled:monEnabled.value==='1',options};const url=EDIT_MONITOR_ID?'/api/v1/monitoring/settings/'+EDIT_MONITOR_ID:'/api/v1/monitoring/settings';await json(url,{method:EDIT_MONITOR_ID?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});closeMonitorEditor();await loadMonitoring()}catch(e){monitorEditorOut.textContent=e.message}}
 async function deleteMonitor(id){if(!confirm('Delete this monitor and its check history?'))return;try{await json('/api/v1/monitoring/settings/'+id,{method:'DELETE'});await loadMonitoring()}catch(e){alert('Could not delete monitor: '+e.message)}}
-async function loadFindings(){try{let open=await json('/api/v1/intelligence/issues?status=open');let resolved=await json('/api/v1/intelligence/issues?status=resolved');let all=open.concat(resolved);findingOpen.textContent=open.length;findingResolved.textContent=resolved.length;findingAll.textContent=all.length;findingCritical.textContent=all.filter(x=>['critical','high'].includes((x.severity||'').toLowerCase())).length;let badge=document.getElementById('findingBadge');if(badge)badge.textContent=open.length;const visible=all.filter(x=>SUMMARY_FILTERS.finding==='all'||(SUMMARY_FILTERS.finding==='critical'?['critical','high'].includes((x.severity||'').toLowerCase()):x.status===SUMMARY_FILTERS.finding));findingRows.innerHTML=visible.length?visible.map(x=>`<tr><td><span class="status-badge severity-${esc((x.severity||'info').toLowerCase())}">${esc(x.severity||'Info')}</span></td><td><div class="name">${esc(x.title||x.issue_type||'Finding')}</div><div class="muted">${esc(x.recommendation||'')}</div></td><td>${esc(x.target||'—')}</td><td>${x.first_seen?esc(new Date(x.first_seen).toLocaleString()):'—'}</td><td><span class="status-badge">${esc(x.status||'open')}</span></td><td>${x.status==='open'?`<button class="link" onclick="showSuggestedFix(${x.id})">Suggested Fix</button> <button class="link" onclick="recheckFinding(${x.id})">Recheck</button> <button class="link operate-only" onclick="createTicketFromNetworkFinding(${x.id})">Create Ticket</button> <button class="link" onclick="resolveFinding(${x.id})">Resolve</button>`:'—'}</td></tr>`).join(''):'<tr><td colspan="6" class="empty">No findings yet.</td></tr>'}catch(e){findingRows.innerHTML='<tr><td colspan="6" class="empty">Findings unavailable: '+esc(e.message)+'</td></tr>'}}
+async function clearNetworkFindings(category){
+ const descriptions={resolved:'all resolved Network Findings',critical:'all critical and high severity Network Findings, including open findings',all:'ALL Network Findings, including open findings'};
+ if(!descriptions[category])return;
+ if(!confirm(`Permanently clear ${descriptions[category]}?\n\nThis includes findings beyond those displayed. Linked tickets and Cyber Tool history will be preserved. Findings may return if the issue is detected again. This cannot be undone.`))return;
+ try{const result=await json('/api/v1/intelligence/issues-clear',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({category})});await loadFindings();alert(`Cleared ${result.deleted} Network Finding${result.deleted===1?'':'s'}.`)}catch(e){alert('Could not clear Network Findings: '+e.message)}
+}
+async function loadFindings(){try{let open=await json('/api/v1/intelligence/issues?status=open');let resolved=await json('/api/v1/intelligence/issues?status=resolved');let all=open.concat(resolved);let counts=await json('/api/v1/intelligence/issues-summary');findingOpen.textContent=counts.open_count;findingResolved.textContent=counts.resolved_count;findingAll.textContent=counts.total;findingCritical.textContent=counts.critical_count;let badge=document.getElementById('findingBadge');if(badge)badge.textContent=counts.open_count;const visible=all.filter(x=>SUMMARY_FILTERS.finding==='all'||(SUMMARY_FILTERS.finding==='critical'?['critical','high'].includes((x.severity||'').toLowerCase()):x.status===SUMMARY_FILTERS.finding));findingRows.innerHTML=visible.length?visible.map(x=>`<tr><td><span class="status-badge severity-${esc((x.severity||'info').toLowerCase())}">${esc(x.severity||'Info')}</span></td><td><div class="name">${esc(x.title||x.issue_type||'Finding')}</div><div class="muted">${esc(x.recommendation||'')}</div></td><td>${esc(x.target||'—')}</td><td>${x.first_seen?esc(new Date(x.first_seen).toLocaleString()):'—'}</td><td><span class="status-badge">${esc(x.status||'open')}</span></td><td>${x.status==='open'?`<button class="link" onclick="showSuggestedFix(${x.id})">Suggested Fix</button> <button class="link" onclick="recheckFinding(${x.id})">Recheck</button> <button class="link operate-only" onclick="createTicketFromNetworkFinding(${x.id})">Create Ticket</button> <button class="link" onclick="resolveFinding(${x.id})">Resolve</button>`:'—'}</td></tr>`).join(''):'<tr><td colspan="6" class="empty">No findings yet.</td></tr>'}catch(e){findingRows.innerHTML='<tr><td colspan="6" class="empty">Findings unavailable: '+esc(e.message)+'</td></tr>'}}
 async function showSuggestedFix(id){try{const r=await json('/api/v1/intelligence/issues/'+id+'/suggested-fix');alert(r.title+'\n\n'+(r.recommendation||'')+'\n\n'+(r.actions||[]).map((x,i)=>(i+1)+'. '+x).join('\n'))}catch(e){alert('Could not load suggested fix: '+e.message)}}
 async function recheckFinding(id){try{const r=await json('/api/v1/intelligence/issues/'+id+'/recheck',{method:'POST'});alert(r.ok?'Recheck completed successfully.':'Recheck completed; the condition may still be present.');await loadFindings();await loadMonitoring();await loadInventory()}catch(e){alert('Could not recheck finding: '+e.message)}}
 async function resolveFinding(id){if(!confirm('Mark this finding resolved?'))return;try{await json('/api/v1/intelligence/issues/'+id+'/resolve',{method:'POST'});await loadFindings()}catch(e){alert('Could not resolve finding: '+e.message)}}
