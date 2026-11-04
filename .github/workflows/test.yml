@@ -18,7 +18,7 @@ jobs:
       - name: Run authenticated server regression tests
         env:
           PYTHONPATH: .
-        run: pytest -q tests/test_server_regression_20261104.py tests/test_crm_workflow.py::test_real_login_can_save_customer_with_form_values
+        run: pytest -q tests/test_server_regression_20261104.py tests/test_crm_workflow.py::test_real_login_can_save_customer_with_form_values tests/test_site_federation.py
       - name: Run all server-side tests (exclude Windows agent test modules)
         env:
           PYTHONPATH: .
