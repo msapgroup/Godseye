@@ -41,6 +41,7 @@ jobs:
           tests/test_site_federation.py
           tests/test_server_regression_20261104.py
           tests/test_background_worker_stability.py
+          tests/test_calendar_scheduler_database_locks.py
 
       - name: Package server-only GODSEYE source ZIP
         if: success()
