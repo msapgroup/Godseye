@@ -50,7 +50,7 @@ jobs:
           from pathlib import PurePosixPath
           version = open("VERSION", encoding="utf-8").read().strip()
           name = f"GODSEYE-server-{version}-no-agent.zip"
-          tracked = subprocess.check_output(["git", "ls-files", "-z"]).decode().split("\\0")
+          tracked = subprocess.check_output(["git", "ls-files", "-z"]).decode().split(chr(0))
           def allowed(p):
               if not p:
                   return False
