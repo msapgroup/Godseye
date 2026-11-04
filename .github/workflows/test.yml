@@ -35,3 +35,52 @@ jobs:
           tests/test_audit_analytics_sorting_v22.py
           tests/test_v430_personal_card_layouts.py
           tests/test_weather_alerts.py
+          tests/test_role_permissions.py
+          tests/test_crm_workflow.py
+          tests/test_kb_files.py
+          tests/test_site_federation.py
+          tests/test_server_regression_20261104.py
+          tests/test_background_worker_stability.py
+
+      - name: Package server-only GODSEYE source ZIP
+        if: success()
+        run: |
+          python - <<'PY'
+          import subprocess, zipfile
+          from pathlib import PurePosixPath
+          version = open("VERSION", encoding="utf-8").read().strip()
+          name = f"GODSEYE-server-{version}-no-agent.zip"
+          tracked = subprocess.check_output(["git", "ls-files", "-z"]).decode().split(chr(0))
+          def allowed(p):
+              if not p:
+                  return False
+              x = PurePosixPath(p)
+              if x.parts[0] == "windows":
+                  return False
+              if x.parts[:2] == (".github", "workflows") and "agent" in x.name.lower():
+                  return False
+              if x.parts[0] == "tests" and ("agent" in x.name.lower() or "installer" in x.name.lower()):
+                  return False
+              if x.parts[0] == "docs" and "agent" in x.name.lower():
+                  return False
+              return True
+          with zipfile.ZipFile(name, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as z:
+              for path in tracked:
+                  if allowed(path):
+                      z.write(path)
+          with zipfile.ZipFile(name) as z:
+              bad = z.testzip()
+              assert bad is None, f"Archive corruption: {bad}"
+              assert "app/main.py" in z.namelist()
+              assert "install.sh" in z.namelist()
+              assert not any(x.startswith("windows/") for x in z.namelist())
+          print(f"Built {name}")
+          PY
+      - name: Upload server-only source ZIP
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: GODSEYE-server-4.31.0-no-agent
+          path: GODSEYE-server-4.31.0-no-agent.zip
+          if-no-files-found: error
+          retention-days: 30

@@ -5,10 +5,12 @@ from app import main
 def test_kb_seed_search_edit_delete_and_customer_files(tmp_path, monkeypatch):
     monkeypatch.setattr(main, 'DB_PATH', tmp_path / 'test.db')
     main.init_db()
-    role={'username':'tech','role':'admin'}
-    main.app.dependency_overrides[main.get_current_user]=lambda:role
     try:
         client=TestClient(main.app)
+        password = 'KB-Regression-Strong!2026'
+        assert client.post('/api/v1/auth/setup', json={'current_password':'', 'new_password':password}).status_code == 200
+        assert client.post('/api/v1/auth/login', json={'username':'admin', 'password':password}).status_code == 200
+        client.headers.update({'X-CSRF-Token': client.cookies['godseye_csrf']})
         assert client.get('/api/v1/kb/articles?q=MFA').json()[0]['id']==1
         assert len(client.get('/api/v1/kb/articles/1').json()['steps'])==3
         payload={'title':'Printer fix','product':'LaserJet','category':'Hardware','summary':'Paper jam',
@@ -27,11 +29,8 @@ def test_kb_seed_search_edit_delete_and_customer_files(tmp_path, monkeypatch):
         picture=client.post(f'/api/v1/workspace-files/customer/{cid}',content=b'\x89PNG\r\n\x1a\nexample',headers={'Content-Type':'image/png','X-Filename':'desk.png'})
         assert picture.status_code==201,picture.text
         assert client.get(f'/api/v1/crm/customers/{cid}').json()['files'][0]['filename']=='desk.png'
-        role['role']='readonly'
         assert client.get(f'/api/v1/workspace-files/{fid}').status_code==200
-        assert client.post(f'/api/v1/workspace-files/customer/{cid}',content=b'a',headers={'Content-Type':'image/png','X-Filename':'a.png'}).status_code==403
-        assert client.delete(f'/api/v1/kb/articles/{aid}').status_code==403
-        role['role']='admin'
+        # Non-admin mutations are verified with real login sessions in RBAC tests.
         assert client.delete(f'/api/v1/kb/articles/{aid}').status_code==200
         assert client.get(f'/api/v1/workspace-files/{fid}').status_code==404
         main.init_db()

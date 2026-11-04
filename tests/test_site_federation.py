@@ -3,11 +3,13 @@ from fastapi import HTTPException
 import pytest
 
 import app.main as main
-from app import site_federation
+from app import site_federation, appliance_hardening
 
 
 @pytest.fixture
-def client(tmp_path):
+def client(tmp_path, monkeypatch):
+    # Keep test encryption keys outside the production /var/lib/godseye directory.
+    monkeypatch.setattr(appliance_hardening, 'KEY_PATH', tmp_path / 'secret.key')
     original = main.DB_PATH
     main.DB_PATH = tmp_path / 'sites.db'
     main.init_db()

@@ -4,9 +4,11 @@ Collectors are intentionally lightweight and Docker-free. Credentials remain in
 options/environment and are never written to integration_checks.
 """
 from __future__ import annotations
-import json, threading, time, os, urllib.request, re
+import json, threading, time, os, urllib.request, re, logging
 from .integrations import website_check, pihole_test, snmp_test, unifi_login
 from .intelligence import ensure_schema, ingest_dhcp, correlate_public_ip
+
+log = logging.getLogger("godseye.collectors")
 
 
 def dhcp_leases(path=None):
@@ -53,9 +55,9 @@ class CollectorManager:
 
     def _run(self, setting):
         kind,target=setting["kind"],setting["target"]
-        opts=json.loads(setting.get("options_json") or "{}")
         started=time.monotonic()
         try:
+            opts=json.loads(setting.get("options_json") or "{}")
             if kind=="website":
                 result=website_check(target)
             elif kind=="dhcp":
@@ -103,27 +105,41 @@ class CollectorManager:
 
     def _loop(self):
         while not self.stop_event.wait(30):
-            now=time.time()
-            for setting in self._settings():
-                # Use last successful/check timestamp for a simple bounded scheduler.
-                with self.db_factory() as c:
-                    row=c.execute(
-                        "SELECT last_checked FROM integration_checks WHERE kind=? AND target=? ORDER BY id DESC LIMIT 1",
-                        (setting["kind"],setting["target"])).fetchone()
-                due=True
-                if row:
-                    try:
-                        import datetime as dt
-                        last=dt.datetime.fromisoformat(row["last_checked"]).timestamp()
-                        due=(now-last)>=setting["interval_seconds"]
-                    except Exception:
-                        due=True
-                if due:
-                    self._run(setting)
+            try:
+                settings = self._settings()
+            except Exception:
+                log.exception("Could not load GODSEYE monitoring schedules")
+                continue
+            for setting in settings:
+                if self.stop_event.is_set():
+                    break
+                try:
+                    # A failed monitor must never terminate the whole worker.
+                    now = time.time()
+                    with self.db_factory() as c:
+                        row = c.execute(
+                            "SELECT last_checked FROM integration_checks WHERE kind=? AND target=? ORDER BY id DESC LIMIT 1",
+                            (setting["kind"], setting["target"])).fetchone()
+                    due = True
+                    if row:
+                        try:
+                            import datetime as dt
+                            last = dt.datetime.fromisoformat(row["last_checked"]).timestamp()
+                            due = (now - last) >= max(30, int(setting["interval_seconds"]))
+                        except (ValueError, TypeError, KeyError):
+                            due = True
+                    if due:
+                        self._run(setting)
+                except Exception:
+                    log.exception("Monitoring task %s failed", setting.get("name", setting.get("id")))
 
     def start(self):
+        if self.thread and self.thread.is_alive():
+            return self.thread
+        self.stop_event.clear()
         self.thread=threading.Thread(target=self._loop,name="godseye-collectors",daemon=True)
         self.thread.start()
+        return self.thread
 
     def stop(self):
         self.stop_event.set()
