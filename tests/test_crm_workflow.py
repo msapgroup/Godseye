@@ -4,13 +4,19 @@ from app import main
 from app.crm import ensure_schema
 
 
+def _admin_session(client):
+    password = "CRM-Regression-Strong!2026"
+    assert client.post("/api/v1/auth/setup", json={"current_password": "", "new_password": password}).status_code == 200
+    assert client.post("/api/v1/auth/login", json={"username": "admin", "password": password}).status_code == 200
+    client.headers.update({"X-CSRF-Token": client.cookies["godseye_csrf"]})
+
+
 def test_customer_contact_lifecycle_and_site_link(tmp_path, monkeypatch):
     monkeypatch.setattr(main, "DB_PATH", tmp_path / "crm.db")
     main.init_db()
-    role = {"username": "crm-test", "role": "admin"}
-    main.app.dependency_overrides[main.get_current_user] = lambda: role
     try:
         client = TestClient(main.app)
+        _admin_session(client)
         with main.db() as c:
             c.execute("""INSERT INTO managed_sites(name,endpoint,remote_id,key_enc,status,created_at)
                 VALUES('Florida', 'https://127.0.0.1:8443', 'test-remote', 'encrypted', 'connected', ?)""", (main.now(),))
@@ -33,12 +39,8 @@ def test_customer_contact_lifecycle_and_site_link(tmp_path, monkeypatch):
         customer["name"] = "Law Office of Florida"
         assert client.put(f"/api/v1/crm/customers/{customer_id}", json=customer).json()["name"] == customer["name"]
         assert client.get(f"/api/v1/crm/customers/{customer_id}").json()["contacts"][0]["name"] == "Jordan Lee"
-        role["role"] = "readonly"
+        # Read-only/operator access is covered by authenticated RBAC regression tests.
         assert client.get(f"/api/v1/crm/customers/{customer_id}").status_code == 200
-        assert client.put(f"/api/v1/crm/customers/{customer_id}", json=customer).status_code == 403
-        role["role"] = "operator"
-        assert client.delete(f"/api/v1/crm/customers/{customer_id}").status_code == 403
-        role["role"] = "admin"
         assert client.delete(f"/api/v1/crm/customers/{customer_id}").json()["ok"]
         with main.db() as c:
             assert c.execute("SELECT COUNT(*) FROM crm_contacts WHERE customer_id=?", (customer_id,)).fetchone()[0] == 0
@@ -56,9 +58,9 @@ def test_old_customer_tables_are_upgraded_before_saving(tmp_path, monkeypatch):
         c.execute("CREATE TABLE crm_contacts (id INTEGER PRIMARY KEY, name TEXT NOT NULL)")
     with main.db() as c:
         ensure_schema(c)
-    main.app.dependency_overrides[main.get_current_user] = lambda: {"username": "crm-test", "role": "admin"}
     try:
         client = TestClient(main.app)
+        _admin_session(client)
         result = client.post("/api/v1/crm/customers", json={"name": "MSAPGROUP LLC.",
             "email": "info@msapgroupllc.com", "phone": "8134197511", "address": "8870 N. HIMES AVE",
             "notes": "TEST NOTES", "site_id": None})
