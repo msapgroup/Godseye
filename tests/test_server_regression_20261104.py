@@ -50,3 +50,8 @@ def test_crm_mutations_require_auth_and_csrf(tmp_path, monkeypatch):
     anonymous = TestClient(main.app)
     assert anonymous.post("/api/v1/crm/customers", json={"name": "Anonymous"}).status_code in (401, 403)
     assert client.post("/api/v1/crm/customers", json={"name": "With CSRF"}, headers=csrf).status_code == 201
+
+
+# TEMPORARY RULESET ENFORCEMENT PROBE. DO NOT MERGE.
+def test_ruleset_rejects_intentionally_failing_server_test():
+    assert False, "Expected failure: verify main-branch required checks prevent merging"
