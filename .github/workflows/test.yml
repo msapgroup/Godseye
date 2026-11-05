@@ -89,3 +89,50 @@ jobs:
           path: GODSEYE-server-4.31.0-no-agent.zip
           if-no-files-found: error
           retention-days: 30
+
+  # Keep OIDC/attestation write permissions out of the test job and PR contexts.
+  # Only successful test builds on the official main branch receive provenance.
+  attest_server_source:
+    name: Attest server source package
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    steps:
+      - name: Download tested server-only package
+        uses: actions/download-artifact@v4
+        with:
+          name: GODSEYE-server-4.31.0-no-agent
+          path: dist
+      - name: Check ZIP integrity and generate SHA-256 checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd dist
+          python - <<'PY'
+          import zipfile
+          from pathlib import Path
+          path = Path("GODSEYE-server-4.31.0-no-agent.zip")
+          with zipfile.ZipFile(path) as z:
+              assert z.testzip() is None, "ZIP integrity check failed"
+              assert "app/main.py" in z.namelist()
+              assert "install.sh" in z.namelist()
+              assert not any(n.startswith("windows/") for n in z.namelist())
+          PY
+          sha256sum GODSEYE-server-4.31.0-no-agent.zip > GODSEYE-server-4.31.0-no-agent.zip.sha256
+          sha256sum -c GODSEYE-server-4.31.0-no-agent.zip.sha256
+      - name: Attest tested server package provenance
+        uses: actions/attest@v4
+        with:
+          subject-path: dist/GODSEYE-server-4.31.0-no-agent.zip
+      - name: Upload release checksum
+        uses: actions/upload-artifact@v4
+        with:
+          name: GODSEYE-server-4.31.0-no-agent-sha256
+          path: dist/GODSEYE-server-4.31.0-no-agent.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
