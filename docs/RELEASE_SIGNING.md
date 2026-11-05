@@ -1,6 +1,6 @@
 # MSAP-controlled signed GODSEYE server release tags
 
-**Status: signing-key enrollment required.** A release is **not** MSAP-signed until an MSAP-controlled private key is created locally, the corresponding public key is committed through a reviewed pull request, and a signed annotated server release tag passes verification. The repository's existing GitHub/Sigstore build attestations are separate from maintainer signatures.
+**Status: MSAP public signing key enrolled; first signed server release tag pending.** A release is **not** MSAP-signed until the MSAP-controlled private key signs an annotated server release tag and the verification workflow passes. The repository's existing GitHub/Sigstore build attestations are separate from maintainer signatures.
 
 This process applies only to **server** release tags named `server-vMAJOR.MINOR.PATCH` (optionally followed by a suffix), and does not build, change, or sign Windows-agent installers. Do not reuse existing `*-agent*` tags.
 
@@ -21,7 +21,7 @@ Export **only the public key**:
 gpg --armor --export YOUR_FULL_KEY_FINGERPRINT > MSAP_RELEASE_PUBLIC.asc
 ```
 
-Add the exported public key to `docs/release-signing/trusted-keys/msap-release.asc` through a reviewed pull request. Inspect the fingerprint in the PR against the independent MSAP-controlled record. Public key enrollment explicitly establishes the trusted signer set; until then verification fails closed. Rotate keys by reviewing/removing trusted public keys and recording the transition.
+The public key is enrolled at `docs/release-signing/trusted-keys/msap-release.asc`. Its primary fingerprint is `5EFDDA68D70FF90FB42085878F67C9511E989B46` (MSAP Group LLC, info@msapgroupllc.com). Independently compare that fingerprint with Kleopatra on the MSAP-controlled computer. Inspect the fingerprint in the PR against the independent MSAP-controlled record. Public-key enrollment establishes the trusted signer set; the verifier still rejects unsigned or unapproved tags. Rotate keys by reviewing/removing trusted public keys and recording the transition.
 
 In GitHub account **Settings → SSH and GPG keys → New GPG key**, enroll the same **public** GPG key so GitHub can display verified tags. This requires a signed-in account owner and cannot be done by editing the repository.
 
