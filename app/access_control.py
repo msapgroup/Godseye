@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 MSAP Group LLC
+# SPDX-License-Identifier: GPL-3.0-only
+# Copyright notice applies to MSAP-authored portions; see COPYRIGHT.md.
 """Sidebar permissions shared by the UI and API boundary."""
 import json
 
