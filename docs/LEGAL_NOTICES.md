@@ -28,3 +28,7 @@ The notices are available to all users who can open About. They add no acceptanc
 ## Legal effect and license precedence
 
 These notices do not guarantee enforceability or immunity from every claim. Liability exclusions apply only to the extent permitted by applicable law and may be affected by a separate written agreement. The full GNU GPL v3.0 in [LICENSE](../LICENSE) governs the software. These notices do not impose additional restrictions on GPL rights or exclude liability that applicable law does not permit to be excluded. Third-party components retain their respective licenses.
+
+## Copyright and provenance
+
+See [COPYRIGHT.md](../COPYRIGHT.md) for project attribution, official upstream identification, third-party ownership caveats, and release verification guidance. The copyright notice does not alter GNU GPL v3 rights or imply that MSAP Group LLC owns every included contribution.
