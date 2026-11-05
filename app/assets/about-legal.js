@@ -1,3 +1,7 @@
+/* SPDX-FileCopyrightText: 2026 MSAP Group LLC
+ * SPDX-License-Identifier: GPL-3.0-only
+ * Copyright notice applies to MSAP-authored portions; see COPYRIGHT.md.
+ */
 /* GODSEYE About-page legal notices; informational cards preserve existing access permissions. */
 let ABOUT_LEGAL_KIND='notice',ABOUT_LEGAL_ORIGIN=null;
 function openAboutLegal(kind='notice'){
