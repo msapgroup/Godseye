@@ -1,0 +1,13 @@
+# GODSEYE: required reviewers for protected project and release trust materials.
+# This file does not enforce reviews unless repository branch rules require CODEOWNERS approval.
+# Keep maintainer ownership for sensitive signing and licensing changes.
+* @msapgroup
+
+/.github/CODEOWNERS @msapgroup
+/.github/workflows/ @msapgroup
+/docs/release-signing/ @msapgroup
+/scripts/verify_signed_release_tag.sh @msapgroup
+/docs/RELEASE_SIGNING.md @msapgroup
+/docs/RELEASE_PROVENANCE.md @msapgroup
+/COPYRIGHT.md @msapgroup
+/LICENSE @msapgroup
