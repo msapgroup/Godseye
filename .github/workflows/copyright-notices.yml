@@ -1,0 +1,32 @@
+name: GODSEYE copyright notices
+on:
+  push:
+    paths:
+      - 'COPYRIGHT.md'
+      - 'LICENSE'
+      - 'docs/LEGAL_NOTICES.md'
+      - 'app/access_control.py'
+      - 'app/assets/about-legal.js'
+      - 'scripts/check_copyright_notices.py'
+      - '.github/workflows/copyright-notices.yml'
+  pull_request:
+    paths:
+      - 'COPYRIGHT.md'
+      - 'LICENSE'
+      - 'docs/LEGAL_NOTICES.md'
+      - 'app/access_control.py'
+      - 'app/assets/about-legal.js'
+      - 'scripts/check_copyright_notices.py'
+      - '.github/workflows/copyright-notices.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify-notices:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python scripts/check_copyright_notices.py
