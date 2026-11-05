@@ -32,6 +32,9 @@ If attestation verification fails, the run has no attestation, or the digest doe
 
 ## Signed Git tags (maintainer setup)
 
+The repository now includes a fail-closed, manually triggered verifier for **MSAP-controlled server release tags**. See [RELEASE_SIGNING.md](RELEASE_SIGNING.md) for key enrollment, Windows/desktop setup, signing steps, and independent verification. No public signing key has been enrolled yet, so no MSAP tag signature is claimed. Existing agent tags are not changed.
+
+
 Build attestations use GitHub's workflow identity. If MSAP Group LLC also wants a personally signed release tag, a maintainer must configure a verified signing key in their GitHub account and create the signed tag with that key. Do not copy or commit the private key, and do not claim a tag is signed until GitHub verifies it.
 
 For example, after configuring Git signing locally, release maintainers can use `git tag -s <release-tag> -m "Official GODSEYE release"`, push that exact tag, and verify it with `git tag -v <release-tag>`. The tag's signature verifies the maintainer's signing key, distinct from the build attestation's workflow identity.

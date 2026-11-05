@@ -1,0 +1,25 @@
+name: Verify MSAP server release tag
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing signed server release tag, e.g. server-v4.31.1'
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout authoritative default branch and all tags
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify signature and official main lineage
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: bash scripts/verify_signed_release_tag.sh "$RELEASE_TAG"
