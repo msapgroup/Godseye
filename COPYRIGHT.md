@@ -20,4 +20,4 @@ No statement in this file grants additional MIT relicensing permission on behalf
 
 Git's public commit history supplies dated changes and identifiers, but commit author names alone do not prove legal ownership. For stronger release identity, maintainers should sign release tags/commits with verified signing keys and publish SHA-256 checksums and attestations for official release artifacts. Verify against the trusted upstream repository and published signing identity; an unsigned copied hash is not proof of origin.
 
-Security and license questions: open an issue in the official repository or use the project's listed contact channels.
+For the implemented server-only checksum and keyless build-attestation workflow, see [Release provenance and verification](docs/RELEASE_PROVENANCE.md). These attestations verify GitHub workflow identity, not an individual MSAP-owned signing key.\n\nSecurity and license questions: open an issue in the official repository or use the project's listed contact channels.
