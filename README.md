@@ -1,5 +1,7 @@
 # GODSEYE
 
+**Copyright and provenance:** MSAP Group LLC identifies the official project upstream at [msapgroup/Godseye](https://github.com/msapgroup/Godseye). See [COPYRIGHT.md](COPYRIGHT.md) for attribution, contributor/third-party ownership caveats, and official-release verification. The existing [GNU GPL v3 license](LICENSE) remains unchanged.
+
 **Network intelligence, security operations, monitoring, reporting, and remote support — in one self-hosted platform.**
 
 **Godseye EDR:** The Windows Agent reports Microsoft Defender real-time status and recent detections, with managed signature updates and quick scans. Optional YARA-X adds reviewed on-demand rule scans. [See the EDR setup and how-to](docs/GODSEYE_EDR.md). Godseye's YARA layer does not itself provide continuous protection or quarantine.
