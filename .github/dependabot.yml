@@ -1,0 +1,14 @@
+# Monitor server-side Python dependencies without auto-merging or touching the Windows Agent.
+# Alert notification and security-update settings are controlled separately in GitHub Settings.
+version: 2
+updates:
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "America/New_York"
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "deps(server)"
