@@ -9771,7 +9771,7 @@ let USER_PASSWORD_RESET_ID=null;
 function openUserPasswordReset(id,button){
   if(!ME||ME.role!=='admin')return;
   USER_PASSWORD_RESET_ID=id;
-  const username=button.closest('tr').cells[1].textContent;
+  const username=button.closest('tr')?.cells[1]?.textContent || button.dataset.username || 'user';
   document.getElementById('userPasswordResetName').textContent='Account: '+username;
   document.getElementById('userResetPassword').value='';
   document.getElementById('userResetPasswordConfirm').value='';
@@ -9817,7 +9817,9 @@ async function createUser(e){
       password:document.getElementById('newUserPassword').value,
       role:document.getElementById('newUserRole').value
     })});
-    document.getElementById('newUserDisplayName').value='';document.getElementById('newUsername').value='';document.getElementById('newUserPassword').value='';await loadUsers();
+    const createdUsername=document.getElementById('newUsername').value.trim();
+    document.getElementById('newUserDisplayName').value='';document.getElementById('newUsername').value='';document.getElementById('newUserPassword').value='';
+    await loadUsers();await window.selectPermissionUserByName?.(createdUsername);
   }catch(err){alert('Could not create user: '+err.message)}
   return false;
 }
