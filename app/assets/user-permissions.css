@@ -1,9 +1,9 @@
 /* Scoped Users & Permissions cards — other GODSEYE workspaces unchanged. */
 #view-users{color:var(--text,#edf5ff)}
 #view-users .up-workspace{max-width:1800px;margin:auto;padding:8px 4px 32px}
-#view-users .up-header{display:flex;gap:16px;align-items:center;margin:0 0 22px}
-#view-users .up-header h1{font-size:clamp(24px,2vw,34px);margin:0;color:inherit;letter-spacing:-.02em}
-#view-users .up-header p{margin:5px 0;color:#aebfd4}
+#view-users .up-header{display:flex;gap:16px;align-items:center;margin:0 0 18px;padding:16px 20px;border-radius:14px;border:1px solid #284f78;background:linear-gradient(100deg,#101e33,#142d49) !important;color:#f1f7ff !important;box-shadow:inset 0 1px 1px #426b983b,0 9px 17px #0208148a}
+#view-users .up-header h1{font-size:clamp(24px,2vw,34px);margin:0;color:#f1f7ff !important;letter-spacing:-.02em}
+#view-users .up-header p{margin:5px 0;color:#aebfd4 !important}
 #view-users .up-header-icon{display:grid;place-items:center;width:56px;height:56px;border:1px solid #206bba;border-radius:13px;background:linear-gradient(135deg,#153858,#0b192e);box-shadow:inset 0 1px 8px #277aff55,0 0 18px #1462c633;font-size:30px;color:#39c8ff}
 #view-users .up-layout{display:grid;grid-template-columns:minmax(240px,1fr) minmax(350px,1.32fr) minmax(255px,.98fr);gap:14px;align-items:start}
 #view-users .up-left,#view-users .up-right{display:grid;gap:15px}
