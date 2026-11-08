@@ -78,18 +78,6 @@ jobs:
         run: python scripts/capture_ui.py
       - name: Capture Users & Permissions with approved in-app logo
         run: python scripts/capture_users_permissions.py
-      - name: Commit only the refreshed Users & Permissions screenshot to the feature branch
-        if: github.event_name == 'pull_request' && github.head_ref == 'feature/refined-user-permissions-20261108' && github.event.pull_request.head.repo.full_name == github.repository
-        env:
-          BRANCH: ${{ github.head_ref }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/screenshots/v431-permissions-restore.png
-          if ! git diff --cached --quiet; then
-            git commit -m "docs(users): replace permissions screenshot from live app"
-            git push origin "HEAD:refs/heads/$BRANCH"
-          fi
       - name: Show application errors if capture fails
         if: failure()
         run: |
