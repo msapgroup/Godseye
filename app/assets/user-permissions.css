@@ -1,0 +1,77 @@
+/* Scoped Users & Permissions cards — other GODSEYE workspaces unchanged. */
+#view-users{color:var(--text,#edf5ff)}
+#view-users .up-workspace{max-width:1800px;margin:auto;padding:8px 4px 32px}
+#view-users .up-header{display:flex;gap:16px;align-items:center;margin:0 0 22px}
+#view-users .up-header h1{font-size:clamp(24px,2vw,34px);margin:0;color:inherit;letter-spacing:-.02em}
+#view-users .up-header p{margin:5px 0;color:#aebfd4}
+#view-users .up-header-icon{display:grid;place-items:center;width:56px;height:56px;border:1px solid #206bba;border-radius:13px;background:linear-gradient(135deg,#153858,#0b192e);box-shadow:inset 0 1px 8px #277aff55,0 0 18px #1462c633;font-size:30px;color:#39c8ff}
+#view-users .up-layout{display:grid;grid-template-columns:minmax(240px,1fr) minmax(350px,1.32fr) minmax(255px,.98fr);gap:14px;align-items:start}
+#view-users .up-left,#view-users .up-right{display:grid;gap:15px}
+#view-users .up-card{min-width:0;border-radius:15px;padding:18px;background:linear-gradient(147deg,#142945 0%,#101d32 48%,#0b1729 100%);border:1px solid #365b87;box-shadow:0 14px 23px #030b18a6, inset 0 2px 2px #7ea8d11a,0 0 0 1px #132b47}
+#view-users .up-card h2{margin:0 0 16px;font-size:17px;color:#f1f7ff;font-weight:740}
+#view-users .up-card-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:15px}
+#view-users .up-card-heading h2{margin:0}
+#view-users .up-card-heading button{white-space:nowrap;padding:9px 12px}
+#view-users .up-accounts{min-height:460px}
+#view-users .up-search{display:flex;align-items:center;gap:8px;border:1px solid #46688d;background:#0b1c30;padding:9px 12px;border-radius:9px;margin-bottom:14px;color:#28bfff}
+#view-users .up-search input{background:transparent;border:0;outline:0;min-width:0;width:100%;color:#f3f8ff;font:inherit}
+#view-users .up-search input::placeholder{color:#9aafc9}
+#view-users .up-account-list{display:grid;gap:6px;max-height:525px;overflow:auto}
+#view-users .up-account{display:flex;align-items:center;width:100%;text-align:left;gap:10px;border:1px solid transparent;border-radius:10px;padding:12px 10px;color:#ecf5ff;background:transparent;cursor:pointer;min-width:0}
+#view-users .up-account:hover{background:#203b5e}
+#view-users .up-account.selected{border-color:#159afa;background:linear-gradient(105deg,#125397,#102845);box-shadow:inset 0 0 0 1px #1684ef55,0 0 9px #138fff33}
+#view-users .up-avatar{height:40px;width:40px;border-radius:50%;flex:none;display:grid;place-items:center;font-weight:750;background:linear-gradient(140deg,#278df4,#27469d);color:#fff}
+#view-users .up-avatar.up-big{width:53px;height:53px;font-size:21px}
+#view-users .up-account-detail{min-width:0;flex:1}
+#view-users .up-account-detail strong,#view-users .up-account-detail small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#view-users .up-account-detail small{margin-top:3px;font-size:11px;color:#aebfd2}
+#view-users .up-account-role{font-size:11px;border-radius:20px;background:#134733;padding:4px 8px;color:#a8f8cd;white-space:nowrap}
+#view-users .up-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px}
+#view-users .up-metrics>div{padding:11px 5px;text-align:center;background:linear-gradient(140deg,#183a64,#13243e);border-radius:9px;border:1px solid #335476;min-width:0}
+#view-users .up-metrics>div:nth-child(2){background:linear-gradient(140deg,#302b65,#181b36)}
+#view-users .up-metrics>div:nth-child(3){background:linear-gradient(140deg,#155451,#102d35)}
+#view-users .up-metrics>div:nth-child(4){background:linear-gradient(140deg,#564b22,#24271e)}
+#view-users .up-metrics span{display:block;font-size:10px;color:#d4e3f2;min-height:27px}
+#view-users .up-metrics strong{display:block;font-size:25px;color:#5dcaff}
+#view-users .up-editor{min-height:678px}
+#view-users .up-selected-header{display:flex;align-items:center;gap:11px;padding:14px 0;border-top:1px solid #294666;border-bottom:1px solid #294666}
+#view-users .up-selected-header strong{font-size:18px}
+#view-users .up-selected-header small{display:block;color:#aebed4;margin-top:4px}
+#view-users .up-role-pill{font-size:11px;margin-left:8px;padding:4px 8px;background:#123961;border:1px solid #167aca;border-radius:7px;color:#5dcaff}
+#view-users .up-help{font-size:12px;color:#acc0d5;margin:13px 0}
+#view-users .up-permissions{border:1px solid #2b4462;border-radius:11px;overflow:hidden}
+#view-users .up-permission-heading,#view-users .up-permission-row{display:grid;grid-template-columns:minmax(125px,1.8fr) repeat(3,minmax(60px,.75fr));align-items:center}
+#view-users .up-permission-heading{background:#233951;color:#d7eafa;font-weight:700;font-size:11px}
+#view-users .up-permission-heading span{padding:12px 5px;text-align:center}
+#view-users .up-permission-heading span:first-child{text-align:left;padding-left:12px}
+#view-users .up-permission-row{border-top:1px solid #203952;background:#12253c}
+#view-users .up-permission-row:nth-child(even){background:#182d45}
+#view-users .up-permission-row strong{font-size:12px;padding:10px 5px 10px 12px;overflow-wrap:anywhere}
+#view-users .up-permission-row label{display:grid;place-items:center;min-height:36px;border-left:1px solid #2b425b;cursor:pointer}
+#view-users .up-permission-row input{accent-color:#159cff;width:16px;height:16px;cursor:pointer}
+#view-users .up-permission-row input:disabled{cursor:not-allowed}
+#view-users .up-group-label{font-weight:700;padding:8px 12px;font-size:11px;text-transform:uppercase;letter-spacing:.07em;background:#0b172a;color:#7cbff8;border-top:1px solid #294563}
+#view-users .up-editor-footer{display:flex;align-items:center;justify-content:space-between;gap:9px;margin-top:20px;padding-top:15px;border-top:1px solid #314c6d}
+#view-users .up-editor-footer .actions{display:flex;flex-wrap:wrap;gap:7px}
+#view-users .up-editor-footer button{font-size:12px}
+#view-users #upSaveStatus{font-size:12px;color:#7aefc7}
+#view-users .up-error{color:#ff9999!important}
+#view-users .up-account-actions{border-top:1px solid #254769;margin-top:20px;padding-top:14px;display:flex;align-items:center;flex-wrap:wrap;gap:10px}
+#view-users .up-account-actions label{display:flex;align-items:center;gap:9px;font-size:12px}
+#view-users .up-account-info{color:#a8b9d1;font-size:11px;flex-basis:100%}
+#view-users .up-guide>div{margin:0 0 11px}
+#view-users .up-guide strong{font-size:13px;color:#4dc8ff}
+#view-users .up-guide p{font-size:12px;color:#c2d2e6;margin:4px 0 0;line-height:1.4}
+#view-users .up-create form{display:grid;gap:11px}
+#view-users .up-create form>label:not(.up-checkbox){display:grid;gap:6px;font-size:12px;font-weight:650}
+#view-users .up-create .input,#view-users .up-create .filter{width:100%;min-width:0;background:#11243b;color:#eef6ff;border:1px solid #415c7e;border-radius:8px;padding:10px}
+#view-users .up-checkbox{font-size:12px;display:flex;gap:9px;align-items:center}
+#view-users .up-checkbox input{accent-color:#0f98ff}
+#view-users .up-fineprint{font-size:11px;color:#97acc5;margin:-3px 0 0}
+#view-users #upCreateStatus{font-size:12px;color:#76eabd}
+#view-users .up-advanced{margin-top:18px}
+#view-users .up-advanced summary{cursor:pointer;font-weight:700}
+#view-users .up-advanced .role-access-tabs{margin:14px 0}
+@media(max-width:1400px){#view-users .up-layout{grid-template-columns:minmax(250px,1fr) minmax(380px,1.45fr)}#view-users .up-right{grid-column:1/-1;grid-template-columns:1fr 1fr}}
+@media(max-width:900px){#view-users .up-layout{display:block}#view-users .up-left,#view-users .up-right{display:grid;grid-template-columns:1fr;margin-bottom:14px}#view-users .up-editor{margin-bottom:14px;min-height:0}#view-users .up-accounts{min-height:250px}}
+@media(max-width:520px){#view-users .up-card{padding:12px}#view-users .up-permission-heading,#view-users .up-permission-row{grid-template-columns:minmax(95px,1.4fr) repeat(3,52px)}#view-users .up-permission-heading{font-size:9px}#view-users .up-permission-row strong{font-size:11px;padding-left:7px}#view-users .up-editor-footer{align-items:stretch;flex-direction:column}#view-users .up-metrics{grid-template-columns:repeat(2,1fr)}}
