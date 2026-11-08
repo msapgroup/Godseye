@@ -27,6 +27,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -56,8 +58,26 @@ jobs:
         run: PYTHONPATH=. python scripts/verify_visual_dashboard.py
       - name: Verify Weather Alerts and dropdown contrast
         run: PYTHONPATH=. python scripts/verify_weather_workspace.py
+      - name: Adapt legacy capture selectors for the redesigned Users page
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path("scripts/capture_ui.py")
+          source = path.read_text(encoding="utf-8")
+          source = source.replace(
+              "await page.locator('#roleAccessRows .role-access-row').first.wait_for()",
+              "await page.locator('#upPermissionRows .up-permission-row').first.wait_for()",
+          )
+          source = source.replace(
+              "await page.get_by_role('button', name='Reset password', exact=True).first.click()",
+              "await page.evaluate(\"async () => { const x=(await json('/api/v1/users')).find(u=>u.username==='demo-operator'); if(x) await selectPermissionUser(x.id) }\")\n        await page.get_by_role('button', name='Reset password', exact=True).first.click()",
+          )
+          path.write_text(source, encoding="utf-8")
+          PY
       - name: Capture real running app screens
         run: python scripts/capture_ui.py
+      - name: Capture Users & Permissions with approved in-app logo
+        run: python scripts/capture_users_permissions.py
       - name: Show application errors if capture fails
         if: failure()
         run: |
@@ -71,6 +91,7 @@ jobs:
           test -s docs/screenshots/v431-system-health-guide.png
           test -s docs/screenshots/v431-godseye-edr-defender-guide.png
           test -s docs/screenshots/v431-sites-management.png
+          test -s docs/screenshots/v431-permissions-restore.png
           test -s docs/screenshots/godseye-about.png
       - name: Upload refreshed screenshot previews
         uses: actions/upload-artifact@v4

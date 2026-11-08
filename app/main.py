@@ -994,6 +994,14 @@ def kb_css_asset():
 def kb_js_asset():
     return FileResponse(BASE_DIR / "app" / "assets" / "kb.js", media_type="application/javascript")
 
+@app.get("/assets/user-permissions.css", include_in_schema=False)
+def user_permissions_css_asset():
+    return FileResponse(BASE_DIR / "app" / "assets" / "user-permissions.css", media_type="text/css")
+
+@app.get("/assets/user-permissions.js", include_in_schema=False)
+def user_permissions_js_asset():
+    return FileResponse(BASE_DIR / "app" / "assets" / "user-permissions.js", media_type="application/javascript")
+
 @app.get("/assets/kb-outlook-{name}.svg", include_in_schema=False)
 def kb_outlook_image(name: str):
     if name not in {"settings", "account", "verify"}:
@@ -1059,7 +1067,7 @@ async def sidebar_access_boundary(request: Request, call_next):
             user = get_current_user(request)
             with db() as c:
                 acl.ensure_schema(c)
-                permission = acl.access(c, user["role"], page)
+                permission = acl.user_access(c, user["id"], user["role"], page)
             if permission == "none" or (permission == "read" and request.method not in {"GET", "HEAD", "OPTIONS"}):
                 return JSONResponse({"detail": "Sidebar permission denied"}, status_code=403)
         except HTTPException as exc:
@@ -1238,7 +1246,7 @@ def require_permission(permission: str):
         page = acl.page_for_path(request.url.path)
         if page:
             with db() as c:
-                level = acl.access(c, user["role"], page)
+                level = acl.user_access(c, user["id"], user["role"], page)
             if permission in {"audit.read", "reports.read"} and level != "none":
                 return user
             if level == "full":
@@ -1433,7 +1441,7 @@ def me(user=Depends(get_current_user)):
     with db() as c:
         mfa = c.execute("SELECT enabled FROM mfa_secrets WHERE user_id=?", (user["id"],)).fetchone()
         acl.ensure_schema(c)
-        page_access = {page: acl.access(c, user["role"], page) for page in acl.PAGES}
+        page_access = {page: acl.user_access(c, user["id"], user["role"], page) for page in acl.PAGES}
     hard_blocked = must_change_now(user["must_change_password"], user["must_change_password_by"]) \
         or is_password_expired(user["password_changed_at"])
     resp = {
@@ -1658,6 +1666,59 @@ def update_role_access(role: str, req: RoleAccessUpdate, request: Request, admin
     return {"ok": True, "role": role}
 
 
+
+@app.get(f"{router_prefix}/users/{{user_id}}/access")
+def read_user_access(user_id: int, admin=Depends(require_admin)):
+    with db() as c:
+        acl.ensure_schema(c)
+        user = c.execute("SELECT id,username,display_name,role FROM users WHERE id=?", (user_id,)).fetchone()
+        if not user:
+            raise HTTPException(404, "User not found")
+        base = {page: acl.access(c, user["role"], page) for page in acl.PAGES}
+        overrides = {r["page"]: r["access"] for r in c.execute(
+            "SELECT page,access FROM user_page_permissions WHERE user_id=?", (user_id,)).fetchall()}
+        return {"user": dict(user), "labels": acl.PAGES, "groups": acl.GROUPS,
+                "defaults": base, "overrides": overrides,
+                "pages": {page: acl.user_access(c, user_id, user["role"], page) for page in acl.PAGES}}
+
+
+@app.put(f"{router_prefix}/users/{{user_id}}/access")
+def update_user_access(user_id: int, req: RoleAccessUpdate, request: Request, admin=Depends(require_admin)):
+    if set(req.pages) != set(acl.PAGES) or any(v not in {"full", "read", "none"} for v in req.pages.values()):
+        raise HTTPException(400, "Submit one valid access level for each sidebar page")
+    with db() as c:
+        acl.ensure_schema(c)
+        user = c.execute("SELECT username,role FROM users WHERE id=?", (user_id,)).fetchone()
+        if not user:
+            raise HTTPException(404, "User not found")
+        if user["role"] == "admin":
+            raise HTTPException(400, "Admin access is always full and cannot be overridden")
+        c.execute("DELETE FROM user_page_permissions WHERE user_id=?", (user_id,))
+        for page, level in req.pages.items():
+            if level != acl.access(c, user["role"], page):
+                c.execute("INSERT INTO user_page_permissions(user_id,page,access) VALUES(?,?,?)",
+                          (user_id, page, level))
+        c.execute("DELETE FROM sessions WHERE user_id=?", (user_id,))
+        audit(c, admin["username"], "user_access_updated", user["username"],
+              json.dumps(req.pages, sort_keys=True), client_ip(request))
+    return {"ok": True}
+
+
+@app.delete(f"{router_prefix}/users/{{user_id}}/access")
+def reset_user_access(user_id: int, request: Request, admin=Depends(require_admin)):
+    with db() as c:
+        acl.ensure_schema(c)
+        user = c.execute("SELECT username,role FROM users WHERE id=?", (user_id,)).fetchone()
+        if not user:
+            raise HTTPException(404, "User not found")
+        if user["role"] == "admin":
+            raise HTTPException(400, "Admin access is always full")
+        c.execute("DELETE FROM user_page_permissions WHERE user_id=?", (user_id,))
+        c.execute("DELETE FROM sessions WHERE user_id=?", (user_id,))
+        audit(c, admin["username"], "user_access_reset", user["username"], "Inherited role defaults", client_ip(request))
+    return {"ok": True}
+
+
 class UserRoleUpdate(BaseModel):
     role: str
 
@@ -1675,6 +1736,8 @@ def change_user_role(user_id: int, req: UserRoleUpdate, request: Request, admin=
         if target["role"] == "admin" and req.role != "admin" and c.execute("SELECT COUNT(*) FROM users WHERE role='admin'").fetchone()[0] <= 1:
             raise HTTPException(400, "Cannot remove the last Admin")
         c.execute("UPDATE users SET role=? WHERE id=?", (req.role, user_id))
+        acl.ensure_schema(c)
+        c.execute("DELETE FROM user_page_permissions WHERE user_id=?", (user_id,))
         c.execute("DELETE FROM sessions WHERE user_id=?", (user_id,))
         audit(c, admin["username"], "user_role_changed", target["username"], f"{target['role']} -> {req.role}", client_ip(request))
     return {"ok": True}
@@ -7339,7 +7402,7 @@ html:not([data-theme="dark"]) :is(.v430-global-search,.v430-bell,.user-chip,.aut
 .cyber-report-heading{display:flex;align-items:start;gap:10px;justify-content:space-between;margin-bottom:12px}.cyber-report-status{font-size:10px;border:1px solid currentColor;border-radius:20px;padding:2px 7px;text-transform:capitalize}
 .cyber-report-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(80px,1fr));gap:8px;margin-bottom:12px}.cyber-report-metric{padding:9px;border:1px solid #31516a;border-radius:8px;background:rgba(69,156,219,.08)}.cyber-report-metric strong{display:block;font-size:22px;color:#60bfff}.cyber-report-metric span{font-size:10px}
 .cyber-report-section{border:1px solid #31516a;border-radius:8px;margin:8px 0;padding:8px}.cyber-report-section summary{cursor:pointer;font-weight:600;overflow-wrap:anywhere}.cyber-report-field{display:grid;grid-template-columns:minmax(90px,1fr) minmax(0,1.5fr);gap:8px;padding:6px 0;border-bottom:1px solid rgba(128,158,183,.18)}.cyber-report-field strong{white-space:pre-wrap;overflow-wrap:anywhere;font-weight:500}.cyber-report-field>span{opacity:.8}.cyber-report-item{padding:6px 0;overflow-wrap:anywhere}.cyber-report-empty{opacity:.75}
-</style><link rel="stylesheet" href="/assets/sites.css"><link rel="stylesheet" href="/assets/crm.css"><link rel="stylesheet" href="/assets/kb.css"><link rel="stylesheet" href="/assets/audit.css"><link rel="stylesheet" href="/assets/about-legal.css"><link rel="stylesheet" href="/assets/visual/theme.css?v=2"></head>
+</style><link rel="stylesheet" href="/assets/sites.css"><link rel="stylesheet" href="/assets/crm.css"><link rel="stylesheet" href="/assets/kb.css"><link rel="stylesheet" href="/assets/audit.css"><link rel="stylesheet" href="/assets/about-legal.css"><link rel="stylesheet" href="/assets/visual/theme.css?v=2"><link rel="stylesheet" href="/assets/user-permissions.css?v=1"></head>
 <body>
 <div id="authOverlay" class="overlay" style="display:none">
   <div class="authcard">
@@ -8123,12 +8186,46 @@ sudo godseye-https-setup godseye.example.com letsencrypt</pre></div></section>
 </div>
 
 <div class="view" id="view-users" style="display:none">
-<section class="panel" id="usersPanel"><h2>Users</h2>
-<div class="role-access-intro muted">Only Admin can add or remove users, change roles, or edit the permissions below.</div>
-<section class="role-access-card"><div class="table-head"><h2>Role access by sidebar item</h2><span class="muted">One level per item</span></div><div class="role-access-tabs"><button type="button" class="secondary" disabled>Admin · full access</button><button type="button" class="secondary role-tab selected" data-role="operator" onclick="selectRoleAccess('operator')">Operator</button><button type="button" class="secondary role-tab" data-role="auditor" onclick="selectRoleAccess('auditor')">Auditor</button><button type="button" class="secondary role-tab" data-role="readonly" onclick="selectRoleAccess('readonly')">Read-Only</button></div><div class="role-access-head"><span>Sidebar item</span><span>Full access</span><span>Read only</span><span>No access</span></div><div id="roleAccessRows">Loading permissions…</div><div class="actions"><button type="button" class="primary" onclick="saveRoleAccess()">Save permissions</button><span class="muted" id="roleAccessStatus" role="status"></span></div></section>
-<form class="userForm" onsubmit="return createUser(event)"><input class="input" id="newUserDisplayName" placeholder="Display name"><input class="input" id="newUsername" placeholder="Username" required><input class="input" id="newUserPassword" type="password" placeholder="Password (min __MIN_PASSWORD_LENGTH__ chars)" required minlength="__MIN_PASSWORD_LENGTH__"><select class="filter" id="newUserRole"><option value="readonly">Read-only</option><option value="auditor">Auditor</option><option value="operator">Operator</option><option value="admin">Admin</option></select><button class="primary" type="submit">Add user</button></form>
-<div style="overflow:auto"><table><thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Created</th><th>Last login</th><th>Password changed</th><th>Must change PW</th><th>MFA</th><th></th></tr></thead><tbody id="users"></tbody></table></div>
+<section id="usersPanel" class="up-workspace">
+<header class="up-header"><div class="up-header-icon">♧</div><div><h1>Users &amp; Permissions</h1><p>Manage team accounts, assign access, and control feature-level permissions.</p></div></header>
+<div class="up-layout">
+<div class="up-left">
+<section class="up-card up-accounts"><div class="up-card-heading"><h2>♧ User Accounts</h2><button type="button" class="primary" onclick="document.getElementById('newUserDisplayName').focus()">＋ Add User</button></div>
+<label class="up-search"><span>⌕</span><input type="search" id="upSearch" placeholder="Search users by name or username…" oninput="filterUserCards()" aria-label="Search users"></label>
+<div id="usersCards" class="up-account-list" aria-live="polite">Loading accounts…</div>
 </section>
+<section class="up-card up-summary"><h2>♧ User Summary</h2><div class="up-metrics"><div><span>Total Users</span><strong id="upTotal">—</strong></div><div><span>Admins</span><strong id="upAdmins">—</strong></div><div><span>Operators</span><strong id="upOperators">—</strong></div><div><span>Auditors</span><strong id="upAuditors">—</strong></div></div></section>
+</div>
+<section class="up-card up-editor"><div class="up-card-heading"><h2>♙ Selected User Permissions</h2></div>
+<div id="upSelectedHeader" class="up-selected-header"><p class="muted">Select an account to review its permissions.</p></div>
+<p class="up-help">Set Full, Read-Only, or No Access for each sidebar section. These settings apply only to the selected account.</p>
+<div id="upPermissionRows" class="up-permissions"></div>
+<div class="up-editor-footer"><span id="upSaveStatus" role="status" aria-live="polite"></span><div class="actions"><button class="secondary" type="button" onclick="resetSelectedPermissions()">Reset to Role Defaults</button><button class="primary" id="upSave" type="button" onclick="saveSelectedPermissions()">Save Changes</button></div></div>
+<div id="upAccountActions" class="up-account-actions"></div>
+</section>
+<div class="up-right">
+<section class="up-card up-guide"><h2>▤ Role Guide</h2>
+<div><strong>♛ Admin</strong><p>Add or remove users, manage permissions and all features. Always has full access.</p></div>
+<div><strong>♙ Operator</strong><p>Work with assigned devices, tools, tickets, backups and daily operations.</p></div>
+<div><strong>◉ Auditor</strong><p>Review activity, reports and compliance information when permitted.</p></div>
+<div><strong>◎ Read-Only</strong><p>View assigned sections without changing information.</p></div>
+</section>
+<section class="up-card up-create"><h2>♧ Create New User</h2>
+<form id="upCreateForm" class="userForm" onsubmit="return createUser(event)">
+<label>Display name<input class="input" id="newUserDisplayName" autocomplete="name" placeholder="e.g. Alex Carter"></label>
+<label>Username<input class="input" id="newUsername" autocomplete="off" placeholder="e.g. alex.carter" required></label>
+<label>Temporary password<input class="input" id="newUserPassword" type="password" autocomplete="new-password" placeholder="Minimum __MIN_PASSWORD_LENGTH__ characters" minlength="__MIN_PASSWORD_LENGTH__" required></label>
+<label>Role<select class="filter" id="newUserRole" onchange="renderNewUserPreview()"><option value="operator">Operator</option><option value="auditor">Auditor</option><option value="readonly">Read-Only</option><option value="admin">Admin</option></select></label>
+<label class="up-checkbox"><input type="checkbox" id="upUseRoleDefaults" checked onchange="renderNewUserPreview()"> Use role defaults (recommended)</label>
+<p class="up-fineprint" id="upCreateRightsHint">You can customize this user's access after creation.</p>
+<button class="primary" type="submit">＋ Create User</button><span id="upCreateStatus" role="status" aria-live="polite"></span>
+</form></section></div></div>
+<details class="up-card up-advanced"><summary>Manage role-wide defaults (changes affect every user with that role)</summary>
+<p class="muted">Role defaults are inherited until a user receives a custom override. Admin access cannot be changed.</p>
+<div class="role-access-tabs"><button type="button" class="secondary" disabled>Admin · full access</button><button type="button" class="secondary role-tab selected" data-role="operator" onclick="selectRoleAccess('operator')">Operator</button><button type="button" class="secondary role-tab" data-role="auditor" onclick="selectRoleAccess('auditor')">Auditor</button><button type="button" class="secondary role-tab" data-role="readonly" onclick="selectRoleAccess('readonly')">Read-Only</button></div>
+<div class="role-access-head"><span>Sidebar item</span><span>Full access</span><span>Read only</span><span>No access</span></div><div id="roleAccessRows"></div>
+<div class="actions"><button type="button" class="primary" onclick="saveRoleAccess()">Save role defaults</button><span class="muted" id="roleAccessStatus" role="status"></span></div>
+</details></section>
 <div id="userPasswordResetModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="userPasswordResetTitle" style="display:none" onclick="if(event.target===this)closeUserPasswordReset()">
   <div class="modal-card">
     <div class="modal-head"><div><h2 id="userPasswordResetTitle">Reset user password</h2><div class="muted" id="userPasswordResetName"></div></div><button type="button" class="icon-btn" aria-label="Close password reset" onclick="closeUserPasswordReset()">×</button></div>
@@ -9556,19 +9653,7 @@ async function doChangePassword(e){e.preventDefault();const err=document.getElem
 async function logout(){try{const response=await fetch('/api/v1/auth/logout',{method:'POST',headers:{'X-CSRF-Token':getCookie('godseye_csrf')||''},signal:AbortSignal.timeout(10000)});if(!response.ok)throw Error('HTTP '+response.status);showLogin()}catch(e){alert('Could not sign out. Check the connection and try again.')}}
 async function rebootAppliance(){if(!confirm('Reboot the GODSEYE server? All users will be disconnected until it starts again.'))return;try{const r=await fetch('/api/v1/appliance/reboot',{method:'POST',headers:{'X-CSRF-Token':getCookie('godseye_csrf')||''}});const data=await r.json();if(!r.ok)throw Error(data.detail||'Reboot request failed');alert('Server reboot scheduled. Reconnect in a few minutes.')}catch(e){alert('Could not reboot server: '+e.message)}}
 function csrfToken(){return getCookie('godseye_csrf')||''}
-async function loadUsers(){
-  const panel=document.getElementById('usersPanel'),tbody=document.getElementById('users');
-  if(!ME||ME.role!=='admin'){if(panel)panel.style.display='none';return}
-  if(panel)panel.style.display='block';
-  try{
-    const rows=await json('/api/v1/users');
-    await loadRoleAccess();
-    if(tbody)tbody.innerHTML=rows.length?rows.map(x=>{
-      const deadline=x.must_change_password?(x.must_change_password_by?`Yes, by ${esc(new Date(x.must_change_password_by).toLocaleDateString())}`:'Yes'):'No';
-      return `<tr><td>${esc(x.display_name||'—')}</td><td>${esc(x.username)}</td><td>${x.username===ME.username?`<span class="pill">${esc(x.role)}</span>`:`<select class="filter" aria-label="Role for ${esc(x.username)}" onchange="changeUserRole(${x.id},this.value)">${['admin','operator','auditor','readonly'].map(role=>`<option value="${role}" ${x.role===role?'selected':''}>${role==='readonly'?'Read-Only':role[0].toUpperCase()+role.slice(1)}</option>`).join('')}</select>`}</td><td>${x.created_at?esc(new Date(x.created_at).toLocaleDateString()):'—'}</td><td>${x.last_login_at?esc(new Date(x.last_login_at).toLocaleString()):'Never'}</td><td>${x.password_changed_at?esc(new Date(x.password_changed_at).toLocaleDateString()):'—'}</td><td>${deadline}</td><td>${x.mfa_enabled?'Yes':'No'}</td><td>${x.username===ME.username?'':`<button class="link" type="button" onclick="openUserPasswordReset(${x.id},this)">Reset password</button> <button class="link" onclick="removeUser(${x.id},'${esc(x.username)}')">Remove</button>${x.mfa_enabled?` <button class="link" onclick="resetUserMfa(${x.id},'${esc(x.username)}')">Reset MFA</button>`:''}`}</td></tr>`;
-    }).join(''):'<tr><td colspan="9" class="empty">No users found.</td></tr>';
-  }catch(e){if(tbody)tbody.innerHTML='<tr><td colspan="9" class="empty">Unable to load users.</td></tr>'}
-}
+async function loadUsers(){return window.renderUserManagement?.()}
 let ROLE_ACCESS_DATA=null,ROLE_ACCESS_DRAFT=null,ROLE_ACCESS_SELECTED='operator';
 async function loadRoleAccess(){
   ROLE_ACCESS_DATA=await json('/api/v1/users/role-access');
@@ -9694,7 +9779,7 @@ let USER_PASSWORD_RESET_ID=null;
 function openUserPasswordReset(id,button){
   if(!ME||ME.role!=='admin')return;
   USER_PASSWORD_RESET_ID=id;
-  const username=button.closest('tr').cells[1].textContent;
+  const username=button.closest('tr')?.cells[1]?.textContent || button.dataset.username || 'user';
   document.getElementById('userPasswordResetName').textContent='Account: '+username;
   document.getElementById('userResetPassword').value='';
   document.getElementById('userResetPasswordConfirm').value='';
@@ -9740,7 +9825,9 @@ async function createUser(e){
       password:document.getElementById('newUserPassword').value,
       role:document.getElementById('newUserRole').value
     })});
-    document.getElementById('newUserDisplayName').value='';document.getElementById('newUsername').value='';document.getElementById('newUserPassword').value='';await loadUsers();
+    const createdUsername=document.getElementById('newUsername').value.trim();
+    document.getElementById('newUserDisplayName').value='';document.getElementById('newUsername').value='';document.getElementById('newUserPassword').value='';
+    await loadUsers();await window.selectPermissionUserByName?.(createdUsername);
   }catch(err){alert('Could not create user: '+err.message)}
   return false;
 }
@@ -10439,7 +10526,7 @@ function remotePointerPayload(ev,action){const img=document.getElementById('remo
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bind);else setTimeout(bind,0);
  document.addEventListener('click',e=>{const nav=e.target.closest&&e.target.closest('[data-view="remote-access"]');if(nav)setTimeout(loadRemoteAccess,0)});
 })();
-</script></body></html>'''
+</script><script src="/assets/user-permissions.js?v=1"></script></body></html>'''
 
 
 # --- Cyber Tools operations console ----------------------------------------

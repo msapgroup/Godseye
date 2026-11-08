@@ -40,6 +40,7 @@ jobs:
           tests/test_v430_personal_card_layouts.py
           tests/test_weather_alerts.py
           tests/test_role_permissions.py
+          tests/test_user_permission_cards.py
           tests/test_crm_workflow.py
           tests/test_kb_files.py
           tests/test_site_federation.py
