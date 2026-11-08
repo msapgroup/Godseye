@@ -1659,7 +1659,7 @@ def update_role_access(role: str, req: RoleAccessUpdate, request: Request, admin
 
 
 
-@app.get(f"{router_prefix}/users/{user_id}/access")
+@app.get(f"{router_prefix}/users/{{user_id}}/access")
 def read_user_access(user_id: int, admin=Depends(require_admin)):
     with db() as c:
         acl.ensure_schema(c)
@@ -1674,7 +1674,7 @@ def read_user_access(user_id: int, admin=Depends(require_admin)):
                 "pages": {page: acl.user_access(c, user_id, user["role"], page) for page in acl.PAGES}}
 
 
-@app.put(f"{router_prefix}/users/{user_id}/access")
+@app.put(f"{router_prefix}/users/{{user_id}}/access")
 def update_user_access(user_id: int, req: RoleAccessUpdate, request: Request, admin=Depends(require_admin)):
     if set(req.pages) != set(acl.PAGES) or any(v not in {"full", "read", "none"} for v in req.pages.values()):
         raise HTTPException(400, "Submit one valid access level for each sidebar page")
@@ -1696,7 +1696,7 @@ def update_user_access(user_id: int, req: RoleAccessUpdate, request: Request, ad
     return {"ok": True}
 
 
-@app.delete(f"{router_prefix}/users/{user_id}/access")
+@app.delete(f"{router_prefix}/users/{{user_id}}/access")
 def reset_user_access(user_id: int, request: Request, admin=Depends(require_admin)):
     with db() as c:
         acl.ensure_schema(c)
