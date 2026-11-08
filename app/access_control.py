@@ -55,11 +55,16 @@ def page_for_path(path):
 def ensure_schema(c):
     # Called by /auth/me as well as initialization. Existing installations
     # need a read here, not DDL that competes with agent/scanner writes.
-    if c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='role_page_permissions'").fetchone():
-        return
-    c.execute("""CREATE TABLE IF NOT EXISTS role_page_permissions (
-        role TEXT NOT NULL, page TEXT NOT NULL, access TEXT NOT NULL,
-        PRIMARY KEY(role, page))""")
+    # Existing installations need both tables; create only if absent.
+    if not c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='role_page_permissions'").fetchone():
+        c.execute("""CREATE TABLE IF NOT EXISTS role_page_permissions (
+            role TEXT NOT NULL, page TEXT NOT NULL, access TEXT NOT NULL,
+            PRIMARY KEY(role, page))""")
+    if not c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='user_page_permissions'").fetchone():
+        c.execute("""CREATE TABLE IF NOT EXISTS user_page_permissions (
+            user_id INTEGER NOT NULL, page TEXT NOT NULL, access TEXT NOT NULL,
+            PRIMARY KEY(user_id, page), FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+        )""")
 
 
 def default_access(role, page):
@@ -81,6 +86,21 @@ def access(c, role, page):
         return "full"
     row = c.execute("SELECT access FROM role_page_permissions WHERE role=? AND page=?", (role, page)).fetchone()
     return row[0] if row else default_access(role, page)
+
+def user_access(c, user_id, role, page):
+    """Effective per-account access: explicit user override, then role default.
+
+    Admin is always full access. User overrides never allow management of
+    the Users & Permissions page, whose API is protected by require_admin.
+    """
+    if role == "admin":
+        return "full"
+    row = c.execute(
+        "SELECT access FROM user_page_permissions WHERE user_id=? AND page=?",
+        (user_id, page),
+    ).fetchone()
+    return row[0] if row else access(c, role, page)
+
 
 
 def matrix(c):
