@@ -19,7 +19,7 @@ function renderNewUserPreview(){
  if(el('upCreateRightsHint'))el('upCreateRightsHint').textContent=checked?'Inherit '+roleName(role)+' defaults. Select the account card later to customize individual rights.':'After creating the user, select their account card to customize individual rights before sharing credentials.';
 }
 async function renderUserManagement(){
- if(!el('usersPanel')||!window.ME||ME.role!=='admin')return;
+ if(!el('usersPanel')||typeof ME==='undefined'||!ME||ME.role!=='admin')return;
  const token=++generation;
  try{
   users=await json('/api/v1/users');
@@ -46,7 +46,7 @@ async function selectPermissionUser(id){
 }
 function renderSelectedUser(){
  if(!selected)return;
- const user=selected.user,admin=user.role==='admin',self=user.username===ME.username;
+ const user={...(users.find(u=>u.id===selectedId)||{}),...selected.user},admin=user.role==='admin',self=user.username===ME.username;
  if(el('upSelectedHeader'))el('upSelectedHeader').innerHTML='<span class="up-avatar up-big">'+safe(initials(user))+'</span><div><strong>'+safe(nameFor(user))+'</strong><span class="up-role-pill">'+safe(roleName(user.role))+'</span><small>@'+safe(user.username)+(admin?' · Admin access is locked':' · Individual settings')+'</small></div>';
  const pages=selected.groups,labels=selected.labels;
  let rows='<div class="up-permission-heading"><span>Module / Feature</span><span>Full</span><span>Read-Only</span><span>No Access</span></div>';
