@@ -7394,7 +7394,7 @@ html:not([data-theme="dark"]) :is(.v430-global-search,.v430-bell,.user-chip,.aut
 .cyber-report-heading{display:flex;align-items:start;gap:10px;justify-content:space-between;margin-bottom:12px}.cyber-report-status{font-size:10px;border:1px solid currentColor;border-radius:20px;padding:2px 7px;text-transform:capitalize}
 .cyber-report-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(80px,1fr));gap:8px;margin-bottom:12px}.cyber-report-metric{padding:9px;border:1px solid #31516a;border-radius:8px;background:rgba(69,156,219,.08)}.cyber-report-metric strong{display:block;font-size:22px;color:#60bfff}.cyber-report-metric span{font-size:10px}
 .cyber-report-section{border:1px solid #31516a;border-radius:8px;margin:8px 0;padding:8px}.cyber-report-section summary{cursor:pointer;font-weight:600;overflow-wrap:anywhere}.cyber-report-field{display:grid;grid-template-columns:minmax(90px,1fr) minmax(0,1.5fr);gap:8px;padding:6px 0;border-bottom:1px solid rgba(128,158,183,.18)}.cyber-report-field strong{white-space:pre-wrap;overflow-wrap:anywhere;font-weight:500}.cyber-report-field>span{opacity:.8}.cyber-report-item{padding:6px 0;overflow-wrap:anywhere}.cyber-report-empty{opacity:.75}
-</style><link rel="stylesheet" href="/assets/sites.css"><link rel="stylesheet" href="/assets/crm.css"><link rel="stylesheet" href="/assets/kb.css"><link rel="stylesheet" href="/assets/audit.css"><link rel="stylesheet" href="/assets/about-legal.css"><link rel="stylesheet" href="/assets/visual/theme.css?v=2"></head>
+</style><link rel="stylesheet" href="/assets/sites.css"><link rel="stylesheet" href="/assets/crm.css"><link rel="stylesheet" href="/assets/kb.css"><link rel="stylesheet" href="/assets/audit.css"><link rel="stylesheet" href="/assets/about-legal.css"><link rel="stylesheet" href="/assets/visual/theme.css?v=2"><link rel="stylesheet" href="/assets/user-permissions.css?v=1"></head>
 <body>
 <div id="authOverlay" class="overlay" style="display:none">
   <div class="authcard">
@@ -8178,12 +8178,46 @@ sudo godseye-https-setup godseye.example.com letsencrypt</pre></div></section>
 </div>
 
 <div class="view" id="view-users" style="display:none">
-<section class="panel" id="usersPanel"><h2>Users</h2>
-<div class="role-access-intro muted">Only Admin can add or remove users, change roles, or edit the permissions below.</div>
-<section class="role-access-card"><div class="table-head"><h2>Role access by sidebar item</h2><span class="muted">One level per item</span></div><div class="role-access-tabs"><button type="button" class="secondary" disabled>Admin · full access</button><button type="button" class="secondary role-tab selected" data-role="operator" onclick="selectRoleAccess('operator')">Operator</button><button type="button" class="secondary role-tab" data-role="auditor" onclick="selectRoleAccess('auditor')">Auditor</button><button type="button" class="secondary role-tab" data-role="readonly" onclick="selectRoleAccess('readonly')">Read-Only</button></div><div class="role-access-head"><span>Sidebar item</span><span>Full access</span><span>Read only</span><span>No access</span></div><div id="roleAccessRows">Loading permissions…</div><div class="actions"><button type="button" class="primary" onclick="saveRoleAccess()">Save permissions</button><span class="muted" id="roleAccessStatus" role="status"></span></div></section>
-<form class="userForm" onsubmit="return createUser(event)"><input class="input" id="newUserDisplayName" placeholder="Display name"><input class="input" id="newUsername" placeholder="Username" required><input class="input" id="newUserPassword" type="password" placeholder="Password (min __MIN_PASSWORD_LENGTH__ chars)" required minlength="__MIN_PASSWORD_LENGTH__"><select class="filter" id="newUserRole"><option value="readonly">Read-only</option><option value="auditor">Auditor</option><option value="operator">Operator</option><option value="admin">Admin</option></select><button class="primary" type="submit">Add user</button></form>
-<div style="overflow:auto"><table><thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Created</th><th>Last login</th><th>Password changed</th><th>Must change PW</th><th>MFA</th><th></th></tr></thead><tbody id="users"></tbody></table></div>
+<section id="usersPanel" class="up-workspace">
+<header class="up-header"><div class="up-header-icon">♧</div><div><h1>Users &amp; Permissions</h1><p>Manage team accounts, assign access, and control feature-level permissions.</p></div></header>
+<div class="up-layout">
+<div class="up-left">
+<section class="up-card up-accounts"><div class="up-card-heading"><h2>♧ User Accounts</h2><button type="button" class="primary" onclick="document.getElementById('newUserDisplayName').focus()">＋ Add User</button></div>
+<label class="up-search"><span>⌕</span><input type="search" id="upSearch" placeholder="Search users by name or username…" oninput="filterUserCards()" aria-label="Search users"></label>
+<div id="usersCards" class="up-account-list" aria-live="polite">Loading accounts…</div>
 </section>
+<section class="up-card up-summary"><h2>♧ User Summary</h2><div class="up-metrics"><div><span>Total Users</span><strong id="upTotal">—</strong></div><div><span>Admins</span><strong id="upAdmins">—</strong></div><div><span>Operators</span><strong id="upOperators">—</strong></div><div><span>Auditors</span><strong id="upAuditors">—</strong></div></div></section>
+</div>
+<section class="up-card up-editor"><div class="up-card-heading"><h2>♙ Selected User Permissions</h2></div>
+<div id="upSelectedHeader" class="up-selected-header"><p class="muted">Select an account to review its permissions.</p></div>
+<p class="up-help">Set Full, Read-Only, or No Access for each sidebar section. These settings apply only to the selected account.</p>
+<div id="upPermissionRows" class="up-permissions"></div>
+<div class="up-editor-footer"><span id="upSaveStatus" role="status" aria-live="polite"></span><div class="actions"><button class="secondary" type="button" onclick="resetSelectedPermissions()">Reset to Role Defaults</button><button class="primary" id="upSave" type="button" onclick="saveSelectedPermissions()">Save Changes</button></div></div>
+<div id="upAccountActions" class="up-account-actions"></div>
+</section>
+<div class="up-right">
+<section class="up-card up-guide"><h2>▤ Role Guide</h2>
+<div><strong>♛ Admin</strong><p>Add or remove users, manage permissions and all features. Always has full access.</p></div>
+<div><strong>♙ Operator</strong><p>Work with assigned devices, tools, tickets, backups and daily operations.</p></div>
+<div><strong>◉ Auditor</strong><p>Review activity, reports and compliance information when permitted.</p></div>
+<div><strong>◎ Read-Only</strong><p>View assigned sections without changing information.</p></div>
+</section>
+<section class="up-card up-create"><h2>♧ Create New User</h2>
+<form id="upCreateForm" class="userForm" onsubmit="return createUser(event)">
+<label>Display name<input class="input" id="newUserDisplayName" autocomplete="name" placeholder="e.g. Alex Carter"></label>
+<label>Username<input class="input" id="newUsername" autocomplete="off" placeholder="e.g. alex.carter" required></label>
+<label>Temporary password<input class="input" id="newUserPassword" type="password" autocomplete="new-password" placeholder="Minimum __MIN_PASSWORD_LENGTH__ characters" minlength="__MIN_PASSWORD_LENGTH__" required></label>
+<label>Role<select class="filter" id="newUserRole" onchange="renderNewUserPreview()"><option value="operator">Operator</option><option value="auditor">Auditor</option><option value="readonly">Read-Only</option><option value="admin">Admin</option></select></label>
+<label class="up-checkbox"><input type="checkbox" id="upUseRoleDefaults" checked onchange="renderNewUserPreview()"> Use role defaults (recommended)</label>
+<p class="up-fineprint" id="upCreateRightsHint">You can customize this user's access after creation.</p>
+<button class="primary" type="submit">＋ Create User</button><span id="upCreateStatus" role="status" aria-live="polite"></span>
+</form></section></div></div>
+<details class="up-card up-advanced"><summary>Manage role-wide defaults (changes affect every user with that role)</summary>
+<p class="muted">Role defaults are inherited until a user receives a custom override. Admin access cannot be changed.</p>
+<div class="role-access-tabs"><button type="button" class="secondary" disabled>Admin · full access</button><button type="button" class="secondary role-tab selected" data-role="operator" onclick="selectRoleAccess('operator')">Operator</button><button type="button" class="secondary role-tab" data-role="auditor" onclick="selectRoleAccess('auditor')">Auditor</button><button type="button" class="secondary role-tab" data-role="readonly" onclick="selectRoleAccess('readonly')">Read-Only</button></div>
+<div class="role-access-head"><span>Sidebar item</span><span>Full access</span><span>Read only</span><span>No access</span></div><div id="roleAccessRows"></div>
+<div class="actions"><button type="button" class="primary" onclick="saveRoleAccess()">Save role defaults</button><span class="muted" id="roleAccessStatus" role="status"></span></div>
+</details></section>
 <div id="userPasswordResetModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="userPasswordResetTitle" style="display:none" onclick="if(event.target===this)closeUserPasswordReset()">
   <div class="modal-card">
     <div class="modal-head"><div><h2 id="userPasswordResetTitle">Reset user password</h2><div class="muted" id="userPasswordResetName"></div></div><button type="button" class="icon-btn" aria-label="Close password reset" onclick="closeUserPasswordReset()">×</button></div>
@@ -10482,7 +10516,7 @@ function remotePointerPayload(ev,action){const img=document.getElementById('remo
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bind);else setTimeout(bind,0);
  document.addEventListener('click',e=>{const nav=e.target.closest&&e.target.closest('[data-view="remote-access"]');if(nav)setTimeout(loadRemoteAccess,0)});
 })();
-</script></body></html>'''
+</script><script src="/assets/user-permissions.js?v=1"></script></body></html>'''
 
 
 # --- Cyber Tools operations console ----------------------------------------
