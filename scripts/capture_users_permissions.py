@@ -40,9 +40,13 @@ async def main():
             if result not in ("ok",) and "already exists" not in result.lower():
                 raise AssertionError(f"Could not seed screenshot account: {result}")
         await page.evaluate("() => showView('users')")
-        await page.locator("#usersCards .up-account").nth(1).wait_for()
-        await page.locator("#usersCards .up-account").nth(1).click()
+        await page.locator("#usersCards .up-account").nth(2).wait_for()
+        await page.locator("#usersCards .up-account").nth(2).click()
         await page.locator("#upPermissionRows .up-permission-row").first.wait_for()
+        await page.locator('input[name="up-crm"][value="read"]').check()
+        await page.locator('input[name="up-reports"][value="read"]').check()
+        await page.locator("#upSave").click()
+        await page.get_by_text("Permissions saved.", exact=False).first.wait_for()
         await page.add_style_tag(content="""
             .sidebar-customize-controls {display:none!important}
             * {animation:none!important;transition:none!important}
