@@ -27,6 +27,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -58,6 +60,20 @@ jobs:
         run: PYTHONPATH=. python scripts/verify_weather_workspace.py
       - name: Capture real running app screens
         run: python scripts/capture_ui.py
+      - name: Capture Users & Permissions with approved in-app logo
+        run: python scripts/capture_users_permissions.py
+      - name: Commit only the refreshed Users & Permissions screenshot to the feature branch
+        if: github.event_name == 'pull_request' && github.head_ref == 'feature/refined-user-permissions-20261108' && github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          BRANCH: ${{ github.head_ref }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/screenshots/v431-permissions-restore.png
+          if ! git diff --cached --quiet; then
+            git commit -m "docs(users): replace permissions screenshot from live app"
+            git push origin "HEAD:refs/heads/$BRANCH"
+          fi
       - name: Show application errors if capture fails
         if: failure()
         run: |
@@ -71,6 +87,7 @@ jobs:
           test -s docs/screenshots/v431-system-health-guide.png
           test -s docs/screenshots/v431-godseye-edr-defender-guide.png
           test -s docs/screenshots/v431-sites-management.png
+          test -s docs/screenshots/v431-permissions-restore.png
           test -s docs/screenshots/godseye-about.png
       - name: Upload refreshed screenshot previews
         uses: actions/upload-artifact@v4
