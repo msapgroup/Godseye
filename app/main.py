@@ -994,6 +994,14 @@ def kb_css_asset():
 def kb_js_asset():
     return FileResponse(BASE_DIR / "app" / "assets" / "kb.js", media_type="application/javascript")
 
+@app.get("/assets/user-permissions.css", include_in_schema=False)
+def user_permissions_css_asset():
+    return FileResponse(BASE_DIR / "app" / "assets" / "user-permissions.css", media_type="text/css")
+
+@app.get("/assets/user-permissions.js", include_in_schema=False)
+def user_permissions_js_asset():
+    return FileResponse(BASE_DIR / "app" / "assets" / "user-permissions.js", media_type="application/javascript")
+
 @app.get("/assets/kb-outlook-{name}.svg", include_in_schema=False)
 def kb_outlook_image(name: str):
     if name not in {"settings", "account", "verify"}:
