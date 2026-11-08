@@ -39,7 +39,7 @@
 #view-users .up-selected-header small{display:block;color:#aebed4;margin-top:4px}
 #view-users .up-role-pill{font-size:11px;margin-left:8px;padding:4px 8px;background:#123961;border:1px solid #167aca;border-radius:7px;color:#5dcaff}
 #view-users .up-help{font-size:12px;color:#acc0d5;margin:13px 0}
-#view-users .up-permissions{border:1px solid #2b4462;border-radius:11px;overflow:hidden}
+#view-users .up-permissions{border:1px solid #2b4462;border-radius:11px;overflow-y:auto;max-height:555px}
 #view-users .up-permission-heading,#view-users .up-permission-row{display:grid;grid-template-columns:minmax(125px,1.8fr) repeat(3,minmax(60px,.75fr));align-items:center}
 #view-users .up-permission-heading{background:#233951;color:#d7eafa;font-weight:700;font-size:11px}
 #view-users .up-permission-heading span{padding:12px 5px;text-align:center}
