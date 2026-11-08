@@ -5,7 +5,7 @@ No production accounts, agent binaries, or Windows code are involved.
 """
 import asyncio
 from playwright.async_api import async_playwright
-from scripts.capture_ui import BASE, OUT, PASSWORD
+from capture_ui import BASE, OUT, PASSWORD
 
 
 async def main():
