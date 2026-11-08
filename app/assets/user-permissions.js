@@ -86,11 +86,15 @@ async function changeSelectedUserRole(role){
  if(!selected||selected.user.username===ME.username)return;
  await changeUserRole(selectedId,role);
 }
+async function selectPermissionUserByName(username){
+ const match=users.find(u=>u.username===username);
+ if(match)await selectPermissionUser(match.id);
+}
 function resetSelectedUserPassword(){
  if(!selected||selected.user.username===ME.username)return;
  const btn=document.createElement('button');btn.dataset.userId=selectedId;btn.dataset.username=selected.user.username;
  openUserPasswordReset(selectedId,btn);
 }
 function removeSelectedUser(){if(selected&&selected.user.username!==ME.username)removeUser(selectedId,selected.user.username)}
-Object.assign(window,{renderUserManagement,filterUserCards,renderNewUserPreview,selectPermissionUser,setPermissionLevel,saveSelectedPermissions,resetSelectedPermissions,changeSelectedUserRole,resetSelectedUserPassword,removeSelectedUser});
+Object.assign(window,{renderUserManagement,filterUserCards,renderNewUserPreview,selectPermissionUser,selectPermissionUserByName,setPermissionLevel,saveSelectedPermissions,resetSelectedPermissions,changeSelectedUserRole,resetSelectedUserPassword,removeSelectedUser});
 })();
