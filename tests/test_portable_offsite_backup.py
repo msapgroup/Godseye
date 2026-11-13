@@ -87,3 +87,60 @@ def test_offsite_bundle_can_be_restored_through_real_import(tmp_path, monkeypatc
         response=admin.post('/api/v1/appliance/backups/import',content=contents,headers={**headers,'Content-Type':'application/zip'})
         assert response.status_code==200,response.text
         with main.db() as c:assert c.execute('SELECT title FROM network_issues').fetchone()[0]=='Before backup'
+
+
+def test_local_disk_rejects_wrong_uuid_and_nonlocal_mount(tmp_path, monkeypatch):
+    import types
+    if not Path('/dev/shm').is_mount() or Path('/dev/shm').stat().st_dev == tmp_path.stat().st_dev:
+        pytest.skip('Requires a second mounted filesystem')
+    monkeypatch.setattr(offsite_backup.subprocess,'run',lambda *a,**k:types.SimpleNamespace(returncode=0,stdout='ext4 /dev/sdb1 DEVICE-123\n'))
+    assert offsite_backup.validate_local_disk('/dev/shm',tmp_path/'db','DEVICE-123')[1]=='DEVICE-123'
+    with pytest.raises(ValueError,match='not the disk'):
+        offsite_backup.validate_local_disk('/dev/shm',tmp_path/'db','OTHER')
+    monkeypatch.setattr(offsite_backup.subprocess,'run',lambda *a,**k:types.SimpleNamespace(returncode=0,stdout='cifs //server/share DEVICE-123\n'))
+    with pytest.raises(ValueError,match='local disk'):
+        offsite_backup.validate_local_disk('/dev/shm',tmp_path/'db')
+    with pytest.raises(ValueError,match='mount point'):
+        offsite_backup.validate_local_disk(str(tmp_path),tmp_path/'db')
+
+
+def test_share_and_disk_have_independent_settings_and_backups(tmp_path,monkeypatch):
+    from cryptography.fernet import Fernet
+    from app import appliance_hardening as hardening
+    monkeypatch.setattr(main,'DB_PATH',tmp_path/'server.db')
+    monkeypatch.setattr(main,'KEY_PATH',tmp_path/'secret.key')
+    monkeypatch.setattr(hardening,'KEY_PATH',main.KEY_PATH)
+    main.KEY_PATH.write_bytes(Fernet.generate_key())
+    share=tmp_path/'network';share.mkdir();disk=tmp_path/'disk';disk.mkdir()
+    monkeypatch.setattr(offsite_backup,'validate_share',lambda path:share)
+    monkeypatch.setattr(main,'test_share',lambda path:None)
+    monkeypatch.setattr(main,'test_local_disk',lambda path,db,expected='': 'disk-uuid')
+    def verify_disk(path,db,expected=''):
+        if expected!='disk-uuid':raise ValueError('wrong disk')
+        return disk,'disk-uuid'
+    monkeypatch.setattr(offsite_backup,'validate_local_disk',verify_disk)
+    main.init_db()
+    with TestClient(main.app) as admin, TestClient(main.app) as operator:
+        password='GODSEYE-strong-test-2026!'
+        assert admin.post('/api/v1/auth/setup',json={'current_password':'','new_password':password}).status_code==200
+        assert admin.post('/api/v1/auth/login',json={'username':'admin','password':password}).status_code==200
+        headers={'X-CSRF-Token':admin.cookies['godseye_csrf']}
+        salt,hashed=main.hash_password(password)
+        with main.db() as c:c.execute("INSERT INTO users(username,password_hash,password_salt,role,must_change_password,created_at,password_changed_at) VALUES(?,?,?,'operator',0,?,?)",('operator',hashed,salt,main.now(),main.now()))
+        assert operator.post('/api/v1/auth/login',json={'username':'operator','password':password}).status_code==200
+        assert operator.get('/api/v1/appliance/local-backup').status_code==403
+        assert admin.put('/api/v1/appliance/portable-backup',headers=headers,json={'enabled':True,'share_path':str(share),'hour_utc':3,'keep_count':7}).status_code==200
+        assert admin.put('/api/v1/appliance/local-backup',headers=headers,json={'enabled':True,'share_path':str(disk),'hour_utc':4,'keep_count':9}).status_code==200
+        assert admin.get('/api/v1/appliance/portable-backup').json()['hour_utc']==3
+        assert admin.get('/api/v1/appliance/local-backup').json()['hour_utc']==4
+        a=admin.post('/api/v1/appliance/portable-backup/run',headers=headers);b=admin.post('/api/v1/appliance/local-backup/run',headers=headers)
+        assert a.status_code==200,a.text
+        assert b.status_code==200,b.text
+        assert (share/a.json()['filename']).exists() and (disk/b.json()['filename']).exists()
+        assert admin.get('/api/v1/appliance/portable-backup').json()['last_success_at']
+        assert admin.get('/api/v1/appliance/local-backup').json()['last_success_at']
+        monkeypatch.setattr(offsite_backup,'validate_local_disk',lambda *a,**k: (_ for _ in ()).throw(ValueError('disk disconnected')))
+        assert admin.post('/api/v1/appliance/local-backup/run',headers=headers).status_code==400
+        assert 'disconnected' in admin.get('/api/v1/appliance/local-backup').json()['last_error']
+        assert not admin.get('/api/v1/appliance/portable-backup').json()['last_error']
+        assert (share/a.json()['filename']).exists()
