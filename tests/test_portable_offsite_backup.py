@@ -144,3 +144,89 @@ def test_share_and_disk_have_independent_settings_and_backups(tmp_path,monkeypat
         assert 'disconnected' in admin.get('/api/v1/appliance/local-backup').json()['last_error']
         assert not admin.get('/api/v1/appliance/portable-backup').json()['last_error']
         assert (share/a.json()['filename']).exists()
+
+
+def test_drive_discovery_reports_unmounted_and_usable_disks(tmp_path, monkeypatch):
+    import types
+    data={'blockdevices':[{'name':'/dev/sdb','type':'disk','children':[
+        {'name':'/dev/sdb1','fstype':'ext4','uuid':'READY-123','label':'Backups','mountpoints':[str(tmp_path)],'size':1073741824,'ro':False},
+        {'name':'/dev/sdb2','fstype':'exfat','uuid':'AUTO-456','label':'USB','mountpoints':[None],'size':2147483648,'ro':False},
+        {'name':'/dev/sdb3','fstype':'swap','uuid':'IGNORE','mountpoints':[None],'size':1,'ro':False}]}]}
+    monkeypatch.setattr(offsite_backup.subprocess,'run',lambda *a,**k:types.SimpleNamespace(returncode=0,stdout=json.dumps(data),stderr=''))
+    monkeypatch.setattr(offsite_backup,'validate_local_disk',lambda path,db:(Path(path),'READY-123'))
+    disks=offsite_backup.discover_local_disks(tmp_path/'db')
+    assert len(disks)==2
+    assert disks[0]['ready'] and disks[0]['mountpoint']==str(tmp_path)
+    assert disks[1]['ready'] and disks[1]['auto_mount'] and disks[1]['uuid']=='AUTO-456'
+
+
+def test_automatic_mount_is_admin_only_and_limited_to_detected_disks(tmp_path,monkeypatch):
+    monkeypatch.setattr(main,'DB_PATH',tmp_path/'server.db');main.init_db()
+    monkeypatch.setattr(main,'discover_local_disks',lambda db:[{'uuid':'TEST-123','auto_mount':True,'ready':True}])
+    monkeypatch.setattr(main,'mount_local_disk',lambda uuid:'/safe/mounted/path')
+    monkeypatch.setattr(main,'test_local_disk',lambda path,db,expected:'TEST-123')
+    with TestClient(main.app) as admin,TestClient(main.app) as operator:
+        password='GODSEYE-strong-test-2026!'
+        assert admin.post('/api/v1/auth/setup',json={'current_password':'','new_password':password}).status_code==200
+        assert admin.post('/api/v1/auth/login',json={'username':'admin','password':password}).status_code==200
+        salt,hashed=main.hash_password(password)
+        with main.db() as c:c.execute("INSERT INTO users(username,password_hash,password_salt,role,must_change_password,created_at,password_changed_at) VALUES(?,?,?,'operator',0,?,?)",('operator',hashed,salt,main.now(),main.now()))
+        assert operator.post('/api/v1/auth/login',json={'username':'operator','password':password}).status_code==200
+        assert operator.get('/api/v1/appliance/local-backup/disks').status_code==403
+        headers={'X-CSRF-Token':admin.cookies['godseye_csrf']}
+        assert admin.post('/api/v1/appliance/local-backup/mount',headers=headers,json={'uuid':'UNKNOWN'}).status_code==400
+        result=admin.post('/api/v1/appliance/local-backup/mount',headers=headers,json={'uuid':'TEST-123'})
+        assert result.status_code==200 and result.json()['path']=='/safe/mounted/path'
+
+
+def test_mount_helper_rejects_invalid_or_system_disk(monkeypatch):
+    import importlib.machinery,importlib.util
+    loader=importlib.machinery.SourceFileLoader('mount_helper',str(Path('godseye-mount-backup').resolve()))
+    spec=importlib.util.spec_from_loader(loader.name,loader);helper=importlib.util.module_from_spec(spec);loader.exec_module(helper)
+    with pytest.raises(ValueError,match='Invalid filesystem UUID'):helper.main('../unsafe')
+    def fake_cmd(*args):
+        if args[0].endswith('blkid') and '-t' in args:return '/dev/null'
+        if args[0].endswith('blkid'):return 'ext4'
+        if args[0].endswith('findmnt'):return '/dev/system'
+        if args[0].endswith('lsblk') and 'TYPE'==args[2]:return 'part'
+        if args[0].endswith('lsblk') and 'RO'==args[2]:return '0'
+        if args[0].endswith('lsblk') and 'NAME,TYPE' in args:return '/dev/same-disk disk'
+        raise AssertionError(args)
+    monkeypatch.setattr(helper,'cmd',fake_cmd)
+    monkeypatch.setattr(helper.stat,'S_ISBLK',lambda mode:True)
+    with pytest.raises(ValueError,match='separate physical disk'):helper.main('TEST-123')
+
+
+def test_mount_helper_uses_fixed_target_and_creates_private_backup_folder(tmp_path,monkeypatch):
+    import importlib.machinery,importlib.util,types
+    loader=importlib.machinery.SourceFileLoader('mount_helper_flow',str(Path('godseye-mount-backup').resolve()))
+    spec=importlib.util.spec_from_loader(loader.name,loader);helper=importlib.util.module_from_spec(spec);loader.exec_module(helper)
+    target=tmp_path/'fixed-mount';monkeypatch.setattr(helper,'TARGET',str(target))
+    calls=[]
+    def fake_cmd(*args):
+        calls.append(args)
+        if args[0].endswith('blkid') and '-t' in args:return '/dev/null'
+        if args[0].endswith('blkid'):return 'ext4'
+        if args[0].endswith('findmnt'):return '/dev/system'
+        if args[0].endswith('lsblk') and args[2]=='TYPE':return 'part'
+        if args[0].endswith('lsblk') and args[2]=='RO':return '0'
+        if args[0].endswith('lsblk') and 'NAME,TYPE' in args:return '/dev/disk-A disk' if args[-1]=='/dev/system' else '/dev/disk-B disk'
+        if args[0].endswith('mount'):return ''
+        raise AssertionError(args)
+    monkeypatch.setattr(helper,'cmd',fake_cmd)
+    monkeypatch.setattr(helper.stat,'S_ISBLK',lambda mode:True)
+    monkeypatch.setattr(helper.subprocess,'run',lambda *a,**k:types.SimpleNamespace(returncode=1,stdout='',stderr=''))
+    monkeypatch.setattr(helper.pwd,'getpwnam',lambda name:types.SimpleNamespace(pw_uid=os.getuid(),pw_gid=os.getgid()))
+    original_fstat=helper.os.fstat
+    def safe_fstat(fd):
+        actual=original_fstat(fd)
+        if os.readlink('/proc/self/fd/'+str(fd))==str(target):return types.SimpleNamespace(st_uid=0)
+        return actual
+    import os
+    monkeypatch.setattr(helper.os,'fstat',safe_fstat)
+    monkeypatch.setattr(helper.os,'fchown',lambda *a:None)
+    helper.main('TEST-123')
+    assert (target/'.godseye-backups').is_dir()
+    mounts=[c for c in calls if c[0].endswith('/mount')]
+    assert len(mounts)==1 and mounts[0][-1]==str(target)
+    assert 'nodev,nosuid,noexec' in mounts[0]

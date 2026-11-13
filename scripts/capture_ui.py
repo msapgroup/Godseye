@@ -149,6 +149,7 @@ async def main():
                 await page.locator("#portableBackupPanel").wait_for(state="visible")
                 assert await page.get_by_role("button", name="Back Up to Share Now").is_visible()
                 await page.locator("#localBackupPanel").wait_for(state="visible")
+                assert await page.get_by_label("Backup drive").count() == 1
                 await page.screenshot(path=str(OUT / "v431-backup-automation.png"), full_page=True)
                 from PIL import Image
                 with Image.open(OUT / "v431-backup-automation.png") as backup_image:

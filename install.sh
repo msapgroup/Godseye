@@ -239,10 +239,13 @@ install -m 0755 "$INSTALL_DIR/godseye-https-setup" /usr/local/sbin/godseye-https
 install -m 0755 "$INSTALL_DIR/godseye-release-audit" /usr/local/sbin/godseye-release-audit
 install -m 0755 "$INSTALL_DIR/godseye-evidence-capture" /usr/local/sbin/godseye-evidence-capture
 install -m 0755 "$INSTALL_DIR/godseye-reboot" /usr/local/sbin/godseye-reboot
+install -m 0755 "$INSTALL_DIR/godseye-mount-backup" /usr/local/sbin/godseye-mount-backup
+install -d -o root -g root -m 0755 /var/lib/godseye-local-backup
 cat >/etc/sudoers.d/godseye-production <<'EOF2'
 godseye ALL=(root) NOPASSWD: /usr/local/sbin/godseye-apply-update *
 godseye ALL=(root) NOPASSWD: /usr/local/sbin/godseye-evidence-capture *
 godseye ALL=(root) NOPASSWD: /usr/local/sbin/godseye-reboot
+godseye ALL=(root) NOPASSWD: /usr/local/sbin/godseye-mount-backup *
 EOF2
 chmod 0440 /etc/sudoers.d/godseye-production
 mkdir -p "$DATA_DIR/updates" "$DATA_DIR/config-exports" "$DATA_DIR/tls" "$DATA_DIR/cyber-evidence" "$DATA_DIR/cyber-scan-temp" "$BACKUP_DIR"
