@@ -198,11 +198,13 @@ Only an Admin can change users, roles, or permissions.
 
 ### Full backup and restore
 
-![GODSEYE in-app full backup and server restore preview](docs/screenshots/v431-full-backup-restore.png)
+![GODSEYE Backup and Restore controls](docs/screenshots/v431-backup-automation.png)
 
-**How it works:** Admins open **System Health** and use **Full Backup & Server Restore**. **Export Full Backup ZIP** downloads the database, settings snapshot, and appliance encryption key. On a replacement server, select that ZIP inside GODSEYE and choose **Restore from ZIP**. GODSEYE validates the archive, creates a pre-restore safety backup, restores the database and key, and records the action in the Audit Log. Restart GODSEYE services after a restore and sign in with an account from the restored backup.
+**How to use:** Sign in as an administrator and open **System Health → Backup & Restore**. Choose **Download Full Backup** to download a portable ZIP, and set how often GODSEYE should remind you. A banner appears after sign-in when a download is overdue or a shared-drive backup has failed. The download date records when the browser started the download; confirm the ZIP was saved successfully.
 
-The full backup contains sensitive operational data and the appliance encryption key. Store it securely.
+To send backups to a shared drive, first mount the SMB/CIFS share at `/var/lib/godseye/offsite` on the GODSEYE Linux server and give the `godseye` service account permission to write to it. The service is restricted to writing under `/var/lib/godseye`; a mount elsewhere may fail its connection test. Configure the operating system to reconnect the share after reboot. Enter the absolute mount-point path, select **Test Connection**, enable shared-drive backup, choose the daily UTC hour and retention count, and select **Save Settings**. **Back Up to Share Now** creates and verifies a fresh copy immediately. The app checks that the destination is a mounted SMB share so it will not silently save to a local folder when the share is disconnected. The page shows the last successful copy and any error; failed scheduled attempts retry later.
+
+Each portable ZIP contains the integrity-checked database, configuration snapshot and appliance encryption key. It includes data stored inside the database; separately stored files such as packet captures are not included. The ZIP is **not encrypted** and the existing restore supports archives and databases up to 256 MB. Restrict access to the share and keep an additional protected copy. To restore, open **System Health → Advanced appliance settings and diagnostics → Full Backup & Server Restore**, select the ZIP, choose **Restore from ZIP**, and restart GODSEYE services after the restore. Test restores on a separate server.
 
 ### Remote Access
 

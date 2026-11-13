@@ -14,6 +14,7 @@ import os
 import re
 import secrets
 import sqlite3
+import subprocess
 import threading
 import time
 import urllib.request
@@ -58,6 +59,7 @@ from . import access_control as acl
 from .device_identity import (ensure_schema as ensure_identity_schema, remember_address,
                               find_device, save_names, saved_names, named_device, restore_names)
 from .appliance_hardening import BACKUP_DIR, KEY_PATH
+from .offsite_backup import OffsiteBackupManager, ensure_schema as ensure_portable_backup_schema, settings as portable_backup_settings, test_share
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -904,11 +906,17 @@ async def lifespan(app):
     production_manager=ProductionManager(db,_scheduled_backup)
     app.state.production_manager=production_manager
     production_manager.start()
+    with db() as c:
+        ensure_portable_backup_schema(c)
+    offsite_backup_manager=OffsiteBackupManager(db,DB_PATH,KEY_PATH,config_export)
+    app.state.offsite_backup_manager=offsite_backup_manager
+    offsite_backup_manager.start()
     cyber_schedule_manager=CyberScheduleManager(db,DB_PATH.parent)
     app.state.cyber_schedule_manager=cyber_schedule_manager
     cyber_schedule_manager.start()
     yield
     cyber_schedule_manager.stop()
+    offsite_backup_manager.stop()
     production_manager.stop()
     windows_event_manager.stop()
     calendar_sync_manager.stop()
@@ -6375,6 +6383,7 @@ html[data-theme="dark"] .cards>.card{border-color:#29445f!important;box-shadow:0
 .cyber-tool-status{white-space:nowrap;font-size:8px!important;font-weight:800!important;letter-spacing:.03em;text-transform:uppercase;border-radius:99px;padding:4px 7px;background:#eef4f9}
 .cyber-tool-status.ready{color:#16865a!important}
 .cyber-tool-status.unavailable{color:#a16b09!important}.cyber-tool-status.running{color:#0d74f5!important}
+.portable-form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.portable-form label{display:flex;flex-direction:column;gap:7px;color:var(--muted);font-size:12px}.portable-form .input,.portable-form .filter{width:100%;box-sizing:border-box}@media(max-width:900px){.portable-form{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:600px){.portable-form{grid-template-columns:1fr}}
 .cyber-history-grid{display:grid;grid-template-columns:minmax(0,2fr) minmax(260px,1fr);gap:14px}.cyber-history-list,.cyber-schedule-list{display:grid;gap:7px}.cyber-history-row{display:grid;grid-template-columns:105px minmax(0,1fr) auto;gap:10px;align-items:center;border-top:1px solid var(--line,#dce7f1);padding:8px 0;font-size:9px}.cyber-history-row:first-child{border-top:0}.cyber-history-tool{font-weight:800}.cyber-history-meta{color:#6c8198}.cyber-history-state{font-weight:800;color:#16865a}.cyber-history-state.failed{color:#c13c4b}.cyber-schedule-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;border-top:1px solid var(--line,#dce7f1);padding:8px 0;font-size:9px}.cyber-schedule-row:first-child{border-top:0}
 html[data-theme="dark"] .cyber-tool-card{border-color:#29445f!important;background:linear-gradient(145deg,#142435,#101a27)!important;box-shadow:0 10px 24px rgba(0,0,0,.18)!important}
 html[data-theme="dark"] .cyber-tool-card h3{color:#eef7ff!important}
@@ -7459,6 +7468,7 @@ html:not([data-theme="dark"]) :is(.v430-global-search,.v430-bell,.user-chip,.aut
 <div id="app" style="display:none">
 <div class="healthbar" id="healthbar"></div>
 <div class="healthbar" id="pwReminderBar" style="display:none;color:#f7c948;cursor:pointer" onclick="openChangePassword()"></div>
+<div class="healthbar admin-only" id="backupReminderBar" style="display:none;color:#f7c948"><span id="backupReminderText">Full backup download is due.</span> <button class="link" type="button" onclick="openBackupSettings()">Open Backup &amp; Restore</button> <button class="link" type="button" onclick="this.parentElement.style.display='none'">Remind me later</button></div>
 <div class="shell">
 <nav class="sidebar">
 <div class="brand v430-brand"><img class="godseye-approved-lockup" src="/assets/godseye-approved.png" alt="GODSEYE"></div>
@@ -8040,6 +8050,7 @@ html:not([data-theme="dark"]) :is(.v430-global-search,.v430-bell,.user-chip,.aut
 
 <div class="view" id="view-health" style="display:none">
 <div class="hero"><div><h1>System Health</h1><div class="muted">Monitor appliance health, backups, services, integrations, and system resources.</div></div><div class="actions"><button class="primary" onclick="loadHealth()">Run Health Check</button><button class="secondary" onclick="createBackup()">Create Backup</button><button class="secondary" onclick="document.getElementById('healthAdvanced').open=true;document.getElementById('healthChecks').scrollIntoView()">View Logs</button><button class="secondary" onclick="document.getElementById('healthAdvanced').open=true;document.getElementById('updateFile').scrollIntoView()">Check for Updates</button></div></div>
+<section class="panel admin-only" id="portableBackupPanel" style="margin:14px 0"><div class="table-head"><div><h2>Backup &amp; Restore</h2><div class="muted">Download reminders and scheduled off-server copies</div></div><button type="button" class="primary" onclick="exportFullBackup()">Download Full Backup</button></div><div style="padding:16px;display:grid;gap:14px"><div class="v430-health-facts"><div>Last download started <b id="portableLastDownload">Never</b></div><div>Last shared-drive backup <b id="portableLastSuccess">Never</b></div><div>Shared-drive status <b id="portableShareStatus">Not configured</b></div></div><div class="portable-form"><label>Download reminders <select id="portableReminders" class="filter"><option value="1">Enabled</option><option value="0">Disabled</option></select></label><label>Remind every (days) <input id="portableReminderDays" class="input" type="number" min="1" max="365" value="7"></label><label>Shared-drive backup <select id="portableEnabled" class="filter"><option value="0">Disabled</option><option value="1">Enabled</option></select></label><label>Mounted SMB share path <input id="portableSharePath" class="input" placeholder="/var/lib/godseye/offsite"></label><label>Daily backup hour (UTC) <input id="portableHour" class="input" type="number" min="0" max="23" value="2"></label><label>Backups to keep <input id="portableKeep" class="input" type="number" min="1" max="100" value="30"></label></div><p class="muted">Mount the SMB share at /var/lib/godseye/offsite and grant the GODSEYE service write access. The ZIP is not encrypted and contains the database and encryption key; restrict access to the share.</p><div class="actions"><button class="secondary" type="button" onclick="testPortableShare()">Test Connection</button><button class="primary" type="button" onclick="savePortableSettings()">Save Settings</button><button class="secondary" type="button" onclick="runPortableBackup()">Back Up to Share Now</button><button class="secondary" type="button" onclick="document.getElementById('healthAdvanced').open=true;document.getElementById('fullRestoreFile').scrollIntoView()">Restore from ZIP</button></div><div id="portableBackupMessage" class="muted" role="status"></div><div id="portableBackupHistory" class="muted"></div></div></section>
 <div class="v430-health-status-grid cards">
 <div class="card v430-health-card"><span class="v430-health-icon"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="6" rx="1"/><rect x="3" y="14" width="18" height="6" rx="1"/><path d="M7 7h.01M7 17h.01"/></svg></span><div><small>Web Service</small><b id="healthOverall">—</b><em>Application service</em></div></div>
 <div class="card v430-health-card"><span class="v430-health-icon green"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg></span><div><small>Scanner</small><b id="v430HealthScanner">Checking</b><em>Network scanner</em></div></div>
@@ -10205,13 +10216,18 @@ function renderHealthSummary(h,retention,backups,settings,notifications){
  const events=document.getElementById('healthEventSummary'),notes=Array.isArray(notifications)?notifications:[];if(events)events.innerHTML=notes.length?notes.slice(0,5).map(x=>`<div><span>${esc(x.event_type||'Delivery')}</span><b>${esc(x.status||'unknown')}</b></div>`).join(''):'<div>No recent system events.</div>';
  json('/api/v1/analytics/traffic?minutes=60').then(r=>{const last=(r.samples||[]).at(-1);if(last){put('healthNetworkRate',fmtBits(last.rx_bps)+' ↓  ·  '+fmtBits(last.tx_bps)+' ↑');put('healthNetworkInterface',last.interface||'Network interface');const netbar=document.getElementById('healthNetworkBar');if(netbar)netbar.style.width=Math.min(100,Math.max(4,Number(last.rx_bps||0)/1e7))+'%'}}).catch(()=>{});
 }
-async function loadHealth(){try{const [h,r,b,p,tls,nh]=await Promise.all([json('/api/v1/appliance/health'),json('/api/v1/appliance/retention').catch(()=>null),json('/api/v1/appliance/backups').catch(()=>[]),json('/api/v1/appliance/production-settings').catch(()=>null),json('/api/v1/appliance/https').catch(()=>null),json('/api/v1/notifications/history').catch(()=>[])]);LAST_HEALTH_CHECKS=Array.isArray(h.checks)?h.checks:[];healthOverall.textContent=(h.overall||'unknown').toUpperCase();healthOverall.classList.toggle('bad',String(h.overall||'unknown').toLowerCase()!=='ok');healthHost.textContent=h.hostname||'—';healthKernel.textContent=h.kernel||'—';v430RenderHealthPage(h,b,p);renderHealthSummary(h,r,b,p,nh);healthChecks.innerHTML=(h.checks||[]).map(x=>`<tr><td>${esc(x.name)}</td><td><span class="pill ${x.status==='ok'?'online':x.status==='critical'?'offline':''}">${esc(x.status)}</span></td><td>${esc(v430HealthDetail(x))}</td></tr>`).join('');if(r){retTraffic.value=r.traffic_retention_days;retEvents.value=r.event_retention_days;retAudit.value=r.audit_retention_days;retReports.value=r.report_retention_days;retSync.value=r.sync_retention_days;retNotify.value=r.notification_retention_days}backupRows.innerHTML=(b||[]).map(x=>`<tr><td>${esc(new Date(x.created_at).toLocaleString())}</td><td>${esc(x.filename)}</td><td>${(x.size_bytes/1024/1024).toFixed(2)} MB</td><td>${esc(x.note||'')}</td><td><button class="link" onclick="restoreBackup('${esc(x.filename)}')">Restore</button></td></tr>`).join('')||'<tr><td colspan="5" class="empty">No backups yet.</td></tr>';if(p){prodAutoBackup.value=p.auto_backup_enabled?'1':'0';prodBackupHour.value=p.backup_hour_utc;prodBackupKeep.value=p.backup_keep_count;prodUpdateChannel.value=p.update_channel||'stable'}if(tls){tlsStatus.textContent=tls.configured?'HTTPS certificate is installed on this appliance.':'HTTPS certificate is not configured yet.';httpsOut.textContent=tls.helper||''}notificationHistoryRows.innerHTML=(nh||[]).map(x=>`<tr><td>${esc(new Date(x.created_at).toLocaleString())}</td><td>${esc(x.event_type)}</td><td>${esc(x.severity)}</td><td>${esc(x.status)}</td><td>${x.attempts||1}</td><td><button class="link" onclick="retryNotification(${x.id})">Retry</button></td></tr>`).join('')||'<tr><td colspan="6" class="empty">No notification history.</td></tr>'}catch(e){healthChecks.innerHTML='<tr><td colspan="3">'+esc(e.message)+'</td></tr>'}}
+async function loadHealth(){if(ME?.role==='admin')loadPortableBackup();try{const [h,r,b,p,tls,nh]=await Promise.all([json('/api/v1/appliance/health'),json('/api/v1/appliance/retention').catch(()=>null),json('/api/v1/appliance/backups').catch(()=>[]),json('/api/v1/appliance/production-settings').catch(()=>null),json('/api/v1/appliance/https').catch(()=>null),json('/api/v1/notifications/history').catch(()=>[])]);LAST_HEALTH_CHECKS=Array.isArray(h.checks)?h.checks:[];healthOverall.textContent=(h.overall||'unknown').toUpperCase();healthOverall.classList.toggle('bad',String(h.overall||'unknown').toLowerCase()!=='ok');healthHost.textContent=h.hostname||'—';healthKernel.textContent=h.kernel||'—';v430RenderHealthPage(h,b,p);renderHealthSummary(h,r,b,p,nh);healthChecks.innerHTML=(h.checks||[]).map(x=>`<tr><td>${esc(x.name)}</td><td><span class="pill ${x.status==='ok'?'online':x.status==='critical'?'offline':''}">${esc(x.status)}</span></td><td>${esc(v430HealthDetail(x))}</td></tr>`).join('');if(r){retTraffic.value=r.traffic_retention_days;retEvents.value=r.event_retention_days;retAudit.value=r.audit_retention_days;retReports.value=r.report_retention_days;retSync.value=r.sync_retention_days;retNotify.value=r.notification_retention_days}backupRows.innerHTML=(b||[]).map(x=>`<tr><td>${esc(new Date(x.created_at).toLocaleString())}</td><td>${esc(x.filename)}</td><td>${(x.size_bytes/1024/1024).toFixed(2)} MB</td><td>${esc(x.note||'')}</td><td><button class="link" onclick="restoreBackup('${esc(x.filename)}')">Restore</button></td></tr>`).join('')||'<tr><td colspan="5" class="empty">No backups yet.</td></tr>';if(p){prodAutoBackup.value=p.auto_backup_enabled?'1':'0';prodBackupHour.value=p.backup_hour_utc;prodBackupKeep.value=p.backup_keep_count;prodUpdateChannel.value=p.update_channel||'stable'}if(tls){tlsStatus.textContent=tls.configured?'HTTPS certificate is installed on this appliance.':'HTTPS certificate is not configured yet.';httpsOut.textContent=tls.helper||''}notificationHistoryRows.innerHTML=(nh||[]).map(x=>`<tr><td>${esc(new Date(x.created_at).toLocaleString())}</td><td>${esc(x.event_type)}</td><td>${esc(x.severity)}</td><td>${esc(x.status)}</td><td>${x.attempts||1}</td><td><button class="link" onclick="retryNotification(${x.id})">Retry</button></td></tr>`).join('')||'<tr><td colspan="6" class="empty">No notification history.</td></tr>'}catch(e){healthChecks.innerHTML='<tr><td colspan="3">'+esc(e.message)+'</td></tr>'}}
+function openBackupSettings(){showView('health');setTimeout(()=>document.getElementById('portableBackupPanel')?.scrollIntoView({behavior:'smooth'}),100)}
+async function loadPortableBackup(){if(ME?.role!=='admin')return;try{const x=await json('/api/v1/appliance/portable-backup');portableReminders.value=x.reminders_enabled?'1':'0';portableReminderDays.value=x.reminder_days;portableEnabled.value=x.enabled?'1':'0';portableSharePath.value=x.share_path||'';portableHour.value=x.hour_utc;portableKeep.value=x.keep_count;portableLastDownload.textContent=x.last_download_at?new Date(x.last_download_at).toLocaleString():'Never';portableLastSuccess.textContent=x.last_success_at?new Date(x.last_success_at).toLocaleString():'Never';portableShareStatus.textContent=x.last_error?'Backup failed':x.enabled?'Scheduled':'Not enabled';portableBackupMessage.textContent=x.last_error?'Last backup failed: '+x.last_error:'Backups include sensitive data and the encryption key.';portableBackupHistory.textContent=(x.history||[]).slice(0,3).map(h=>new Date(h.created_at).toLocaleString()+' · '+h.status+(h.filename?' · '+h.filename:'')).join(' | ')||'No shared-drive backups yet.';document.getElementById('backupReminderText').textContent=x.last_error?'Shared-drive backup failed. Review Backup & Restore.':'Full backup download is due.';document.getElementById('backupReminderBar').style.display=(x.download_overdue||x.last_error)?'block':'none'}catch(e){portableBackupMessage.textContent='Could not load backup settings: '+e.message}}
+async function savePortableSettings(){try{await json('/api/v1/appliance/portable-backup',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({reminders_enabled:portableReminders.value==='1',reminder_days:Number(portableReminderDays.value),enabled:portableEnabled.value==='1',share_path:portableSharePath.value.trim(),hour_utc:Number(portableHour.value),keep_count:Number(portableKeep.value)})});await loadPortableBackup();portableBackupMessage.textContent='Backup settings saved.'}catch(e){portableBackupMessage.textContent='Could not save backup settings: '+e.message}}
+async function testPortableShare(){try{const x=await json('/api/v1/appliance/portable-backup/test',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({share_path:portableSharePath.value.trim()})});portableBackupMessage.textContent=x.message}catch(e){portableBackupMessage.textContent='Share test failed: '+e.message}}
+async function runPortableBackup(){portableBackupMessage.textContent='Creating and verifying shared-drive backup…';try{const x=await json('/api/v1/appliance/portable-backup/run',{method:'POST'});await loadPortableBackup();portableBackupMessage.textContent='Backup saved to shared drive: '+x.filename}catch(e){await loadPortableBackup();portableBackupMessage.textContent='Backup failed: '+e.message}}
 async function createBackup(){try{await json('/api/v1/appliance/backups',{method:'POST'});await loadHealth()}catch(e){alert('Backup failed: '+e.message)}}
 async function restoreBackup(name){if(!confirm('Restore '+name+'? GODSEYE will create a safety backup first. A service restart is recommended after restore.'))return;try{const r=await json('/api/v1/appliance/backups/restore',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filename:name})});alert('Restore complete. Safety backup: '+r.safety_backup+'\nRestart GODSEYE services when convenient.');await loadHealth()}catch(e){alert('Restore failed: '+e.message)}}
 async function exportFullBackup(){
- const status=document.getElementById('fullRestoreStatus');status.textContent='Creating portable backup…';
- try{const response=await fetch('/api/v1/appliance/backups/export');if(!response.ok)throw new Error(await response.text());const blob=await response.blob(),link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download='godseye-full-backup-'+new Date().toISOString().slice(0,10)+'.zip';document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(link.href),60000);status.textContent='Backup downloaded. Store this ZIP securely; it contains user records and the appliance encryption key.'}
- catch(e){status.textContent='Export failed: '+e.message}
+ const status=document.getElementById('fullRestoreStatus');status.textContent='Creating portable backup…';document.getElementById('portableBackupMessage').textContent='Creating portable backup for download…';
+ try{const response=await fetch('/api/v1/appliance/backups/export');if(!response.ok)throw new Error(await response.text());const blob=await response.blob(),link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download='godseye-full-backup-'+new Date().toISOString().slice(0,10)+'.zip';document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(link.href),60000);status.textContent='Backup download started. Confirm it was saved securely; it contains user records and the appliance encryption key.';document.getElementById('portableBackupMessage').textContent=status.textContent;await json('/api/v1/appliance/portable-backup/download-started',{method:'POST'});await loadPortableBackup();portableBackupMessage.textContent=status.textContent}
+ catch(e){status.textContent='Export failed: '+e.message;portableBackupMessage.textContent=status.textContent}
 }
 async function restoreFullBackup(){
  const file=document.getElementById('fullRestoreFile').files[0],status=document.getElementById('fullRestoreStatus');
@@ -10419,6 +10435,7 @@ async function boot(){decorateHeaderHelp();
     }else pwBar.style.display='none';
   }
   showApp();
+  if(ME.role==='admin')loadPortableBackup();
   const rawHash=(location.hash||'#overview').slice(1);
   showView(document.getElementById('view-'+rawHash)?rawHash:'overview',false);
   Promise.allSettled([
@@ -11224,6 +11241,66 @@ def export_full_backup(request: Request, user=Depends(require_admin)):
                         filename=f"godseye-full-backup-{dt.datetime.now(dt.timezone.utc):%Y%m%dT%H%M%SZ}.zip",
                         background=BackgroundTask(lambda: Path(bundle_name).unlink(missing_ok=True)),
                         headers={"Cache-Control": "no-store"})
+
+class PortableBackupSettingsRequest(BaseModel):
+    reminders_enabled: bool = True
+    reminder_days: int = 7
+    enabled: bool = False
+    share_path: str = ''
+    hour_utc: int = 2
+    keep_count: int = 30
+
+class BackupShareTestRequest(BaseModel):
+    share_path: str
+
+@app.get(f"{router_prefix}/appliance/portable-backup")
+def get_portable_backup(user=Depends(require_admin)):
+    with db() as c:
+        result=portable_backup_settings(c)
+        result['history']=[dict(r) for r in c.execute('SELECT * FROM portable_backup_history ORDER BY id DESC LIMIT 20')]
+    last=result['last_download_at']
+    try:
+        age=(dt.datetime.now(dt.timezone.utc)-dt.datetime.fromisoformat(last)).total_seconds()/86400 if last else None
+    except (ValueError,TypeError):age=None
+    result['download_overdue']=bool(result['reminders_enabled'] and (age is None or age>=result['reminder_days']))
+    return result
+
+@app.put(f"{router_prefix}/appliance/portable-backup")
+def save_portable_backup(req: PortableBackupSettingsRequest,request: Request,user=Depends(require_admin)):
+    if not 1<=req.reminder_days<=365 or not 0<=req.hour_utc<=23 or not 1<=req.keep_count<=100:
+        raise HTTPException(400,'Invalid reminder, schedule, or retention setting')
+    path=req.share_path.strip()
+    if len(path)>1024 or '\x00' in path:raise HTTPException(400,'Invalid share path')
+    if req.enabled:
+        try:test_share(path)
+        except (OSError,ValueError,subprocess.SubprocessError) as exc:raise HTTPException(400,str(exc))
+    with db() as c:
+        ensure_portable_backup_schema(c)
+        c.execute('UPDATE portable_backup_settings SET reminders_enabled=?,reminder_days=?,enabled=?,share_path=?,hour_utc=?,keep_count=? WHERE id=1',
+                  (int(req.reminders_enabled),req.reminder_days,int(req.enabled),path,req.hour_utc,req.keep_count))
+        audit(c,user['username'],'portable_backup_settings_updated',details=json.dumps({'enabled':req.enabled,'hour_utc':req.hour_utc,'keep_count':req.keep_count}),ip=client_ip(request))
+    return {'ok':True}
+
+@app.post(f"{router_prefix}/appliance/portable-backup/test")
+def test_portable_backup(req: BackupShareTestRequest,user=Depends(require_admin)):
+    try:test_share(req.share_path.strip())
+    except (OSError,ValueError,subprocess.SubprocessError) as exc:raise HTTPException(400,str(exc))
+    return {'ok':True,'message':'The mounted share is writable.'}
+
+@app.post(f"{router_prefix}/appliance/portable-backup/run")
+def run_portable_backup(request: Request,user=Depends(require_admin)):
+    try:result=app.state.offsite_backup_manager.run()
+    except (OSError,ValueError,RuntimeError,subprocess.SubprocessError) as exc:raise HTTPException(400,str(exc))
+    with db() as c:audit(c,user['username'],'portable_backup_sent',target=result['filename'],ip=client_ip(request))
+    return result
+
+@app.post(f"{router_prefix}/appliance/portable-backup/download-started")
+def portable_download_started(request: Request,user=Depends(require_admin)):
+    with db() as c:
+        ensure_portable_backup_schema(c)
+        c.execute('UPDATE portable_backup_settings SET last_download_at=? WHERE id=1',(now(),))
+        audit(c,user['username'],'full_backup_download_started',ip=client_ip(request))
+    return {'ok':True}
 
 
 @app.post(f"{router_prefix}/appliance/backups/import")
