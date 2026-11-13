@@ -1,4 +1,4 @@
-"""Portable scheduled backups to a pre-mounted network share."""
+"""Portable scheduled backups to a network share or attached disk."""
 from __future__ import annotations
 import datetime as dt
 import hashlib
@@ -30,11 +30,27 @@ def ensure_schema(c):
     c.execute('''CREATE TABLE IF NOT EXISTS portable_backup_history(
         id INTEGER PRIMARY KEY AUTOINCREMENT, created_at TEXT NOT NULL,
         filename TEXT NOT NULL DEFAULT '', status TEXT NOT NULL, detail TEXT NOT NULL DEFAULT '')''')
+    c.execute('''CREATE TABLE IF NOT EXISTS local_backup_settings(
+        id INTEGER PRIMARY KEY CHECK(id=1), enabled INTEGER NOT NULL DEFAULT 0,
+        share_path TEXT NOT NULL DEFAULT '', hour_utc INTEGER NOT NULL DEFAULT 2,
+        keep_count INTEGER NOT NULL DEFAULT 30, last_success_at TEXT,
+        last_attempt_at TEXT, last_error TEXT NOT NULL DEFAULT '',
+        instance_token TEXT NOT NULL DEFAULT '', volume_uuid TEXT NOT NULL DEFAULT '')''')
+    if not c.execute('SELECT 1 FROM local_backup_settings WHERE id=1').fetchone():
+        c.execute('INSERT OR IGNORE INTO local_backup_settings(id,instance_token) VALUES(1,?)',(secrets.token_hex(8),))
+    c.execute('''CREATE TABLE IF NOT EXISTS local_backup_history(
+        id INTEGER PRIMARY KEY AUTOINCREMENT, created_at TEXT NOT NULL,
+        filename TEXT NOT NULL DEFAULT '', status TEXT NOT NULL, detail TEXT NOT NULL DEFAULT '')''')
 
 
 def settings(c):
     ensure_schema(c)
     return dict(c.execute('SELECT * FROM portable_backup_settings WHERE id=1').fetchone())
+
+
+def local_settings(c):
+    ensure_schema(c)
+    return dict(c.execute('SELECT * FROM local_backup_settings WHERE id=1').fetchone())
 
 
 def validate_share(path):
@@ -59,6 +75,33 @@ def test_share(path):
             f.write(b'GODSEYE backup connection test'); f.flush(); os.fsync(f.fileno())
     finally:
         Path(name).unlink(missing_ok=True)
+
+
+def validate_local_disk(path, db_path, expected_uuid=''):
+    path=Path(path)
+    if not path.is_absolute() or not path.is_dir() or not os.path.ismount(path):
+        raise ValueError('Enter the mount point of an attached local disk')
+    result=subprocess.run(['findmnt','-n','-r','-o','FSTYPE,SOURCE,UUID','--mountpoint',str(path)],capture_output=True,text=True,timeout=5,check=False)
+    fields=result.stdout.strip().split()
+    local_filesystems={'ext2','ext3','ext4','xfs','btrfs','vfat','exfat','ntfs','ntfs3','fuseblk'}
+    if result.returncode or len(fields)!=3 or fields[0].lower() not in local_filesystems or not fields[1].startswith('/dev/') or fields[2]=='-':
+        raise ValueError('The destination must be a mounted local disk with a filesystem UUID')
+    if os.stat(path).st_dev==os.stat(Path(db_path).parent).st_dev:
+        raise ValueError('The backup disk must be separate from the GODSEYE data filesystem')
+    if expected_uuid and fields[2]!=expected_uuid:
+        raise ValueError('The mounted disk is not the disk saved in backup settings')
+    return path,fields[2]
+
+
+def test_local_disk(path, db_path, expected_uuid=''):
+    directory,uuid=validate_local_disk(path,db_path,expected_uuid)
+    fd,name=tempfile.mkstemp(prefix='.godseye-write-test-',dir=directory)
+    try:
+        with os.fdopen(fd,'wb') as f:
+            f.write(b'GODSEYE backup connection test');f.flush();os.fsync(f.fileno())
+    finally:
+        Path(name).unlink(missing_ok=True)
+    return uuid
 
 
 def create_bundle(db_path, key_path, destination, config):
@@ -94,8 +137,9 @@ def create_bundle(db_path, key_path, destination, config):
 
 
 class OffsiteBackupManager:
-    def __init__(self,db_factory,db_path,key_path,config_export):
+    def __init__(self,db_factory,db_path,key_path,config_export,local=False):
         self.db_factory=db_factory; self.db_path=db_path; self.key_path=key_path; self.config_export=config_export
+        self.local=local;self.table='local_backup_settings' if local else 'portable_backup_settings';self.history='local_backup_history' if local else 'portable_backup_history'
         self.stop_event=threading.Event(); self.thread=None; self.lock=threading.Lock()
     def start(self):
         if self.thread and self.thread.is_alive(): return
@@ -109,7 +153,7 @@ class OffsiteBackupManager:
             except Exception as exc:print('[GODSEYE] offsite backup:',exc)
     def run_if_due(self):
         now=dt.datetime.now(dt.timezone.utc)
-        with self.db_factory() as c: cfg=settings(c)
+        with self.db_factory() as c: cfg=local_settings(c) if self.local else settings(c)
         last=cfg['last_success_at'] or ''
         attempt=cfg['last_attempt_at'] or ''
         if not cfg['enabled'] or now.hour<int(cfg['hour_utc']) or last[:10]==now.date().isoformat():return
@@ -120,12 +164,15 @@ class OffsiteBackupManager:
             except ValueError:pass
         self.run()
     def run(self):
-        if not self.lock.acquire(blocking=False):raise RuntimeError('A shared-drive backup is already running')
+        if not self.lock.acquire(blocking=False):raise RuntimeError('A backup to this destination is already running')
         local_name=None; partial=None
         try:
             with self.db_factory() as c:
-                cfg=settings(c); c.execute("UPDATE portable_backup_settings SET last_attempt_at=? WHERE id=1",(utcnow(),))
-            share=validate_share(cfg['share_path'])
+                cfg=local_settings(c) if self.local else settings(c); c.execute(f"UPDATE {self.table} SET last_attempt_at=? WHERE id=1",(utcnow(),))
+            if self.local:
+                if not cfg['volume_uuid']:raise ValueError('The backup disk identity is not configured')
+                share,_=validate_local_disk(cfg['share_path'],self.db_path,cfg['volume_uuid'])
+            else:share=validate_share(cfg['share_path'])
             with self.db_factory() as c: config=self.config_export(c)
             fd,local_name=tempfile.mkstemp(prefix='godseye-portable-',suffix='.zip',dir=Path(self.db_path).parent);os.close(fd)
             create_bundle(self.db_path,self.key_path,local_name,config)
@@ -141,19 +188,19 @@ class OffsiteBackupManager:
             with open(local_name,'rb') as a,open(partial,'rb') as b:
                 while True:
                     x=a.read(1024*1024);y=b.read(1024*1024)
-                    if x!=y:raise RuntimeError('Shared-drive verification failed')
+                    if x!=y:raise RuntimeError('Backup destination verification failed')
                     if not x:break
             os.replace(partial,share/filename);partial=None
             with self.db_factory() as c:
-                c.execute("UPDATE portable_backup_settings SET last_success_at=?,last_error='' WHERE id=1",(utcnow(),))
-                c.execute("INSERT INTO portable_backup_history(created_at,filename,status) VALUES(?,?,'complete')",(utcnow(),filename))
+                c.execute(f"UPDATE {self.table} SET last_success_at=?,last_error='' WHERE id=1",(utcnow(),))
+                c.execute(f"INSERT INTO {self.history}(created_at,filename,status) VALUES(?,?,'complete')",(utcnow(),filename))
             files=sorted(share.glob('godseye-full-'+cfg['instance_token']+'-????????T????????????Z.zip'),reverse=True)
             for old in files[int(cfg['keep_count']):]:old.unlink()
             return {'ok':True,'filename':filename}
         except Exception as exc:
             with self.db_factory() as c:
-                c.execute('UPDATE portable_backup_settings SET last_error=? WHERE id=1',(str(exc)[:500],))
-                c.execute("INSERT INTO portable_backup_history(created_at,status,detail) VALUES(?,'failed',?)",(utcnow(),str(exc)[:500]))
+                c.execute(f'UPDATE {self.table} SET last_error=? WHERE id=1',(str(exc)[:500],))
+                c.execute(f"INSERT INTO {self.history}(created_at,status,detail) VALUES(?,'failed',?)",(utcnow(),str(exc)[:500]))
             raise
         finally:
             if partial:Path(partial).unlink(missing_ok=True)

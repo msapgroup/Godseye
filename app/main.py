@@ -59,7 +59,7 @@ from . import access_control as acl
 from .device_identity import (ensure_schema as ensure_identity_schema, remember_address,
                               find_device, save_names, saved_names, named_device, restore_names)
 from .appliance_hardening import BACKUP_DIR, KEY_PATH
-from .offsite_backup import OffsiteBackupManager, ensure_schema as ensure_portable_backup_schema, settings as portable_backup_settings, test_share
+from .offsite_backup import OffsiteBackupManager, ensure_schema as ensure_portable_backup_schema, settings as portable_backup_settings, local_settings as local_backup_settings, test_share, test_local_disk
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -911,11 +911,15 @@ async def lifespan(app):
     offsite_backup_manager=OffsiteBackupManager(db,DB_PATH,KEY_PATH,config_export)
     app.state.offsite_backup_manager=offsite_backup_manager
     offsite_backup_manager.start()
+    local_backup_manager=OffsiteBackupManager(db,DB_PATH,KEY_PATH,config_export,local=True)
+    app.state.local_backup_manager=local_backup_manager
+    local_backup_manager.start()
     cyber_schedule_manager=CyberScheduleManager(db,DB_PATH.parent)
     app.state.cyber_schedule_manager=cyber_schedule_manager
     cyber_schedule_manager.start()
     yield
     cyber_schedule_manager.stop()
+    local_backup_manager.stop()
     offsite_backup_manager.stop()
     production_manager.stop()
     windows_event_manager.stop()
@@ -8051,6 +8055,7 @@ html:not([data-theme="dark"]) :is(.v430-global-search,.v430-bell,.user-chip,.aut
 <div class="view" id="view-health" style="display:none">
 <div class="hero"><div><h1>System Health</h1><div class="muted">Monitor appliance health, backups, services, integrations, and system resources.</div></div><div class="actions"><button class="primary" onclick="loadHealth()">Run Health Check</button><button class="secondary" onclick="createBackup()">Create Backup</button><button class="secondary" onclick="document.getElementById('healthAdvanced').open=true;document.getElementById('healthChecks').scrollIntoView()">View Logs</button><button class="secondary" onclick="document.getElementById('healthAdvanced').open=true;document.getElementById('updateFile').scrollIntoView()">Check for Updates</button></div></div>
 <section class="panel admin-only" id="portableBackupPanel" style="margin:14px 0"><div class="table-head"><div><h2>Backup &amp; Restore</h2><div class="muted">Download reminders and scheduled off-server copies</div></div><button type="button" class="primary" onclick="exportFullBackup()">Download Full Backup</button></div><div style="padding:16px;display:grid;gap:14px"><div class="v430-health-facts"><div>Last download started <b id="portableLastDownload">Never</b></div><div>Last shared-drive backup <b id="portableLastSuccess">Never</b></div><div>Shared-drive status <b id="portableShareStatus">Not configured</b></div></div><div class="portable-form"><label>Download reminders <select id="portableReminders" class="filter"><option value="1">Enabled</option><option value="0">Disabled</option></select></label><label>Remind every (days) <input id="portableReminderDays" class="input" type="number" min="1" max="365" value="7"></label><label>Shared-drive backup <select id="portableEnabled" class="filter"><option value="0">Disabled</option><option value="1">Enabled</option></select></label><label>Mounted SMB share path <input id="portableSharePath" class="input" placeholder="/var/lib/godseye/offsite"></label><label>Daily backup hour (UTC) <input id="portableHour" class="input" type="number" min="0" max="23" value="2"></label><label>Backups to keep <input id="portableKeep" class="input" type="number" min="1" max="100" value="30"></label></div><p class="muted">Mount the SMB share at /var/lib/godseye/offsite and grant the GODSEYE service write access. The ZIP is not encrypted and contains the database and encryption key; restrict access to the share.</p><div class="actions"><button class="secondary" type="button" onclick="testPortableShare()">Test Connection</button><button class="primary" type="button" onclick="savePortableSettings()">Save Settings</button><button class="secondary" type="button" onclick="runPortableBackup()">Back Up to Share Now</button><button class="secondary" type="button" onclick="document.getElementById('healthAdvanced').open=true;document.getElementById('fullRestoreFile').scrollIntoView()">Restore from ZIP</button></div><div id="portableBackupMessage" class="muted" role="status"></div><div id="portableBackupHistory" class="muted"></div></div></section>
+<section class="panel admin-only" id="localBackupPanel" style="margin:14px 0"><div class="table-head"><div><h2>Attached Disk Backup</h2><div class="muted">Independent schedule and retention; can run alongside the network share.</div></div></div><div style="padding:16px;display:grid;gap:14px"><div class="v430-health-facts"><div>Last disk backup <b id="localLastSuccess">Never</b></div><div>Disk backup status <b id="localBackupStatus">Not configured</b></div></div><div class="portable-form"><label>Disk backup <select id="localBackupEnabled" class="filter"><option value="0">Disabled</option><option value="1">Enabled</option></select></label><label>Mounted local disk path <input id="localBackupPath" class="input" placeholder="/var/lib/godseye/local-backups"></label><label>Daily backup hour (UTC) <input id="localBackupHour" class="input" type="number" min="0" max="23" value="2"></label><label>Backups to keep <input id="localBackupKeep" class="input" type="number" min="1" max="100" value="30"></label></div><p class="muted">Mount a separate disk at /var/lib/godseye/local-backups and grant GODSEYE write access. The ZIP is not encrypted and contains the database and encryption key.</p><div class="actions"><button class="secondary" type="button" onclick="testLocalBackup()">Test Disk</button><button class="primary" type="button" onclick="saveLocalBackup()">Save Disk Settings</button><button class="secondary" type="button" onclick="runLocalBackup()">Back Up to Disk Now</button></div><div id="localBackupMessage" class="muted" role="status"></div><div id="localBackupHistory" class="muted"></div></div></section>
 <div class="v430-health-status-grid cards">
 <div class="card v430-health-card"><span class="v430-health-icon"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="6" rx="1"/><rect x="3" y="14" width="18" height="6" rx="1"/><path d="M7 7h.01M7 17h.01"/></svg></span><div><small>Web Service</small><b id="healthOverall">—</b><em>Application service</em></div></div>
 <div class="card v430-health-card"><span class="v430-health-icon green"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg></span><div><small>Scanner</small><b id="v430HealthScanner">Checking</b><em>Network scanner</em></div></div>
@@ -10216,9 +10221,15 @@ function renderHealthSummary(h,retention,backups,settings,notifications){
  const events=document.getElementById('healthEventSummary'),notes=Array.isArray(notifications)?notifications:[];if(events)events.innerHTML=notes.length?notes.slice(0,5).map(x=>`<div><span>${esc(x.event_type||'Delivery')}</span><b>${esc(x.status||'unknown')}</b></div>`).join(''):'<div>No recent system events.</div>';
  json('/api/v1/analytics/traffic?minutes=60').then(r=>{const last=(r.samples||[]).at(-1);if(last){put('healthNetworkRate',fmtBits(last.rx_bps)+' ↓  ·  '+fmtBits(last.tx_bps)+' ↑');put('healthNetworkInterface',last.interface||'Network interface');const netbar=document.getElementById('healthNetworkBar');if(netbar)netbar.style.width=Math.min(100,Math.max(4,Number(last.rx_bps||0)/1e7))+'%'}}).catch(()=>{});
 }
-async function loadHealth(){if(ME?.role==='admin')loadPortableBackup();try{const [h,r,b,p,tls,nh]=await Promise.all([json('/api/v1/appliance/health'),json('/api/v1/appliance/retention').catch(()=>null),json('/api/v1/appliance/backups').catch(()=>[]),json('/api/v1/appliance/production-settings').catch(()=>null),json('/api/v1/appliance/https').catch(()=>null),json('/api/v1/notifications/history').catch(()=>[])]);LAST_HEALTH_CHECKS=Array.isArray(h.checks)?h.checks:[];healthOverall.textContent=(h.overall||'unknown').toUpperCase();healthOverall.classList.toggle('bad',String(h.overall||'unknown').toLowerCase()!=='ok');healthHost.textContent=h.hostname||'—';healthKernel.textContent=h.kernel||'—';v430RenderHealthPage(h,b,p);renderHealthSummary(h,r,b,p,nh);healthChecks.innerHTML=(h.checks||[]).map(x=>`<tr><td>${esc(x.name)}</td><td><span class="pill ${x.status==='ok'?'online':x.status==='critical'?'offline':''}">${esc(x.status)}</span></td><td>${esc(v430HealthDetail(x))}</td></tr>`).join('');if(r){retTraffic.value=r.traffic_retention_days;retEvents.value=r.event_retention_days;retAudit.value=r.audit_retention_days;retReports.value=r.report_retention_days;retSync.value=r.sync_retention_days;retNotify.value=r.notification_retention_days}backupRows.innerHTML=(b||[]).map(x=>`<tr><td>${esc(new Date(x.created_at).toLocaleString())}</td><td>${esc(x.filename)}</td><td>${(x.size_bytes/1024/1024).toFixed(2)} MB</td><td>${esc(x.note||'')}</td><td><button class="link" onclick="restoreBackup('${esc(x.filename)}')">Restore</button></td></tr>`).join('')||'<tr><td colspan="5" class="empty">No backups yet.</td></tr>';if(p){prodAutoBackup.value=p.auto_backup_enabled?'1':'0';prodBackupHour.value=p.backup_hour_utc;prodBackupKeep.value=p.backup_keep_count;prodUpdateChannel.value=p.update_channel||'stable'}if(tls){tlsStatus.textContent=tls.configured?'HTTPS certificate is installed on this appliance.':'HTTPS certificate is not configured yet.';httpsOut.textContent=tls.helper||''}notificationHistoryRows.innerHTML=(nh||[]).map(x=>`<tr><td>${esc(new Date(x.created_at).toLocaleString())}</td><td>${esc(x.event_type)}</td><td>${esc(x.severity)}</td><td>${esc(x.status)}</td><td>${x.attempts||1}</td><td><button class="link" onclick="retryNotification(${x.id})">Retry</button></td></tr>`).join('')||'<tr><td colspan="6" class="empty">No notification history.</td></tr>'}catch(e){healthChecks.innerHTML='<tr><td colspan="3">'+esc(e.message)+'</td></tr>'}}
+async function loadHealth(){if(ME?.role==='admin'){loadPortableBackup();loadLocalBackup()}try{const [h,r,b,p,tls,nh]=await Promise.all([json('/api/v1/appliance/health'),json('/api/v1/appliance/retention').catch(()=>null),json('/api/v1/appliance/backups').catch(()=>[]),json('/api/v1/appliance/production-settings').catch(()=>null),json('/api/v1/appliance/https').catch(()=>null),json('/api/v1/notifications/history').catch(()=>[])]);LAST_HEALTH_CHECKS=Array.isArray(h.checks)?h.checks:[];healthOverall.textContent=(h.overall||'unknown').toUpperCase();healthOverall.classList.toggle('bad',String(h.overall||'unknown').toLowerCase()!=='ok');healthHost.textContent=h.hostname||'—';healthKernel.textContent=h.kernel||'—';v430RenderHealthPage(h,b,p);renderHealthSummary(h,r,b,p,nh);healthChecks.innerHTML=(h.checks||[]).map(x=>`<tr><td>${esc(x.name)}</td><td><span class="pill ${x.status==='ok'?'online':x.status==='critical'?'offline':''}">${esc(x.status)}</span></td><td>${esc(v430HealthDetail(x))}</td></tr>`).join('');if(r){retTraffic.value=r.traffic_retention_days;retEvents.value=r.event_retention_days;retAudit.value=r.audit_retention_days;retReports.value=r.report_retention_days;retSync.value=r.sync_retention_days;retNotify.value=r.notification_retention_days}backupRows.innerHTML=(b||[]).map(x=>`<tr><td>${esc(new Date(x.created_at).toLocaleString())}</td><td>${esc(x.filename)}</td><td>${(x.size_bytes/1024/1024).toFixed(2)} MB</td><td>${esc(x.note||'')}</td><td><button class="link" onclick="restoreBackup('${esc(x.filename)}')">Restore</button></td></tr>`).join('')||'<tr><td colspan="5" class="empty">No backups yet.</td></tr>';if(p){prodAutoBackup.value=p.auto_backup_enabled?'1':'0';prodBackupHour.value=p.backup_hour_utc;prodBackupKeep.value=p.backup_keep_count;prodUpdateChannel.value=p.update_channel||'stable'}if(tls){tlsStatus.textContent=tls.configured?'HTTPS certificate is installed on this appliance.':'HTTPS certificate is not configured yet.';httpsOut.textContent=tls.helper||''}notificationHistoryRows.innerHTML=(nh||[]).map(x=>`<tr><td>${esc(new Date(x.created_at).toLocaleString())}</td><td>${esc(x.event_type)}</td><td>${esc(x.severity)}</td><td>${esc(x.status)}</td><td>${x.attempts||1}</td><td><button class="link" onclick="retryNotification(${x.id})">Retry</button></td></tr>`).join('')||'<tr><td colspan="6" class="empty">No notification history.</td></tr>'}catch(e){healthChecks.innerHTML='<tr><td colspan="3">'+esc(e.message)+'</td></tr>'}}
 function openBackupSettings(){showView('health');setTimeout(()=>document.getElementById('portableBackupPanel')?.scrollIntoView({behavior:'smooth'}),100)}
-async function loadPortableBackup(){if(ME?.role!=='admin')return;try{const x=await json('/api/v1/appliance/portable-backup');portableReminders.value=x.reminders_enabled?'1':'0';portableReminderDays.value=x.reminder_days;portableEnabled.value=x.enabled?'1':'0';portableSharePath.value=x.share_path||'';portableHour.value=x.hour_utc;portableKeep.value=x.keep_count;portableLastDownload.textContent=x.last_download_at?new Date(x.last_download_at).toLocaleString():'Never';portableLastSuccess.textContent=x.last_success_at?new Date(x.last_success_at).toLocaleString():'Never';portableShareStatus.textContent=x.last_error?'Backup failed':x.enabled?'Scheduled':'Not enabled';portableBackupMessage.textContent=x.last_error?'Last backup failed: '+x.last_error:'Backups include sensitive data and the encryption key.';portableBackupHistory.textContent=(x.history||[]).slice(0,3).map(h=>new Date(h.created_at).toLocaleString()+' · '+h.status+(h.filename?' · '+h.filename:'')).join(' | ')||'No shared-drive backups yet.';document.getElementById('backupReminderText').textContent=x.last_error?'Shared-drive backup failed. Review Backup & Restore.':'Full backup download is due.';document.getElementById('backupReminderBar').style.display=(x.download_overdue||x.last_error)?'block':'none'}catch(e){portableBackupMessage.textContent='Could not load backup settings: '+e.message}}
+let SHARED_BACKUP_STATE=null,LOCAL_BACKUP_STATE=null;
+function renderBackupReminder(){const shared=SHARED_BACKUP_STATE,local=LOCAL_BACKUP_STATE;const error=shared?.last_error?'Shared-drive backup failed.':local?.last_error?'Attached-disk backup failed.':'';document.getElementById('backupReminderText').textContent=error||'Full backup download is due.';document.getElementById('backupReminderBar').style.display=(shared?.download_overdue||error)?'block':'none'}
+async function loadLocalBackup(){if(ME?.role!=='admin')return;try{const x=await json('/api/v1/appliance/local-backup');LOCAL_BACKUP_STATE=x;localBackupEnabled.value=x.enabled?'1':'0';localBackupPath.value=x.share_path||'';localBackupHour.value=x.hour_utc;localBackupKeep.value=x.keep_count;localLastSuccess.textContent=x.last_success_at?new Date(x.last_success_at).toLocaleString():'Never';localBackupStatus.textContent=x.last_error?'Backup failed':x.enabled?'Scheduled':'Not enabled';localBackupMessage.textContent=x.last_error?'Last disk backup failed: '+x.last_error:'Backups include sensitive data and the encryption key.';localBackupHistory.textContent=(x.history||[]).slice(0,3).map(h=>new Date(h.created_at).toLocaleString()+' · '+h.status+(h.filename?' · '+h.filename:'')).join(' | ')||'No disk backups yet.';renderBackupReminder()}catch(e){localBackupMessage.textContent='Could not load disk backup settings: '+e.message}}
+async function saveLocalBackup(){try{await json('/api/v1/appliance/local-backup',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:localBackupEnabled.value==='1',share_path:localBackupPath.value.trim(),hour_utc:Number(localBackupHour.value),keep_count:Number(localBackupKeep.value)})});await loadLocalBackup();localBackupMessage.textContent='Disk backup settings saved.'}catch(e){localBackupMessage.textContent='Could not save disk backup settings: '+e.message}}
+async function testLocalBackup(){try{const x=await json('/api/v1/appliance/local-backup/test',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({share_path:localBackupPath.value.trim()})});localBackupMessage.textContent=x.message}catch(e){localBackupMessage.textContent='Disk test failed: '+e.message}}
+async function runLocalBackup(){localBackupMessage.textContent='Creating and verifying disk backup…';try{const x=await json('/api/v1/appliance/local-backup/run',{method:'POST'});await loadLocalBackup();localBackupMessage.textContent='Backup saved to disk: '+x.filename}catch(e){await loadLocalBackup();localBackupMessage.textContent='Backup failed: '+e.message}}
+async function loadPortableBackup(){if(ME?.role!=='admin')return;try{const x=await json('/api/v1/appliance/portable-backup');portableReminders.value=x.reminders_enabled?'1':'0';portableReminderDays.value=x.reminder_days;portableEnabled.value=x.enabled?'1':'0';portableSharePath.value=x.share_path||'';portableHour.value=x.hour_utc;portableKeep.value=x.keep_count;portableLastDownload.textContent=x.last_download_at?new Date(x.last_download_at).toLocaleString():'Never';portableLastSuccess.textContent=x.last_success_at?new Date(x.last_success_at).toLocaleString():'Never';portableShareStatus.textContent=x.last_error?'Backup failed':x.enabled?'Scheduled':'Not enabled';portableBackupMessage.textContent=x.last_error?'Last backup failed: '+x.last_error:'Backups include sensitive data and the encryption key.';portableBackupHistory.textContent=(x.history||[]).slice(0,3).map(h=>new Date(h.created_at).toLocaleString()+' · '+h.status+(h.filename?' · '+h.filename:'')).join(' | ')||'No shared-drive backups yet.';SHARED_BACKUP_STATE=x;renderBackupReminder()}catch(e){portableBackupMessage.textContent='Could not load backup settings: '+e.message}}
 async function savePortableSettings(){try{await json('/api/v1/appliance/portable-backup',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({reminders_enabled:portableReminders.value==='1',reminder_days:Number(portableReminderDays.value),enabled:portableEnabled.value==='1',share_path:portableSharePath.value.trim(),hour_utc:Number(portableHour.value),keep_count:Number(portableKeep.value)})});await loadPortableBackup();portableBackupMessage.textContent='Backup settings saved.'}catch(e){portableBackupMessage.textContent='Could not save backup settings: '+e.message}}
 async function testPortableShare(){try{const x=await json('/api/v1/appliance/portable-backup/test',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({share_path:portableSharePath.value.trim()})});portableBackupMessage.textContent=x.message}catch(e){portableBackupMessage.textContent='Share test failed: '+e.message}}
 async function runPortableBackup(){portableBackupMessage.textContent='Creating and verifying shared-drive backup…';try{const x=await json('/api/v1/appliance/portable-backup/run',{method:'POST'});await loadPortableBackup();portableBackupMessage.textContent='Backup saved to shared drive: '+x.filename}catch(e){await loadPortableBackup();portableBackupMessage.textContent='Backup failed: '+e.message}}
@@ -10435,7 +10446,7 @@ async function boot(){decorateHeaderHelp();
     }else pwBar.style.display='none';
   }
   showApp();
-  if(ME.role==='admin')loadPortableBackup();
+  if(ME.role==='admin'){loadPortableBackup();loadLocalBackup()}
   const rawHash=(location.hash||'#overview').slice(1);
   showView(document.getElementById('view-'+rawHash)?rawHash:'overview',false);
   Promise.allSettled([
@@ -11252,6 +11263,53 @@ class PortableBackupSettingsRequest(BaseModel):
 
 class BackupShareTestRequest(BaseModel):
     share_path: str
+
+class LocalBackupSettingsRequest(BaseModel):
+    enabled: bool = False
+    share_path: str = ''
+    hour_utc: int = 2
+    keep_count: int = 30
+
+@app.get(f"{router_prefix}/appliance/local-backup")
+def get_local_backup(user=Depends(require_admin)):
+    with db() as c:
+        result=local_backup_settings(c)
+        result['history']=[dict(r) for r in c.execute('SELECT * FROM local_backup_history ORDER BY id DESC LIMIT 20')]
+    return result
+
+@app.put(f"{router_prefix}/appliance/local-backup")
+def save_local_backup(req: LocalBackupSettingsRequest,request: Request,user=Depends(require_admin)):
+    if not 0<=req.hour_utc<=23 or not 1<=req.keep_count<=100:raise HTTPException(400,'Invalid schedule or retention setting')
+    path=req.share_path.strip()
+    if len(path)>1024 or '\x00' in path:raise HTTPException(400,'Invalid disk path')
+    with db() as c:old=local_backup_settings(c)
+    expected=old['volume_uuid'] if old['share_path']==path else ''
+    uuid=expected
+    if req.enabled:
+        try:uuid=test_local_disk(path,DB_PATH,expected)
+        except (OSError,ValueError,subprocess.SubprocessError) as exc:raise HTTPException(400,str(exc))
+    with db() as c:
+        ensure_portable_backup_schema(c)
+        c.execute('UPDATE local_backup_settings SET enabled=?,share_path=?,hour_utc=?,keep_count=?,volume_uuid=? WHERE id=1',
+                  (int(req.enabled),path,req.hour_utc,req.keep_count,uuid))
+        audit(c,user['username'],'local_backup_settings_updated',details=json.dumps({'enabled':req.enabled,'hour_utc':req.hour_utc,'keep_count':req.keep_count}),ip=client_ip(request))
+    return {'ok':True}
+
+@app.post(f"{router_prefix}/appliance/local-backup/test")
+def test_local_backup(req: BackupShareTestRequest,user=Depends(require_admin)):
+    path=req.share_path.strip()
+    with db() as c:old=local_backup_settings(c)
+    expected=old['volume_uuid'] if old['share_path']==path else ''
+    try:test_local_disk(path,DB_PATH,expected)
+    except (OSError,ValueError,subprocess.SubprocessError) as exc:raise HTTPException(400,str(exc))
+    return {'ok':True,'message':'The mounted disk is writable.'}
+
+@app.post(f"{router_prefix}/appliance/local-backup/run")
+def run_local_backup(request: Request,user=Depends(require_admin)):
+    try:result=app.state.local_backup_manager.run()
+    except (OSError,ValueError,RuntimeError,subprocess.SubprocessError) as exc:raise HTTPException(400,str(exc))
+    with db() as c:audit(c,user['username'],'local_backup_created',target=result['filename'],ip=client_ip(request))
+    return result
 
 @app.get(f"{router_prefix}/appliance/portable-backup")
 def get_portable_backup(user=Depends(require_admin)):
