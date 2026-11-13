@@ -4,6 +4,7 @@ import datetime as dt
 import hashlib
 import json
 import os
+import re
 import secrets
 from pathlib import Path
 import sqlite3
@@ -11,6 +12,23 @@ import subprocess
 import tempfile
 import threading
 import zipfile
+
+AUTO_MOUNT_ROOT=Path('/var/lib/godseye-local-backup')
+AUTO_BACKUP_PATH=AUTO_MOUNT_ROOT/'.godseye-backups'
+MOUNT_HELPER='/usr/local/sbin/godseye-mount-backup'
+
+
+def mount_local_disk(uuid):
+    if not re.fullmatch(r'[A-Za-z0-9-]{1,128}',uuid or ''):
+        raise ValueError('Invalid disk UUID')
+    try:
+        result=subprocess.run(['sudo','-n',MOUNT_HELPER,uuid],capture_output=True,text=True,timeout=30,check=False)
+    except (OSError,subprocess.SubprocessError) as exc:
+        raise RuntimeError('Automatic disk mounting is unavailable. Reinstall the GODSEYE server update.') from exc
+    if result.returncode:
+        raise RuntimeError('Could not mount the disk: '+(result.stderr.strip() or 'mount helper failed')[:300])
+    if result.stdout.strip()!=str(AUTO_BACKUP_PATH):raise RuntimeError('Mount helper returned an unexpected path')
+    return str(AUTO_BACKUP_PATH)
 
 
 def utcnow():
@@ -79,9 +97,11 @@ def test_share(path):
 
 def validate_local_disk(path, db_path, expected_uuid=''):
     path=Path(path)
-    if not path.is_absolute() or not path.is_dir() or not os.path.ismount(path):
+    auto=path==AUTO_BACKUP_PATH
+    mountpoint=AUTO_MOUNT_ROOT if auto else path
+    if not path.is_absolute() or not path.is_dir() or not os.path.ismount(mountpoint) or (auto and path.is_symlink()):
         raise ValueError('Enter the mount point of an attached local disk')
-    result=subprocess.run(['findmnt','-n','-r','-o','FSTYPE,SOURCE,UUID','--mountpoint',str(path)],capture_output=True,text=True,timeout=5,check=False)
+    result=subprocess.run(['findmnt','-n','-r','-o','FSTYPE,SOURCE,UUID','--mountpoint',str(mountpoint)],capture_output=True,text=True,timeout=5,check=False)
     fields=result.stdout.strip().split()
     local_filesystems={'ext2','ext3','ext4','xfs','btrfs','vfat','exfat','ntfs','ntfs3','fuseblk'}
     if result.returncode or len(fields)!=3 or fields[0].lower() not in local_filesystems or not fields[1].startswith('/dev/') or fields[2]=='-':
@@ -91,6 +111,54 @@ def validate_local_disk(path, db_path, expected_uuid=''):
     if expected_uuid and fields[2]!=expected_uuid:
         raise ValueError('The mounted disk is not the disk saved in backup settings')
     return path,fields[2]
+
+
+def discover_local_disks(db_path):
+    """List local filesystems without mounting or modifying any device."""
+    try:
+        result=subprocess.run(['lsblk','--json','--bytes','--paths','--output',
+                               'NAME,TYPE,FSTYPE,UUID,LABEL,MOUNTPOINTS,SIZE,RO'],
+                              capture_output=True,text=True,timeout=8,check=False)
+    except (OSError,subprocess.SubprocessError) as exc:
+        raise RuntimeError('Unable to scan attached disks: '+str(exc)) from exc
+    if result.returncode:
+        raise RuntimeError('Unable to scan attached disks: '+(result.stderr.strip() or 'lsblk failed')[:200])
+    try: devices=json.loads(result.stdout)['blockdevices']
+    except (ValueError,KeyError,TypeError) as exc:raise RuntimeError('Unable to read disk information') from exc
+    supported={'ext2','ext3','ext4','xfs','btrfs','vfat','exfat','ntfs','ntfs3','fuseblk'}
+    disks=[]
+    def visit(nodes):
+        for node in nodes:
+            children=node.get('children') or []
+            if children:visit(children)
+            fs=str(node.get('fstype') or '').lower()
+            name=str(node.get('name') or '')
+            uuid=str(node.get('uuid') or '')
+            if fs not in supported or not name.startswith('/dev/') or not uuid:continue
+            mounts=[m for m in (node.get('mountpoints') or []) if isinstance(m,str) and m]
+            # Bound the amount of work on hosts with unusually large block lists.
+            for path in (mounts or [''])[:8]:
+                if len(disks)>=100:return
+                auto_mount=not path and not node.get('ro')
+                ready=auto_mount;reason='Ready to mount automatically' if auto_mount else 'Disk is read-only'
+                if path==str(AUTO_MOUNT_ROOT):path=str(AUTO_BACKUP_PATH)
+                if path:
+                    try:
+                        validate_local_disk(path,db_path)
+                        if node.get('ro'):
+                            reason='Disk is read-only'
+                        elif not os.access(path,os.W_OK):
+                            reason='GODSEYE cannot write to this mount'
+                        else:
+                            ready=True;reason='Ready'
+                    except (OSError,ValueError,subprocess.SubprocessError) as exc:
+                        reason=str(exc)
+                        if 'same' in reason or 'separate' in reason:continue
+                disks.append({'device':name,'label':str(node.get('label') or ''),
+                              'uuid':uuid,'mountpoint':path,'size_bytes':node.get('size'),
+                              'ready':ready,'reason':reason,'auto_mount':auto_mount})
+    visit(devices)
+    return disks
 
 
 def test_local_disk(path, db_path, expected_uuid=''):
@@ -171,6 +239,8 @@ class OffsiteBackupManager:
                 cfg=local_settings(c) if self.local else settings(c); c.execute(f"UPDATE {self.table} SET last_attempt_at=? WHERE id=1",(utcnow(),))
             if self.local:
                 if not cfg['volume_uuid']:raise ValueError('The backup disk identity is not configured')
+                if cfg['share_path']==str(AUTO_BACKUP_PATH) and not os.path.ismount(AUTO_MOUNT_ROOT):
+                    mount_local_disk(cfg['volume_uuid'])
                 share,_=validate_local_disk(cfg['share_path'],self.db_path,cfg['volume_uuid'])
             else:share=validate_share(cfg['share_path'])
             with self.db_factory() as c: config=self.config_export(c)
