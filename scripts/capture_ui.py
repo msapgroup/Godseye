@@ -148,7 +148,7 @@ async def main():
             if view == "health":
                 await page.locator("#portableBackupPanel").wait_for(state="visible")
                 assert await page.get_by_role("button", name="Back Up to Share Now").is_visible()
-                await page.screenshot(path=str(OUT / "v431-full-backup-restore.png"), full_page=False)
+                await page.screenshot(path=str(OUT / "v431-backup-automation.png"), full_page=False)
             await page.screenshot(path=str(OUT / filename), full_page=True)
             if view == "edr":
                 await page.get_by_role("tab", name="Alerts & review").click()
