@@ -216,8 +216,10 @@ def sync_integration(c, identifier):
         if kind=='pihole':
             result=pihole_client_observations(cfg['target'], cfg.get('secret') or None, verify_tls=bool(cfg.get('verify_tls')))
             observations=result.get('observations',[])
-            count=ingest_observations(c,'pihole',observations)
+            # Finish network requests before writing observations, so a slow
+            # Pi-hole cannot hold SQLite's writer lock while users sign in.
             analytics=pihole_analytics(cfg['target'],cfg.get('secret') or None, verify_tls=bool(cfg.get('verify_tls')))
+            count=ingest_observations(c,'pihole',observations)
         elif kind=='unifi':
             result=unifi_client_observations(cfg['target'],cfg.get('username',''),cfg.get('secret',''),bool(cfg.get('verify_tls')),options.get('site','default'))
             observations=result.get('observations',[])

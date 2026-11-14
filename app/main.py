@@ -36,6 +36,7 @@ from starlette.background import BackgroundTask
 from pydantic import BaseModel, field_validator
 from PIL import Image, UnidentifiedImageError
 
+from .db_connection import ClosingConnection
 from .auth import generate_totp_secret, hash_password, new_token, totp_provisioning_uri, verify_password, verify_totp
 from .diagnostics import diagnose_device, recommendations
 from .diagnostic_rules import analyze as analyze_diagnostic
@@ -240,7 +241,7 @@ def record_password_history(c, user_id: int, old_salt: str, old_hash: str):
 
 def db():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    c = sqlite3.connect(DB_PATH, timeout=10)
+    c = sqlite3.connect(DB_PATH, timeout=10, factory=ClosingConnection)
     c.row_factory = sqlite3.Row
     c.execute("PRAGMA busy_timeout=10000")
     return c
@@ -9662,8 +9663,8 @@ function installSidebarNavigation(){
   });
 }
 installSidebarNavigation();
-async function doLogin(e){e.preventDefault();const err=document.getElementById('loginErr');err.textContent='';try{let r=await fetch('/api/v1/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:loginUser.value,password:loginPass.value})});if(r.status===423){err.textContent='Account temporarily locked due to repeated failed logins. Try again later.';return false}if(!r.ok){err.textContent='Invalid username or password';return false}let data=await r.json();if(data.mfa_required){PENDING_MFA_TOKEN=data.pending_token;document.getElementById('authOverlay').style.display='none';document.getElementById('mfaLoginOverlay').style.display='grid';return false}if(data.must_change_password){document.getElementById('authOverlay').style.display='none';document.getElementById('pwOverlay').style.display='grid';return false}await boot()}catch(e){err.textContent='Sign-in failed'}return false}
-async function doMfaVerify(e){e.preventDefault();const err=document.getElementById('mfaLoginErr');err.textContent='';try{let r=await fetch('/api/v1/auth/mfa/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pending_token:PENDING_MFA_TOKEN,code:mfaCode.value.trim()})});if(!r.ok){err.textContent='Invalid code';return false}let data=await r.json();PENDING_MFA_TOKEN=null;if(data.must_change_password){document.getElementById('mfaLoginOverlay').style.display='none';document.getElementById('pwOverlay').style.display='grid';return false}await boot()}catch(e){err.textContent='Verification failed'}return false}
+async function doLogin(e){e.preventDefault();const err=document.getElementById('loginErr');err.textContent='';try{let r=await fetch('/api/v1/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:loginUser.value,password:loginPass.value})});if(r.status===423){err.textContent='Account temporarily locked due to repeated failed logins. Try again later.';return false}if(!r.ok){err.textContent=r.status===401?'Invalid username or password':r.status===429?'Too many sign-in attempts. Please try again later.':'The GODSEYE server could not process sign-in. Check the server and try again.';return false}let data=await r.json();if(data.mfa_required){PENDING_MFA_TOKEN=data.pending_token;document.getElementById('authOverlay').style.display='none';document.getElementById('mfaLoginOverlay').style.display='grid';return false}if(data.must_change_password){document.getElementById('authOverlay').style.display='none';document.getElementById('pwOverlay').style.display='grid';return false}await boot()}catch(e){err.textContent='Unable to reach the GODSEYE server. Check the server connection and try again.'}return false}
+async function doMfaVerify(e){e.preventDefault();const err=document.getElementById('mfaLoginErr');err.textContent='';try{let r=await fetch('/api/v1/auth/mfa/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pending_token:PENDING_MFA_TOKEN,code:mfaCode.value.trim()})});if(!r.ok){err.textContent=r.status===401?'Invalid code or expired sign-in. Please try again.':'The GODSEYE server could not verify your code. Check the server and try again.';return false}let data=await r.json();PENDING_MFA_TOKEN=null;if(data.must_change_password){document.getElementById('mfaLoginOverlay').style.display='none';document.getElementById('pwOverlay').style.display='grid';return false}await boot()}catch(e){err.textContent='Unable to reach the GODSEYE server. Check the server connection and try again.'}return false}
 function openChangePassword(){document.getElementById('pwOverlay').style.display='grid'}
 async function doChangePassword(e){e.preventDefault();const err=document.getElementById('pwErr');err.textContent='';try{await json('/api/v1/auth/change-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({current_password:curPass.value,new_password:newPass.value})});curPass.value='';newPass.value='';showLogin();loginPass.value='';document.getElementById('loginErr').textContent='Password changed. Sign in with your new password.';loginPass.focus()}catch(e){err.textContent='Could not change password — check your current password'}return false}
 async function logout(){try{const response=await fetch('/api/v1/auth/logout',{method:'POST',headers:{'X-CSRF-Token':getCookie('godseye_csrf')||''},signal:AbortSignal.timeout(10000)});if(!response.ok)throw Error('HTTP '+response.status);showLogin()}catch(e){alert('Could not sign out. Check the connection and try again.')}}
