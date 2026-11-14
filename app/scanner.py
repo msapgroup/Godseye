@@ -10,6 +10,7 @@ import subprocess
 import time
 from pathlib import Path
 
+from .db_connection import ClosingConnection
 from . import notifications
 from .intelligence import correlate_device
 from .device_identity import (ensure_schema as ensure_identity_schema, find_device,
@@ -63,7 +64,7 @@ def now():
 
 def db():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    c = sqlite3.connect(DB_PATH, timeout=15)
+    c = sqlite3.connect(DB_PATH, timeout=15, factory=ClosingConnection)
     c.row_factory = sqlite3.Row
     c.execute("PRAGMA busy_timeout=15000")
     return c
