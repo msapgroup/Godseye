@@ -11283,7 +11283,10 @@ class LocalBackupSettingsRequest(BaseModel):
 @app.get(f"{router_prefix}/appliance/local-backup/disks")
 def list_local_backup_disks(user=Depends(require_admin)):
     try:return {'disks':discover_local_disks(DB_PATH)}
-    except RuntimeError as exc:raise HTTPException(503,str(exc))
+    except RuntimeError:
+        import logging
+        logging.getLogger('godseye.backup').exception('Failed to discover local backup disks')
+        raise HTTPException(503,'Unable to scan attached disks. Check the server logs.')
 
 class LocalDiskMountRequest(BaseModel):
     uuid: str
