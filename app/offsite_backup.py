@@ -18,6 +18,10 @@ AUTO_BACKUP_PATH=AUTO_MOUNT_ROOT/'.godseye-backups'
 MOUNT_HELPER='/usr/local/sbin/godseye-mount-backup'
 
 
+class SameFilesystemError(ValueError):
+    """The destination is on the filesystem hosting the GODSEYE data."""
+
+
 def mount_local_disk(uuid):
     if not re.fullmatch(r'[A-Za-z0-9-]{1,128}',uuid or ''):
         raise ValueError('Invalid disk UUID')
@@ -125,7 +129,7 @@ def validate_local_disk(path, db_path, expected_uuid=''):
     if fields[0].lower() not in local_filesystems or not fields[1].startswith('/dev/') or not fields[2] or fields[2]=='-':
         raise ValueError('The destination must be a mounted local disk with a filesystem UUID')
     if os.stat(path).st_dev==os.stat(Path(db_path).parent).st_dev:
-        raise ValueError('The backup disk must be separate from the GODSEYE data filesystem')
+        raise SameFilesystemError('The backup disk must be separate from the GODSEYE data filesystem')
     if expected_uuid and fields[2]!=expected_uuid:
         raise ValueError('The mounted disk is not the disk saved in backup settings')
     return path,fields[2]
@@ -169,9 +173,12 @@ def discover_local_disks(db_path):
                             reason='GODSEYE cannot write to this mount'
                         else:
                             ready=True;reason='Ready'
-                    except (OSError,ValueError,subprocess.SubprocessError) as exc:
-                        reason=str(exc)
-                        if 'same' in reason or 'separate' in reason:continue
+                    except SameFilesystemError:
+                        continue
+                    except (OSError,ValueError,subprocess.SubprocessError):
+                        import logging
+                        logging.getLogger('godseye.backup').exception('Failed to validate a discovered backup disk')
+                        reason='Disk could not be validated. Check the server logs.'
                 disks.append({'device':name,'label':str(node.get('label') or ''),
                               'uuid':uuid,'mountpoint':path,'size_bytes':node.get('size'),
                               'ready':ready,'reason':reason,'auto_mount':auto_mount})
