@@ -264,3 +264,22 @@ def test_disk_discovery_failure_does_not_disclose_exception(tmp_path, monkeypatc
         assert response.status_code == 503
         assert response.json()['detail'] == 'Unable to scan attached disks. Check the server logs.'
         assert 'sensitive' not in response.text
+
+
+def test_disk_list_does_not_expose_internal_validation_errors(tmp_path, monkeypatch):
+    import types
+    disk = {'name': '/dev/sdb1', 'fstype': 'ext4', 'uuid': 'TEST-123',
+            'mountpoints': ['/mnt/backup'], 'ro': False}
+    monkeypatch.setattr(offsite_backup.subprocess, 'run', lambda *a, **kw: types.SimpleNamespace(
+        returncode=0, stdout=json.dumps({'blockdevices': [disk]}), stderr=''))
+    def fail(*args):
+        raise OSError('sensitive internal path /var/private/secret')
+    monkeypatch.setattr(offsite_backup, 'validate_local_disk', fail)
+    result = offsite_backup.discover_local_disks(tmp_path / 'db')
+    assert len(result) == 1 and not result[0]['ready']
+    assert result[0]['reason'] == 'Disk could not be validated. Check the server logs.'
+    assert 'sensitive' not in json.dumps(result)
+    def same_disk(*args):
+        raise offsite_backup.SameFilesystemError('same filesystem')
+    monkeypatch.setattr(offsite_backup, 'validate_local_disk', same_disk)
+    assert offsite_backup.discover_local_disks(tmp_path / 'db') == []
