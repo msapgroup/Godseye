@@ -597,6 +597,8 @@ Faster storage improves:
 
 SD-card and hard-drive installations can work, but SSD-class storage is the better choice for a production MSP appliance.
 
+**Raspberry Pi USB drive power:** If GODSEYE runs from a USB SSD or hard drive, use a drive with its own power supply or connect it through a powered USB hub. A drive drawing too much power from the Pi can cause low-voltage warnings, slowdowns, instability, or unexpected drive disconnects. Use a suitable power supply for the Raspberry Pi as well. Shut down the server before changing drive connections. To check for low-voltage or throttling events on a Raspberry Pi, run `vcgencmd get_throttled`; `throttled=0x0` indicates no reported events since startup.
+
 ### Fresh install
 
 Choose either option on a supported Raspberry Pi OS, Debian, or Ubuntu-style Linux host. Run the installer from the directory containing `install.sh`.
