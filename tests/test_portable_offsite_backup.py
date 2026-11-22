@@ -93,14 +93,16 @@ def test_local_disk_rejects_wrong_uuid_and_nonlocal_mount(tmp_path, monkeypatch)
     import types
     if not Path('/dev/shm').is_mount() or Path('/dev/shm').stat().st_dev == tmp_path.stat().st_dev:
         pytest.skip('Requires a second mounted filesystem')
-    monkeypatch.setattr(offsite_backup.subprocess,'run',lambda *a,**k:types.SimpleNamespace(returncode=0,stdout='ext4 /dev/sdb1 DEVICE-123\n'))
+    def mount_output(fstype='ext4', source='/dev/sdb1'):
+        return types.SimpleNamespace(returncode=0, stdout=json.dumps({'filesystems':[{'target':'/dev/shm','fstype':fstype,'source':source,'uuid':'DEVICE-123'}]}))
+    monkeypatch.setattr(offsite_backup.subprocess,'run',lambda *a,**k:mount_output())
     assert offsite_backup.validate_local_disk('/dev/shm',tmp_path/'db','DEVICE-123')[1]=='DEVICE-123'
     with pytest.raises(ValueError,match='not the disk'):
         offsite_backup.validate_local_disk('/dev/shm',tmp_path/'db','OTHER')
-    monkeypatch.setattr(offsite_backup.subprocess,'run',lambda *a,**k:types.SimpleNamespace(returncode=0,stdout='cifs //server/share DEVICE-123\n'))
+    monkeypatch.setattr(offsite_backup.subprocess,'run',lambda *a,**k:mount_output('cifs','//server/share'))
     with pytest.raises(ValueError,match='local disk'):
         offsite_backup.validate_local_disk('/dev/shm',tmp_path/'db')
-    with pytest.raises(ValueError,match='mount point'):
+    with pytest.raises(ValueError,match='mounted filesystem'):
         offsite_backup.validate_local_disk(str(tmp_path),tmp_path/'db')
 
 
@@ -230,3 +232,35 @@ def test_mount_helper_uses_fixed_target_and_creates_private_backup_folder(tmp_pa
     mounts=[c for c in calls if c[0].endswith('/mount')]
     assert len(mounts)==1 and mounts[0][-1]==str(target)
     assert 'nodev,nosuid,noexec' in mounts[0]
+
+
+def test_backup_destinations_must_exactly_match_reported_mounts(tmp_path, monkeypatch):
+    import types
+    mounted = tmp_path / 'mount with spaces'
+    mounted.mkdir()
+    records = [{'target': str(mounted), 'fstype': 'cifs', 'source': '//server/share', 'uuid': None}]
+    monkeypatch.setattr(offsite_backup.subprocess, 'run', lambda *a, **kw: types.SimpleNamespace(returncode=0, stdout=json.dumps({'filesystems': records})))
+    monkeypatch.setattr(offsite_backup.os.path, 'ismount', lambda p: Path(p) == mounted)
+    assert offsite_backup.validate_share(str(mounted)) == mounted
+    for invalid in (str(mounted / '..' / mounted.name), str(mounted / 'subfolder'), '/etc', 'relative/path'):
+        with pytest.raises(ValueError):
+            offsite_backup.validate_share(invalid)
+    records[0]['fstype'] = 'ext4'
+    with pytest.raises(ValueError, match='SMB/CIFS'):
+        offsite_backup.validate_share(str(mounted))
+
+
+def test_disk_discovery_failure_does_not_disclose_exception(tmp_path, monkeypatch):
+    monkeypatch.setattr(main, 'DB_PATH', tmp_path / 'server.db')
+    main.init_db()
+    def failed(_):
+        raise RuntimeError('sensitive internal path /var/private/secret')
+    monkeypatch.setattr(main, 'discover_local_disks', failed)
+    with TestClient(main.app) as client:
+        password = 'GODSEYE-strong-test-2026!'
+        assert client.post('/api/v1/auth/setup', json={'current_password':'', 'new_password':password}).status_code == 200
+        assert client.post('/api/v1/auth/login', json={'username':'admin', 'password':password}).status_code == 200
+        response = client.get('/api/v1/appliance/local-backup/disks')
+        assert response.status_code == 503
+        assert response.json()['detail'] == 'Unable to scan attached disks. Check the server logs.'
+        assert 'sensitive' not in response.text

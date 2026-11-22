@@ -71,16 +71,34 @@ def local_settings(c):
     return dict(c.execute('SELECT * FROM local_backup_settings WHERE id=1').fetchone())
 
 
+def _mounted_filesystem(requested):
+    """Match a selection against kernel-reported mount targets before using it."""
+    if not isinstance(requested, (str, Path)) or not Path(requested).is_absolute():
+        raise ValueError('The selected path is not a mounted filesystem')
+    result = subprocess.run(['findmnt', '--json', '--list', '--output', 'TARGET,FSTYPE,SOURCE,UUID'],
+                            capture_output=True, text=True, timeout=5, check=False)
+    if result.returncode:
+        raise ValueError('Unable to read mounted filesystems')
+    try:
+        entries = json.loads(result.stdout)['filesystems']
+        if not isinstance(entries, list):
+            raise ValueError('Invalid mount list')
+    except (ValueError, KeyError, TypeError) as exc:
+        raise ValueError('Unable to read mounted filesystems') from exc
+    requested = str(Path(requested))
+    for entry in entries:
+        if isinstance(entry, dict) and isinstance(entry.get('target'), str) and entry['target'] == requested:
+            return entry
+    raise ValueError('The selected path is not a mounted filesystem')
+
+
 def validate_share(path):
-    path=Path(path)
-    if not path.is_absolute() or not path.is_dir():
-        raise ValueError('Enter an existing absolute path to a mounted SMB share')
-    # The path itself must be the mount point, so a disconnected share cannot
-    # silently write sensitive backups into the local mountpoint directory.
-    if not os.path.ismount(path):
+    # Only the kernel-reported mount target is used for file operations.
+    mount = _mounted_filesystem(path)
+    path = Path(mount['target'])
+    if not path.is_dir() or not os.path.ismount(path):
         raise ValueError('The selected path is not a mounted network share')
-    result=subprocess.run(['findmnt','-n','-o','FSTYPE','--mountpoint',str(path)],capture_output=True,text=True,timeout=5,check=False)
-    if result.returncode or result.stdout.strip().lower() not in ('cifs','smb3'):
+    if str(mount.get('fstype') or '').lower() not in ('cifs','smb3'):
         raise ValueError('The selected mount must be an SMB/CIFS network share')
     return path
 
@@ -96,15 +114,15 @@ def test_share(path):
 
 
 def validate_local_disk(path, db_path, expected_uuid=''):
-    path=Path(path)
-    auto=path==AUTO_BACKUP_PATH
-    mountpoint=AUTO_MOUNT_ROOT if auto else path
+    auto=str(Path(path))==str(AUTO_BACKUP_PATH)
+    mount=_mounted_filesystem(AUTO_MOUNT_ROOT if auto else path)
+    mountpoint=Path(mount['target'])
+    path=AUTO_BACKUP_PATH if auto else mountpoint
     if not path.is_absolute() or not path.is_dir() or not os.path.ismount(mountpoint) or (auto and path.is_symlink()):
         raise ValueError('Enter the mount point of an attached local disk')
-    result=subprocess.run(['findmnt','-n','-r','-o','FSTYPE,SOURCE,UUID','--mountpoint',str(mountpoint)],capture_output=True,text=True,timeout=5,check=False)
-    fields=result.stdout.strip().split()
+    fields=[str(mount.get(field) or '') for field in ('fstype','source','uuid')]
     local_filesystems={'ext2','ext3','ext4','xfs','btrfs','vfat','exfat','ntfs','ntfs3','fuseblk'}
-    if result.returncode or len(fields)!=3 or fields[0].lower() not in local_filesystems or not fields[1].startswith('/dev/') or fields[2]=='-':
+    if fields[0].lower() not in local_filesystems or not fields[1].startswith('/dev/') or not fields[2] or fields[2]=='-':
         raise ValueError('The destination must be a mounted local disk with a filesystem UUID')
     if os.stat(path).st_dev==os.stat(Path(db_path).parent).st_dev:
         raise ValueError('The backup disk must be separate from the GODSEYE data filesystem')
